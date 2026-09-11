@@ -3,16 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteRoom, saveRoom } from "@/lib/services/schedule";
 import { deleteRoomSchema, saveRoomSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Modifie une salle (owner). */
-export async function PATCH(
-  req: NextRequest,
+export const PATCH = withAuth(async (user, req: NextRequest,
   { params }: { params: Promise<{ id: string; roomId: string }> },
-) {
+) => {
   const { id, roomId } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   let body: unknown;
   try {
     body = await req.json();
@@ -31,16 +28,13 @@ export async function PATCH(
   } catch (e) {
     return toResponse(e);
   }
-}
+});
 
 /** Supprime une salle (owner, garde anti-réservations). */
-export async function DELETE(
-  _req: NextRequest,
+export const DELETE = withAuth(async (user, _req: NextRequest,
   { params }: { params: Promise<{ id: string; roomId: string }> },
-) {
+) => {
   const { id, roomId } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   try {
     const input = deleteRoomSchema.parse({
       officeId: id,
@@ -52,4 +46,4 @@ export async function DELETE(
   } catch (e) {
     return toResponse(e);
   }
-}
+});

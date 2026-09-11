@@ -3,12 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createOffice } from "@/lib/services/team";
 import { createOfficeSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Création d'un cabinet (devient owner + praticien). */
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+export const POST = withAuth(async (user, req: NextRequest) => {
   let body: unknown;
   try {
     body = await req.json();
@@ -26,4 +24,4 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return toResponse(e);
   }
-}
+});

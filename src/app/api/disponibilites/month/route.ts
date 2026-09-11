@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getAvailabilityMonth } from "@/lib/services/schedule";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /**
  * Données mensuelles pour le calendrier de disponibilités du praticien
  * connecté (règles + exceptions + ses réservations + salles).
  */
-export async function GET(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+export const GET = withAuth(async (user, req: NextRequest) => {
   const url = new URL(req.url);
   const from = url.searchParams.get("from") ?? "";
   const days = Math.min(Math.max(Number(url.searchParams.get("days") ?? 42), 1), 62);
@@ -22,4 +20,4 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     return toResponse(e);
   }
-}
+});

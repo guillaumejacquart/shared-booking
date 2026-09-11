@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { acceptInvite, getInvitePublicInfo } from "@/lib/services/team";
 import { acceptInviteSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Infos publiques d'une invitation (le token fait office de secret). */
 export async function GET(
@@ -17,13 +17,12 @@ export async function GET(
 }
 
 /** Acceptation (connecté, email correspondant). */
-export async function POST(
-  _req: Request,
+export const POST = withAuth(async (
+  user,
+  _req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
-) {
+) => {
   const { token } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   try {
     const input = acceptInviteSchema.parse({
       token,
@@ -36,4 +35,4 @@ export async function POST(
   } catch (e) {
     return toResponse(e);
   }
-}
+});

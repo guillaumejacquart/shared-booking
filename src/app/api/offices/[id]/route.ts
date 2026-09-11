@@ -3,16 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateOfficeSettings } from "@/lib/services/schedule";
 import { updateOfficeSettingsSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Paramètres du cabinet (owner). */
-export async function PATCH(
-  req: NextRequest,
+export const PATCH = withAuth(async (user, req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+) => {
   const { id } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   let body: unknown;
   try {
     body = await req.json();
@@ -30,4 +27,4 @@ export async function PATCH(
   } catch (e) {
     return toResponse(e);
   }
-}
+});

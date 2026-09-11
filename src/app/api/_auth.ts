@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/lib/session";
 
@@ -8,6 +8,23 @@ export async function getAuthUser() {
   return session?.user ?? null;
 }
 
+export type AuthUser = NonNullable<Awaited<ReturnType<typeof getAuthUser>>>;
+
 export function unauthorized() {
   return NextResponse.json({ error: "Connexion requise" }, { status: 401 });
+}
+
+/**
+ * Enveloppe les Route Handlers protégés : authentifie (401 si anonyme) puis
+ * appelle le handler avec l'utilisateur en premier argument. Les routes
+ * publiques (réservation, webhooks, tokens) n'utilisent pas ce wrapper.
+ */
+export function withAuth<Rest extends unknown[]>(
+  handler: (user: AuthUser, req: NextRequest, ...rest: Rest) => Promise<NextResponse>,
+): (req: NextRequest, ...rest: Rest) => Promise<NextResponse> {
+  return async (req, ...rest) => {
+    const user = await getAuthUser();
+    if (!user) return unauthorized();
+    return handler(user, req, ...rest);
+  };
 }

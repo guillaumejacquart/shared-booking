@@ -3,16 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createInvite, listPendingInvites } from "@/lib/services/team";
 import { createInviteSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Invitations en attente (owner). */
-export async function GET(
-  _req: NextRequest,
+export const GET = withAuth(async (user, _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+) => {
   const { id } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   try {
     return NextResponse.json(
       await listPendingInvites({}, { officeId: id, requesterUserId: user.id }),
@@ -20,16 +17,13 @@ export async function GET(
   } catch (e) {
     return toResponse(e);
   }
-}
+});
 
 /** Inviter un praticien par email (owner). */
-export async function POST(
-  req: NextRequest,
+export const POST = withAuth(async (user, req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+) => {
   const { id } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   let body: unknown;
   try {
     body = await req.json();
@@ -51,4 +45,4 @@ export async function POST(
   } catch (e) {
     return toResponse(e);
   }
-}
+});

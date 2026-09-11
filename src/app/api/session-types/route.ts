@@ -3,12 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveSessionType } from "@/lib/services/schedule";
 import { saveSessionTypeSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Crée un type de séance. */
-export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
+export const POST = withAuth(async (user, req: NextRequest) => {
   let body: unknown;
   try {
     body = await req.json();
@@ -30,4 +28,4 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return toResponse(e);
   }
-}
+});

@@ -3,16 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { deleteException } from "@/lib/services/schedule";
 import { deleteExceptionSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
-import { getAuthUser, unauthorized } from "@/app/api/_auth";
+import { withAuth } from "@/app/api/_auth";
 
 /** Supprime une exception (?practitionerId=). */
-export async function DELETE(
-  req: NextRequest,
+export const DELETE = withAuth(async (user, req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
-) {
+) => {
   const { id } = await params;
-  const user = await getAuthUser();
-  if (!user) return unauthorized();
   const practitionerId = new URL(req.url).searchParams.get("practitionerId");
   if (!practitionerId) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
@@ -28,4 +25,4 @@ export async function DELETE(
   } catch (e) {
     return toResponse(e);
   }
-}
+});
