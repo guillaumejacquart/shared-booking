@@ -14,7 +14,6 @@ import type {
   DeleteRoomInput,
   DeleteSessionTypeInput,
   ReplaceAvailabilityInput,
-  Requester,
   SaveRoomInput,
   SaveSessionTypeInput,
   UpdateOfficeSettingsInput,
@@ -42,24 +41,25 @@ export interface ScheduleDeps {
   now?: Date;
 }
 
+/**
+ * Autorisation praticien : résout l'office depuis le praticien (404 si
+ * inconnu) puis autorise soi-même ou un owner actif du cabinet (403 sinon).
+ * Les routes ne résolvent jamais ce périmètre elles-mêmes : elles transmettent
+ * uniquement `requesterUserId` + l'identifiant de la ressource.
+ */
 async function checkAccess(
   practitionerId: string,
-  officeId: string,
-  req: Requester,
+  requesterUserId: string,
   tx?: DbOrTx,
-): Promise<void> {
+): Promise<{ officeId: string }> {
   const prac = await practitionersDal.getPractitionerById(practitionerId, tx);
-  if (!prac || prac.officeId !== officeId) throw new NotFoundError("Praticien introuvable");
-  if (req.requesterIsOwner) {
-    const m = await membersDal.getMembership(officeId, req.requesterUserId, tx);
-    if (!m || m.role !== "owner" || !m.active) {
-      throw new ForbiddenError("Action non autorisée");
-    }
-    return;
-  }
-  if (prac.userId !== req.requesterUserId) {
+  if (!prac) throw new NotFoundError("Praticien introuvable");
+  if (prac.userId === requesterUserId) return { officeId: prac.officeId };
+  const m = await membersDal.getMembership(prac.officeId, requesterUserId, tx);
+  if (!m || m.role !== "owner" || !m.active) {
     throw new ForbiddenError("Action non autorisée");
   }
+  return { officeId: prac.officeId };
 }
 
 function toMinutes(t: string): number {
@@ -85,13 +85,13 @@ async function assertRoomAllowed(
 // --- Disponibilités ----------------------------------------------------------
 
 export async function replaceAvailability(deps: ScheduleDeps, input: ReplaceAvailabilityInput): Promise<void> {
-  await checkAccess(input.practitionerId, input.officeId, input, deps.tx);
+  const { officeId } = await checkAccess(input.practitionerId, input.requesterUserId, deps.tx);
 
   for (const r of input.rules) {
     if (toMinutes(r.startTime) >= toMinutes(r.endTime)) {
       throw new ValidationError("L'heure de fin doit être après le début");
     }
-    await assertRoomAllowed(input.officeId, input.practitionerId, r.roomId, deps.tx);
+    await assertRoomAllowed(officeId, input.practitionerId, r.roomId, deps.tx);
   }
   // Chevauchements sur un même jour (bornes qui se touchent = OK).
   const byDay = new Map<number, { start: number; end: number }[]>();
@@ -115,8 +115,8 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
   if (input.requiresPayment && !input.priceCents) {
     throw new ValidationError("Un prix (centimes) est requis pour une séance payante");
   }
-  const { practitionerId, officeId } = input;
-  await checkAccess(practitionerId, officeId, input, deps.tx);
+  const { practitionerId } = input;
+  await checkAccess(practitionerId, input.requesterUserId, deps.tx);
 
   if (input.id) {
     const existing = (await sessionTypesDal.listSessionTypes(practitionerId, deps.tx)).find(
@@ -151,7 +151,7 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
 }
 
 export async function deleteSessionType(deps: ScheduleDeps, input: DeleteSessionTypeInput): Promise<void> {
-  await checkAccess(input.practitionerId, input.officeId, input, deps.tx);
+  await checkAccess(input.practitionerId, input.requesterUserId, deps.tx);
   const existing = (await sessionTypesDal.listSessionTypes(input.practitionerId, deps.tx)).find(
     (t) => t.id === input.id,
   );
@@ -169,8 +169,8 @@ export async function deleteSessionType(deps: ScheduleDeps, input: DeleteSession
 // --- Exceptions --------------------------------------------------------------
 
 export async function createException(deps: ScheduleDeps, input: CreateExceptionInput): Promise<string> {
-  const { practitionerId, officeId } = input;
-  await checkAccess(practitionerId, officeId, input, deps.tx);
+  const { practitionerId } = input;
+  const { officeId } = await checkAccess(practitionerId, input.requesterUserId, deps.tx);
 
   if (!input.fullDay) {
     if (!input.startTime || !input.endTime) {
@@ -199,7 +199,7 @@ export async function createException(deps: ScheduleDeps, input: CreateException
 }
 
 export async function deleteException(deps: ScheduleDeps, input: DeleteExceptionInput): Promise<void> {
-  await checkAccess(input.practitionerId, input.officeId, input, deps.tx);
+  await checkAccess(input.practitionerId, input.requesterUserId, deps.tx);
   await availabilityDal.deleteException(input.id, deps.tx);
 }
 
@@ -207,7 +207,7 @@ export async function deleteException(deps: ScheduleDeps, input: DeleteException
 
 export async function updateProfile(deps: ScheduleDeps, input: UpdateProfileInput): Promise<void> {
   const { practitionerId } = input;
-  await checkAccess(practitionerId, input.officeId, input, deps.tx);
+  await checkAccess(practitionerId, input.requesterUserId, deps.tx);
 
   if (input.slug) {
     const taken = await practitionersDal.getPractitionerBySlug(input.slug, deps.tx);

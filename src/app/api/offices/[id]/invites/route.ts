@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import * as invitesDal from "@/dal/invites";
-import * as membersDal from "@/dal/members";
-import { createInvite } from "@/lib/services/team";
+import { createInvite, listPendingInvites } from "@/lib/services/team";
 import { createInviteSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
-
-async function requireOwner(officeId: string, userId: string) {
-  const membership = await membersDal.getMembership(officeId, userId);
-  return membership && membership.role === "owner" && membership.active
-    ? membership
-    : null;
-}
 
 /** Invitations en attente (owner). */
 export async function GET(
@@ -22,18 +13,13 @@ export async function GET(
   const { id } = await params;
   const user = await getAuthUser();
   if (!user) return unauthorized();
-  if (!(await requireOwner(id, user.id))) {
-    return NextResponse.json({ error: "Action non autorisée" }, { status: 403 });
+  try {
+    return NextResponse.json(
+      await listPendingInvites({}, { officeId: id, requesterUserId: user.id }),
+    );
+  } catch (e) {
+    return toResponse(e);
   }
-  const invites = await invitesDal.listPendingInvites(id);
-  return NextResponse.json({
-    invites: invites.map((i) => ({
-      id: i.id,
-      email: i.email,
-      role: i.role,
-      expiresAt: i.expiresAt.toISOString(),
-    })),
-  });
 }
 
 /** Inviter un praticien par email (owner). */

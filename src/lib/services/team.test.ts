@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
 import type { Db } from "@/dal/types";
-import { acceptInvite, createInvite } from "@/lib/services/team";
+import { acceptInvite, createInvite, listPendingInvites } from "@/lib/services/team";
 import {
   ConflictError,
   ForbiddenError,
@@ -169,5 +169,23 @@ describe("acceptInvite", () => {
     await expect(
       acceptInvite(deps(), { token: inv.token, userId: "n3", userEmail: "noa@example.com", userName: "Noa" }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("listPendingInvites", () => {
+  it("le owner voit les invitations en attente", async () => {
+    await createInvite(deps(), {
+      officeId: "o1", email: "nouveau@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    const { invites } = await listPendingInvites(deps(), { officeId: "o1", requesterUserId: "owner1" });
+    expect(invites).toHaveLength(1);
+    expect(invites[0].email).toBe("nouveau@example.com");
+  });
+
+  it("un non-owner est refusé", async () => {
+    await expect(
+      listPendingInvites(deps(), { officeId: "o1", requesterUserId: "other" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

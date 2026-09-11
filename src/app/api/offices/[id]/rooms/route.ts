@@ -4,7 +4,6 @@ import { saveRoom } from "@/lib/services/schedule";
 import { saveRoomSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
-import { requireOfficeOwner } from "@/app/api/_team";
 
 /** Crée une salle (owner). */
 export async function POST(
@@ -14,8 +13,6 @@ export async function POST(
   const { id } = await params;
   const user = await getAuthUser();
   if (!user) return unauthorized();
-  const denied = await requireOfficeOwner(id, user.id);
-  if (denied) return denied.error;
   let body: unknown;
   try {
     body = await req.json();

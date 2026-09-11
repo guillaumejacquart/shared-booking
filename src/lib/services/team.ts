@@ -189,3 +189,23 @@ export async function getInvitePublicInfo(deps: TeamDeps, token: string) {
     accepted: inv.acceptedAt !== null,
   };
 }
+
+/** Invitations en attente d'un cabinet (owner uniquement). */
+export async function listPendingInvites(
+  deps: TeamDeps,
+  input: { officeId: string; requesterUserId: string },
+) {
+  const requester = await membersDal.getMembership(input.officeId, input.requesterUserId, deps.tx);
+  if (!requester || requester.role !== "owner" || !requester.active) {
+    throw new ForbiddenError("Seul le responsable du cabinet peut voir les invitations");
+  }
+  const invites = await invitesDal.listPendingInvites(input.officeId, deps.tx);
+  return {
+    invites: invites.map((i) => ({
+      id: i.id,
+      email: i.email,
+      role: i.role,
+      expiresAt: i.expiresAt.toISOString(),
+    })),
+  };
+}

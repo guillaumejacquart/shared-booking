@@ -4,7 +4,6 @@ import { updateProfile } from "@/lib/services/schedule";
 import { updateProfileSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
-import { practitionerScope } from "@/app/api/_team";
 
 /** Met à jour le profil public d'un praticien (lui-même ou owner). */
 export async function PATCH(
@@ -20,15 +19,11 @@ export async function PATCH(
   } catch {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const scope = await practitionerScope(id, user.id);
-  if ("error" in scope) return scope.error;
   try {
     const input = updateProfileSchema.parse({
       ...(body as Record<string, unknown>),
       practitionerId: id,
-      officeId: scope.officeId,
       requesterUserId: user.id,
-      requesterIsOwner: scope.isOwner,
     });
     await updateProfile({}, input);
     return NextResponse.json({ ok: true });

@@ -4,7 +4,6 @@ import { deleteRoom, saveRoom } from "@/lib/services/schedule";
 import { deleteRoomSchema, saveRoomSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
-import { requireOfficeOwner } from "@/app/api/_team";
 
 /** Modifie une salle (owner). */
 export async function PATCH(
@@ -14,8 +13,6 @@ export async function PATCH(
   const { id, roomId } = await params;
   const user = await getAuthUser();
   if (!user) return unauthorized();
-  const denied = await requireOfficeOwner(id, user.id);
-  if (denied) return denied.error;
   let body: unknown;
   try {
     body = await req.json();
@@ -44,8 +41,6 @@ export async function DELETE(
   const { id, roomId } = await params;
   const user = await getAuthUser();
   if (!user) return unauthorized();
-  const denied = await requireOfficeOwner(id, user.id);
-  if (denied) return denied.error;
   try {
     const input = deleteRoomSchema.parse({
       officeId: id,

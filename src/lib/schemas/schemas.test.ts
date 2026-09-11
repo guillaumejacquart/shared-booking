@@ -60,7 +60,7 @@ describe("bookings schemas", () => {
 });
 
 describe("schedule schemas", () => {
-  const req = { practitionerId: "p", officeId: "o", requesterUserId: "u", requesterIsOwner: false };
+  const req = { practitionerId: "p", requesterUserId: "u" };
 
   it("replaceAvailability refuse les horaires mal formés", () => {
     const rule = { weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "r" };

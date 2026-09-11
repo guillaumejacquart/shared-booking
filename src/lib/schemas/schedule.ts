@@ -10,15 +10,18 @@ export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 export const SLUG_RE = /^[a-z0-9-]{2,60}$/;
 
+/**
+ * Identité du demandeur uniquement : la route authentifie (qui), le service
+ * résout le périmètre (office) et contrôle l'accès (soi-même ou owner).
+ * Ni le rôle ni l'office ne transitent jamais depuis le client.
+ */
 const requesterSchema = z.object({
   requesterUserId: z.string().min(1),
-  requesterIsOwner: z.boolean(),
 });
 export type Requester = z.infer<typeof requesterSchema>;
 
 const scopeSchema = z.object({
   practitionerId: z.string().min(1),
-  officeId: z.string().min(1),
 });
 
 const ruleSchema = z.object({

@@ -54,13 +54,13 @@ function deps() {
   return { tx: db, now: NOW };
 }
 
-const alice = { requesterUserId: "u1", requesterIsOwner: true };
-const bob = { requesterUserId: "u2", requesterIsOwner: false };
+const alice = { requesterUserId: "u1" };
+const bob = { requesterUserId: "u2" };
 
 describe("replaceAvailability", () => {
   it("remplace les règles après validation", async () => {
     await replaceAvailability(deps(), {
-      practitionerId: "p1", officeId: "o1", ...alice,
+      practitionerId: "p1", ...alice,
       rules: [
         { weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "room-a" },
         { weekday: 2, startTime: "14:00", endTime: "18:00", roomId: "room-x" },
@@ -73,7 +73,7 @@ describe("replaceAvailability", () => {
   });
 
   it("refuse chevauchements, horaires invalides et salles interdites", async () => {
-    const base = { practitionerId: "p2", officeId: "o1", ...bob };
+    const base = { practitionerId: "p2", ...bob };
     await expect(
       replaceAvailability(deps(), {
         ...base,
@@ -99,7 +99,7 @@ describe("replaceAvailability", () => {
   it("un praticien ne modifie pas les dispos d'un autre", async () => {
     await expect(
       replaceAvailability(deps(), {
-        practitionerId: "p1", officeId: "o1", ...bob,
+        practitionerId: "p1", ...bob,
         rules: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "room-a" }],
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -109,12 +109,12 @@ describe("replaceAvailability", () => {
 describe("saveSessionType / deleteSessionType", () => {
   it("crée, modifie et désactive", async () => {
     const id = await saveSessionType(deps(), {
-      practitionerId: "p2", officeId: "o1", ...bob,
+      practitionerId: "p2", ...bob,
       name: "Suivi", durationMin: 45, bufferAfterMin: 5,
       requiresPayment: false, requiresValidation: false,
     });
     const id2 = await saveSessionType(deps(), {
-      practitionerId: "p2", officeId: "o1", ...bob, id,
+      practitionerId: "p2", ...bob, id,
       name: "Suivi long", durationMin: 60, bufferAfterMin: 5, active: false,
       requiresPayment: false, requiresValidation: false,
     });
@@ -130,7 +130,7 @@ describe("saveSessionType / deleteSessionType", () => {
       patientFirstName: "J", patientLastName: "D", patientEmail: "j@example.com",
       status: "confirmed", cancelToken: "c1", rescheduleToken: "r1",
     });
-    await expect(deleteSessionType(deps(), { id: "st1", ...alice, practitionerId: "p1", officeId: "o1" })).rejects.toBeInstanceOf(
+    await expect(deleteSessionType(deps(), { id: "st1", ...alice, practitionerId: "p1" })).rejects.toBeInstanceOf(
       ValidationError,
     );
   });
@@ -139,10 +139,10 @@ describe("saveSessionType / deleteSessionType", () => {
 describe("createException / deleteException", () => {
   it("crée un jour off et une ouverture exceptionnelle", async () => {
     await createException(deps(), {
-      practitionerId: "p2", officeId: "o1", ...bob, date: "2026-12-25", kind: "off", fullDay: true,
+      practitionerId: "p2", ...bob, date: "2026-12-25", kind: "off", fullDay: true,
     });
     await createException(deps(), {
-      practitionerId: "p2", officeId: "o1", ...bob, date: "2026-09-19", kind: "extra",
+      practitionerId: "p2", ...bob, date: "2026-09-19", kind: "extra",
       fullDay: false, startTime: "09:00", endTime: "12:00", roomId: "room-a",
     });
   });
@@ -150,7 +150,7 @@ describe("createException / deleteException", () => {
   it("refuse date invalide et extra sans salle autorisée", async () => {
     await expect(
       createException(deps(), {
-        practitionerId: "p2", officeId: "o1", ...bob, date: "2026-09-19", kind: "extra",
+        practitionerId: "p2", ...bob, date: "2026-09-19", kind: "extra",
         fullDay: false, startTime: "09:00", endTime: "12:00", roomId: "room-x",
       }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -159,10 +159,10 @@ describe("createException / deleteException", () => {
   it("suppression réservée au praticien ou owner", async () => {
     const s = await import("@/db/schema");
     const id = await createException(deps(), {
-      practitionerId: "p2", officeId: "o1", ...bob, date: "2026-12-25", kind: "off", fullDay: true,
+      practitionerId: "p2", ...bob, date: "2026-12-25", kind: "off", fullDay: true,
     });
     // Alice est owner : elle peut supprimer l'exception de Bob.
-    await deleteException(deps(), { id, ...alice, practitionerId: "p2", officeId: "o1" });
+    await deleteException(deps(), { id, ...alice, practitionerId: "p2" });
     const { eq } = await import("drizzle-orm");
     expect(await db.select().from(s.exception).where(eq(s.exception.id, id))).toHaveLength(0);
   });
@@ -171,10 +171,10 @@ describe("createException / deleteException", () => {
 describe("updateProfile", () => {
   it("met à jour nom, bio et slug avec unicité", async () => {
     await updateProfile(deps(), {
-      practitionerId: "p2", officeId: "o1", ...bob, displayName: "Bobby", bio: "Nouvelle bio", slug: "bobby",
+      practitionerId: "p2", ...bob, displayName: "Bobby", bio: "Nouvelle bio", slug: "bobby",
     });
     await expect(
-      updateProfile(deps(), { practitionerId: "p2", officeId: "o1", ...bob, displayName: "Bob", slug: "alice" }),
+      updateProfile(deps(), { practitionerId: "p2", ...bob, displayName: "Bob", slug: "alice" }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
@@ -238,7 +238,7 @@ describe("saveSessionType paiement/validation", () => {
     const id = await saveSessionType(
       { tx: db, now: NOW },
       {
-        practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
+        practitionerId: "p2", requesterUserId: "u2",
         name: "Payante", durationMin: 60, bufferAfterMin: 0,
         requiresPayment: true, priceCents: 5000, requiresValidation: true,
       },
@@ -255,7 +255,7 @@ describe("saveSessionType paiement/validation", () => {
       saveSessionType(
         { tx: db, now: NOW },
         {
-          practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
+          practitionerId: "p2", requesterUserId: "u2",
           name: "Sans prix", durationMin: 60, bufferAfterMin: 0, requiresPayment: true,
           requiresValidation: false,
         },
@@ -271,7 +271,7 @@ describe("saveSessionType nulls DB", () => {
     const id = await saveSessionType(
       { tx: db, now: NOW },
       {
-        practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
+        practitionerId: "p2", requesterUserId: "u2",
         id: undefined,
         name: "Soin 1", description: null,
         durationMin: 60, bufferAfterMin: 20, priceDisplay: "50",
