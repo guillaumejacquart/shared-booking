@@ -1,4 +1,4 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq, gte, lt, lte, or, isNull } from "drizzle-orm";
 
@@ -8,7 +8,7 @@ import type { Booking, BookingDetail, DbOrTx, NewBooking } from "./types";
 /**
  * Repository réservations : lectures + écritures atomiques.
  * Aucune logique métier ici : uniquement des requêtes typées.
- * Chaque fonction accepte connexion ou transaction (`DbOrTx`).
+ * La connexion est détenue par le DAL (`./connection`), jamais injectée.
  */
 
 export interface BusyQuery {
@@ -26,9 +26,8 @@ export interface BusyQuery {
  * Marge d'1 jour côté SQL (buffers < 24h, cf. validation service),
  * filtrage précis laissé à l'appelant via les snapshots durée/buffer.
  */
-export async function listActiveBookings(q: BusyQuery,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listActiveBookings(q: BusyQuery) {
+  const conn = getConnection();
   const margin = new Date(q.from.getTime() - 24 * 3_600_000);
   const conditions = [
     or(eq(booking.status, "confirmed"), eq(booking.status, "pending")),
@@ -71,9 +70,8 @@ async function bookingDetail(
   return { booking: b, practitioner: pracRows[0], office: offRows[0] };
 }
 
-export async function findBookingByCancelToken(token: string,
-  tx?: DbOrTx): Promise<BookingDetail | null> {
-  const conn = tx ?? db;
+export async function findBookingByCancelToken(token: string): Promise<BookingDetail | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)
@@ -83,9 +81,8 @@ export async function findBookingByCancelToken(token: string,
   return bookingDetail(conn, rows[0]);
 }
 
-export async function findBookingByRescheduleToken(token: string,
-  tx?: DbOrTx): Promise<BookingDetail | null> {
-  const conn = tx ?? db;
+export async function findBookingByRescheduleToken(token: string): Promise<BookingDetail | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)
@@ -95,9 +92,8 @@ export async function findBookingByRescheduleToken(token: string,
   return bookingDetail(conn, rows[0]);
 }
 
-export async function getBookingById(bookingId: string,
-  tx?: DbOrTx): Promise<BookingDetail | null> {
-  const conn = tx ?? db;
+export async function getBookingById(bookingId: string): Promise<BookingDetail | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)
@@ -108,9 +104,8 @@ export async function getBookingById(bookingId: string,
 }
 
 /** Ligne brute (sans jointures praticien/cabinet), pour les transitions d'état internes. */
-export async function getBookingRowById(bookingId: string,
-  tx?: DbOrTx): Promise<Booking | null> {
-  const conn = tx ?? db;
+export async function getBookingRowById(bookingId: string): Promise<Booking | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)
@@ -120,18 +115,16 @@ export async function getBookingRowById(bookingId: string,
 }
 
 /** Validation praticien enregistrée. */
-export async function markBookingValidated(bookingId: string, now: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function markBookingValidated(bookingId: string, now: Date) {
+  const conn = getConnection();
   await conn
     .update(booking)
     .set({ validatedAt: now })
     .where(eq(booking.id, bookingId));
 }
 
-export async function findBookingByStripeSession(stripeSessionId: string,
-  tx?: DbOrTx): Promise<BookingDetail | null> {
-  const conn = tx ?? db;
+export async function findBookingByStripeSession(stripeSessionId: string): Promise<BookingDetail | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)
@@ -143,9 +136,8 @@ export async function findBookingByStripeSession(stripeSessionId: string,
 
 /** Paiement reçu : marque payé et lève l'expiration d'attente. Idempotent. */
 export async function markBookingPaid(bookingId: string,
-  stripePaymentIntentId: string | null,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  stripePaymentIntentId: string | null) {
+  const conn = getConnection();
   await conn
     .update(booking)
     .set({
@@ -157,9 +149,8 @@ export async function markBookingPaid(bookingId: string,
 }
 
 /** Bascule un `pending` en `confirmed` (toutes les conditions remplies). */
-export async function markBookingConfirmed(bookingId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function markBookingConfirmed(bookingId: string) {
+  const conn = getConnection();
   await conn
     .update(booking)
     .set({ status: "confirmed" })
@@ -167,9 +158,8 @@ export async function markBookingConfirmed(bookingId: string,
 }
 
 /** Pendings expirés en attente de paiement (à annuler). */
-export async function listExpiredPendings(now: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listExpiredPendings(now: Date) {
+  const conn = getConnection();
   return conn
     .select()
     .from(booking)
@@ -204,9 +194,8 @@ function collides(
  * assurée par le mutex d'écriture du service (`bookingMutex`), valide car le
  * déploiement est mono-processus (un conteneur sur le VPS).
  */
-export async function tryInsertBooking(data: NewBooking,
-  tx?: DbOrTx): Promise<{ conflict: true } | { conflict: false; id: string }> {
-  const conn = tx ?? db;
+export async function tryInsertBooking(data: NewBooking): Promise<{ conflict: true } | { conflict: false; id: string }> {
+  const conn = getConnection();
   const start = data.startAt.getTime();
   const end = data.endAt.getTime() + data.bufferAfterMinSnapshot * 60_000;
 
@@ -215,12 +204,12 @@ export async function tryInsertBooking(data: NewBooking,
     practitionerId: data.practitionerId,
     from: data.startAt,
     to: data.endAt,
-  }, conn);
+  });
   const byRoom = await listActiveBookings({
     roomIds: [data.roomId],
     from: data.startAt,
     to: data.endAt,
-  }, conn);
+  });
   const seen = new Map(byPrac.map((b) => [b.id, b]));
   for (const b of byRoom) seen.set(b.id, b);
   if ([...seen.values()].some((b) => collides(start, end, b))) {
@@ -262,9 +251,8 @@ export async function tryInsertBooking(data: NewBooking,
  * appeler sous `bookingMutex` côté service.
  */
 export async function tryMoveBooking(bookingId: string,
-  move: { startAt: Date; endAt: Date; roomId: string },
-  tx?: DbOrTx): Promise<boolean> {
-  const conn = tx ?? db;
+  move: { startAt: Date; endAt: Date; roomId: string }): Promise<boolean> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)
@@ -280,13 +268,13 @@ export async function tryMoveBooking(bookingId: string,
     excludeBookingId: bookingId,
     from: move.startAt,
     to: move.endAt,
-  }, conn);
+  });
   const byRoom = await listActiveBookings({
     roomIds: [move.roomId],
     excludeBookingId: bookingId,
     from: move.startAt,
     to: move.endAt,
-  }, conn);
+  });
   const seen = new Map(byPrac.map((b) => [b.id, b]));
   for (const b of byRoom) seen.set(b.id, b);
   if ([...seen.values()].some((b) => collides(start, end, b))) return false;
@@ -300,9 +288,8 @@ export async function tryMoveBooking(bookingId: string,
 
 export async function markBookingCancelled(bookingId: string,
   reason: string | null,
-  now: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  now: Date) {
+  const conn = getConnection();
   await conn
     .update(booking)
     .set({ status: "cancelled", cancelledAt: now, cancelReason: reason })
@@ -311,9 +298,8 @@ export async function markBookingCancelled(bookingId: string,
 
 export async function countFutureConfirmedByEmail(practitionerId: string,
   email: string,
-  now: Date,
-  tx?: DbOrTx): Promise<number> {
-  const conn = tx ?? db;
+  now: Date): Promise<number> {
+  const conn = getConnection();
   const rows = await conn
     .select({ id: booking.id })
     .from(booking)
@@ -330,9 +316,8 @@ export async function countFutureConfirmedByEmail(practitionerId: string,
 
 // --- Rappels & clôture (cron) ---
 
-export async function listRemindersDue(now: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listRemindersDue(now: Date) {
+  const conn = getConnection();
   // Le service filtre précisément par office.reminderHoursBefore ; ici on
   // présélectionne large (départ dans moins de 48h, rappel non envoyé).
   const horizon = new Date(now.getTime() + 48 * 3_600_000);
@@ -349,9 +334,8 @@ export async function listRemindersDue(now: Date,
   return rows.filter((b) => b.startAt.getTime() > now.getTime());
 }
 
-export async function markReminderSent(bookingId: string, now: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function markReminderSent(bookingId: string, now: Date) {
+  const conn = getConnection();
   await conn
     .update(booking)
     .set({ reminderSentAt: now })
@@ -359,9 +343,8 @@ export async function markReminderSent(bookingId: string, now: Date,
 }
 
 /** Bascule les RDV passés en `completed`. Retourne le nombre de lignes. */
-export async function completePastBookings(now: Date,
-  tx?: DbOrTx): Promise<number> {
-  const conn = tx ?? db;
+export async function completePastBookings(now: Date): Promise<number> {
+  const conn = getConnection();
   const rows = await conn
     .select({ id: booking.id })
     .from(booking)
@@ -377,9 +360,8 @@ export async function completePastBookings(now: Date,
 /** Réservations d'un praticien sur une période (tous statuts, pour l'agenda). */
 export async function listBookingsForPractitioner(practitionerId: string,
   from: Date,
-  to: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  to: Date) {
+  const conn = getConnection();
   return conn
     .select()
     .from(booking)
@@ -395,9 +377,8 @@ export async function listBookingsForPractitioner(practitionerId: string,
 /** Réservations non annulées d'un cabinet (calendrier partagé). */
 export async function listOfficeBookings(officeId: string,
   from: Date,
-  to: Date,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  to: Date) {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(booking)

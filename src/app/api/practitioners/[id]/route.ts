@@ -22,7 +22,7 @@ export const PATCH = withAuth(async (user, req: NextRequest,
       practitionerId: id,
       requesterUserId: user.id,
     });
-    await updateProfile({}, input);
+    await updateProfile(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

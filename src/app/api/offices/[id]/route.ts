@@ -22,7 +22,7 @@ export const PATCH = withAuth(async (user, req: NextRequest,
       officeId: id,
       requesterUserId: user.id,
     });
-    await updateOfficeSettings({}, input);
+    await updateOfficeSettings(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

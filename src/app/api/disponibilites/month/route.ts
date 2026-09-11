@@ -16,7 +16,7 @@ export const GET = withAuth(async (user, req: NextRequest) => {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    return NextResponse.json(await getAvailabilityMonth({}, { userId: user.id, from, days }));
+    return NextResponse.json(await getAvailabilityMonth({ userId: user.id, from, days }));
   } catch (e) {
     return toResponse(e);
   }

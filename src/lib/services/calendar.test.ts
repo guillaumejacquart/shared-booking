@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { getAgendaEvents, getSharedCalendar } from "@/lib/services/calendar";
 import { ForbiddenError, NotFoundError } from "@/lib/services/errors";
@@ -71,27 +72,27 @@ async function seed() {
 }
 
 beforeEach(async () => {
-  db = createMemoryDb();
+  db = createMemoryDb();  setConnection(db);  setConnection(db);
   await seed();
 });
 
 describe("getAgendaEvents", () => {
   it("retourne les RDV du praticien connecté", async () => {
-    const { events } = await getAgendaEvents({ tx: db }, { userId: "u1", start: START, end: END });
+    const { events } = await getAgendaEvents({ userId: "u1", start: START, end: END });
     expect(events).toHaveLength(1);
     expect(events[0].title).toContain("Jean Dupont");
   });
 
   it("404 si pas de praticien", async () => {
     await expect(
-      getAgendaEvents({ tx: db }, { userId: "nobody", start: START, end: END }),
+      getAgendaEvents({ userId: "nobody", start: START, end: END }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 
 describe("getSharedCalendar", () => {
   it("le owner voit les noms des patients de tous", async () => {
-    const cal = await getSharedCalendar({ tx: db }, { userId: "u1", start: START, end: END });
+    const cal = await getSharedCalendar({ userId: "u1", start: START, end: END });
     expect(cal.events).toHaveLength(2);
     expect(cal.events.map((e) => e.title)).toEqual(
       expect.arrayContaining(["Séance — Jean Dupont", "Séance — Marie Martin"]),
@@ -99,7 +100,7 @@ describe("getSharedCalendar", () => {
   });
 
   it("un praticien non-owner voit 'Réservé' pour les autres", async () => {
-    const cal = await getSharedCalendar({ tx: db }, { userId: "u2", start: START, end: END });
+    const cal = await getSharedCalendar({ userId: "u2", start: START, end: END });
     const alice = cal.events.find((e) => e.id === "b1")!;
     const bob = cal.events.find((e) => e.id === "b2")!;
     expect(alice.title).toBe("Réservé");
@@ -114,7 +115,7 @@ describe("getSharedCalendar", () => {
       { id: "p9", officeId: "o1", userId: "u9", displayName: "Zoe", slug: "zoe" },
     ]);
     await expect(
-      getSharedCalendar({ tx: db }, { userId: "u9", start: START, end: END }),
+      getSharedCalendar({ userId: "u9", start: START, end: END }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

@@ -27,7 +27,7 @@ export const PATCH = withAuth(async (user, req: NextRequest,
       practitionerId,
       requesterUserId: user.id,
     });
-    await saveSessionType({}, input);
+    await saveSessionType(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);
@@ -49,7 +49,7 @@ export const DELETE = withAuth(async (user, req: NextRequest,
       practitionerId,
       requesterUserId: user.id,
     });
-    await deleteSessionType({}, input);
+    await deleteSessionType(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

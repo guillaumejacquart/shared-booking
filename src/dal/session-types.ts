@@ -1,15 +1,13 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq, gte } from "drizzle-orm";
 
 import { booking, sessionType } from "@/db/schema";
-import type { DbOrTx } from "./types";
 
 /** Repository types de séances. */
 
-export async function listSessionTypes(practitionerId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listSessionTypes(practitionerId: string) {
+  const conn = getConnection();
   return conn
     .select()
     .from(sessionType)
@@ -27,9 +25,8 @@ export async function createSessionType(data: {
     requiresPayment?: boolean;
     priceCents?: number | null;
     requiresValidation?: boolean;
-  },
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }) {
+  const conn = getConnection();
   await conn.insert(sessionType).values({
     ...data,
     active: true,
@@ -51,22 +48,19 @@ export async function updateSessionType(id: string,
     requiresPayment: boolean;
     priceCents: number | null;
     requiresValidation: boolean;
-  }>,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }>) {
+  const conn = getConnection();
   await conn.update(sessionType).set(data).where(eq(sessionType.id, id));
 }
 
-export async function deleteSessionType(id: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function deleteSessionType(id: string) {
+  const conn = getConnection();
   await conn.delete(sessionType).where(eq(sessionType.id, id));
 }
 
 export async function countFutureBookingsBySessionType(sessionTypeId: string,
-  now: Date,
-  tx?: DbOrTx): Promise<number> {
-  const conn = tx ?? db;
+  now: Date): Promise<number> {
+  const conn = getConnection();
   const rows = await conn
     .select({ id: booking.id })
     .from(booking)

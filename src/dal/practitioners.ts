@@ -1,9 +1,9 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq } from "drizzle-orm";
 
 import { office, practitioner, sessionType } from "@/db/schema";
-import type { DbOrTx, Office, Practitioner, SessionType } from "./types";
+import type { Office, Practitioner, SessionType } from "./types";
 
 /** Repository praticiens (+ page publique). */
 
@@ -14,9 +14,8 @@ export interface PractitionerPage {
 }
 
 /** Page publique praticien : null si slug inconnu, praticien inactif ou pages désactivées. */
-export async function getPractitionerPage(slug: string,
-  tx?: DbOrTx): Promise<PractitionerPage | null> {
-  const conn = tx ?? db;
+export async function getPractitionerPage(slug: string): Promise<PractitionerPage | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(practitioner)
@@ -45,9 +44,8 @@ export async function getPractitionerPage(slug: string,
   return { practitioner: prac, office: off, sessionTypes: types };
 }
 
-export async function getPractitionerById(practitionerId: string,
-  tx?: DbOrTx): Promise<Practitioner | null> {
-  const conn = tx ?? db;
+export async function getPractitionerById(practitionerId: string): Promise<Practitioner | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(practitioner)
@@ -56,9 +54,8 @@ export async function getPractitionerById(practitionerId: string,
   return rows[0] ?? null;
 }
 
-export async function getPractitionerBySlug(slug: string,
-  tx?: DbOrTx): Promise<Practitioner | null> {
-  const conn = tx ?? db;
+export async function getPractitionerBySlug(slug: string): Promise<Practitioner | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(practitioner)
@@ -67,9 +64,8 @@ export async function getPractitionerBySlug(slug: string,
   return rows[0] ?? null;
 }
 
-export async function getPractitionerByUserId(userId: string,
-  tx?: DbOrTx): Promise<Practitioner | null> {
-  const conn = tx ?? db;
+export async function getPractitionerByUserId(userId: string): Promise<Practitioner | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(practitioner)
@@ -78,9 +74,8 @@ export async function getPractitionerByUserId(userId: string,
   return rows[0] ?? null;
 }
 
-export async function listPractitionersByOffice(officeId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listPractitionersByOffice(officeId: string) {
+  const conn = getConnection();
   return conn
     .select()
     .from(practitioner)
@@ -93,8 +88,7 @@ export async function updatePractitioner(practitionerId: string,
     slug: string;
     bio: string | null;
     publicContact: string | null;
-  }>,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }>) {
+  const conn = getConnection();
   await conn.update(practitioner).set(data).where(eq(practitioner.id, practitionerId));
 }

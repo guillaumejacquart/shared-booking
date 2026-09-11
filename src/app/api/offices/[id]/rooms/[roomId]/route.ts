@@ -23,7 +23,7 @@ export const PATCH = withAuth(async (user, req: NextRequest,
       officeId: id,
       requesterUserId: user.id,
     });
-    await saveRoom({}, input);
+    await saveRoom(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);
@@ -41,7 +41,7 @@ export const DELETE = withAuth(async (user, _req: NextRequest,
       requesterUserId: user.id,
       id: roomId,
     });
-    await deleteRoom({}, input);
+    await deleteRoom(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

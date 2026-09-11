@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import {
   applyPaymentCompleted,
@@ -29,9 +30,7 @@ const fakeStripe = {
 };
 
 function deps(extra = {}) {
-  return {
-    tx: db,
-    now: NOW,
+  return { now: NOW,
     sendEmail: async (e: OutgoingEmail) => void sent.push(e),
     stripeClient: fakeStripe,
     ...extra,
@@ -65,7 +64,7 @@ const patient = {
 };
 
 beforeEach(async () => {
-  db = createMemoryDb();
+  db = createMemoryDb();  setConnection(db);
   sent = [];
   stripeCalls = [];
   await seed();
@@ -102,7 +101,7 @@ describe("paid booking", () => {
 
   it("refuse si Stripe n'est pas configuré", async () => {
     await expect(
-      createBooking({ tx: db, now: NOW, sendEmail: async () => {} }, {
+      createBooking({ now: NOW, sendEmail: async () => {} }, {
         practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
       }),
     ).rejects.toBeInstanceOf(ValidationError);

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { processReminders } from "@/lib/services/reminders";
 import type { OutgoingEmail } from "@/lib/email";
@@ -41,15 +42,14 @@ async function seed() {
 }
 
 beforeEach(async () => {
-  db = createMemoryDb();
+  db = createMemoryDb();  setConnection(db);
   sent = [];
   await seed();
 });
 
 describe("processReminders", () => {
   it("envoie les rappels dus une seule fois et clôture le passé", async () => {
-    const first = await processReminders({
-      tx: db, now: NOW, sendEmail: async (e) => void sent.push(e),
+    const first = await processReminders({ now: NOW, sendEmail: async (e) => void sent.push(e),
     });
     expect(first).toEqual({ sent: 1, completed: 1 });
     expect(sent[0].to).toBe("jean@example.com");
@@ -63,8 +63,7 @@ describe("processReminders", () => {
     expect(b3[0].status).toBe("completed");
 
     // Second passage : rien à faire (idempotent).
-    const second = await processReminders({
-      tx: db, now: NOW, sendEmail: async (e) => void sent.push(e),
+    const second = await processReminders({ now: NOW, sendEmail: async (e) => void sent.push(e),
     });
     expect(second).toEqual({ sent: 0, completed: 0 });
   });

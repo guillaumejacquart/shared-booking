@@ -1,16 +1,14 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq } from "drizzle-orm";
 
 import { member, user } from "@/db/schema";
-import type { DbOrTx } from "./types";
 
 /** Repository membres (appartenance user ↔ cabinet). */
 
 export async function getMembership(officeId: string,
-  userId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  userId: string) {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(member)
@@ -19,15 +17,13 @@ export async function getMembership(officeId: string,
   return rows[0] ?? null;
 }
 
-export async function listMemberships(userId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listMemberships(userId: string) {
+  const conn = getConnection();
   return conn.select().from(member).where(eq(member.userId, userId));
 }
 
-export async function listMembersWithUsers(officeId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listMembersWithUsers(officeId: string) {
+  const conn = getConnection();
   const members = await conn.select().from(member).where(eq(member.officeId, officeId));
   const result = [];
   for (const m of members) {

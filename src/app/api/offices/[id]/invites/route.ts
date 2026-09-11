@@ -12,7 +12,7 @@ export const GET = withAuth(async (user, _req: NextRequest,
   const { id } = await params;
   try {
     return NextResponse.json(
-      await listPendingInvites({}, { officeId: id, requesterUserId: user.id }),
+      await listPendingInvites({ officeId: id, requesterUserId: user.id }),
     );
   } catch (e) {
     return toResponse(e);

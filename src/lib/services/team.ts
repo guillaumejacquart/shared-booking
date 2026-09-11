@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 
-import type { DbOrTx } from "@/dal/types";
 import * as invitesDal from "@/dal/invites";
 import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
@@ -30,8 +29,6 @@ import {
  */
 
 export interface TeamDeps {
-  /** Override de connexion (tests) ou transaction. Absent = connexion partagée du DAL. */
-  tx?: DbOrTx;
   now?: Date;
   sendEmail?: SendEmail;
 }
@@ -39,17 +36,14 @@ export interface TeamDeps {
 const INVITE_TTL_MS = 7 * 24 * 3_600_000;
 
 /** Création d'un cabinet : office + membre owner + praticien pour le créateur. */
-export async function createOffice(
-  deps: TeamDeps,
-  input: CreateOfficeInput,
-): Promise<{ officeId: string; officeSlug: string; practitionerSlug: string }> {
-  const slugTaken = await officesDal.getOfficeBySlug(input.slug, deps.tx);
+export async function createOffice(input: CreateOfficeInput): Promise<{ officeId: string; officeSlug: string; practitionerSlug: string }> {
+  const slugTaken = await officesDal.getOfficeBySlug(input.slug);
   if (slugTaken) throw new ConflictError("Cet identifiant de cabinet est déjà pris");
 
   const base = slugify(input.userName);
   let practitionerSlug = base;
   for (let n = 2; ; n++) {
-    const taken = await practitionersDal.getPractitionerBySlug(practitionerSlug, deps.tx);
+    const taken = await practitionersDal.getPractitionerBySlug(practitionerSlug);
     if (!taken) break;
     practitionerSlug = `${base}-${n}`;
   }
@@ -70,7 +64,7 @@ export async function createOffice(
       displayName: input.userName,
       slug: practitionerSlug,
     },
-  }, deps.tx);
+  });
   return { officeId, officeSlug: input.slug, practitionerSlug };
 }
 
@@ -92,18 +86,18 @@ export async function createInvite(
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const requester = await membersDal.getMembership(input.officeId, input.requesterUserId, deps.tx);
+  const requester = await membersDal.getMembership(input.officeId, input.requesterUserId);
   if (!requester || requester.role !== "owner" || !requester.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut inviter");
   }
   const email = input.email;
-  const office = await officesDal.getOfficeById(input.officeId, deps.tx);
+  const office = await officesDal.getOfficeById(input.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
   // Déjà membre avec cet email ? On refuse poliment.
-  const existingUser = await usersDal.getUserByEmail(email, deps.tx);
+  const existingUser = await usersDal.getUserByEmail(email);
   if (existingUser) {
-    const existing = await membersDal.getMembership(input.officeId, existingUser.id, deps.tx);
+    const existing = await membersDal.getMembership(input.officeId, existingUser.id);
     if (existing) throw new ConflictError("Cette personne est déjà membre du cabinet");
   }
 
@@ -116,7 +110,7 @@ export async function createInvite(
     token,
     expiresAt: new Date(now.getTime() + INVITE_TTL_MS),
     invitedByUserId: input.requesterUserId,
-  }, deps.tx);
+  });
 
   await send({
     to: email,
@@ -133,7 +127,7 @@ export async function acceptInvite(
 ): Promise<{ officeSlug: string; practitionerSlug: string }> {
   const now = deps.now ?? new Date();
 
-  const inv = await invitesDal.getInviteByToken(input.token, deps.tx);
+  const inv = await invitesDal.getInviteByToken(input.token);
   if (!inv) throw new NotFoundError("Invitation introuvable");
   if (inv.acceptedAt) throw new ConflictError("Invitation déjà acceptée");
   if (inv.expiresAt.getTime() < now.getTime()) {
@@ -142,16 +136,16 @@ export async function acceptInvite(
   if (inv.email.toLowerCase() !== input.userEmail.toLowerCase()) {
     throw new ValidationError("Cette invitation est adressée à une autre adresse email");
   }
-  const office = await officesDal.getOfficeById(inv.officeId, deps.tx);
+  const office = await officesDal.getOfficeById(inv.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
-  const already = await membersDal.getMembership(inv.officeId, input.userId, deps.tx);
+  const already = await membersDal.getMembership(inv.officeId, input.userId);
   if (already) throw new ConflictError("Vous êtes déjà membre de ce cabinet");
 
   const base = slugify(input.userName);
   let slug = base;
   for (let n = 2; ; n++) {
-    const taken = await practitionersDal.getPractitionerBySlug(slug, deps.tx);
+    const taken = await practitionersDal.getPractitionerBySlug(slug);
     if (!taken) break;
     slug = `${base}-${n}`;
   }
@@ -172,16 +166,16 @@ export async function acceptInvite(
       displayName: input.userName,
       slug,
     },
-  }, deps.tx);
+  });
   return { officeSlug: office.slug, practitionerSlug: slug };
 }
 
 /** Infos publiques d'une invitation (le token fait office de secret). Null si inconnue. */
 export async function getInvitePublicInfo(deps: TeamDeps, token: string) {
   const now = deps.now ?? new Date();
-  const inv = await invitesDal.getInviteByToken(token, deps.tx);
+  const inv = await invitesDal.getInviteByToken(token);
   if (!inv) return null;
-  const office = await officesDal.getOfficeById(inv.officeId, deps.tx);
+  const office = await officesDal.getOfficeById(inv.officeId);
   return {
     officeName: office?.name ?? "",
     email: inv.email,
@@ -191,15 +185,12 @@ export async function getInvitePublicInfo(deps: TeamDeps, token: string) {
 }
 
 /** Invitations en attente d'un cabinet (owner uniquement). */
-export async function listPendingInvites(
-  deps: TeamDeps,
-  input: { officeId: string; requesterUserId: string },
-) {
-  const requester = await membersDal.getMembership(input.officeId, input.requesterUserId, deps.tx);
+export async function listPendingInvites(input: { officeId: string; requesterUserId: string }) {
+  const requester = await membersDal.getMembership(input.officeId, input.requesterUserId);
   if (!requester || requester.role !== "owner" || !requester.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut voir les invitations");
   }
-  const invites = await invitesDal.listPendingInvites(input.officeId, deps.tx);
+  const invites = await invitesDal.listPendingInvites(input.officeId);
   return {
     invites: invites.map((i) => ({
       id: i.id,

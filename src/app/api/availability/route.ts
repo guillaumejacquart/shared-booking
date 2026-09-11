@@ -23,7 +23,7 @@ export const PUT = withAuth(async (user, req: NextRequest) => {
       practitionerId,
       requesterUserId: user.id,
     });
-    await replaceAvailability({}, input);
+    await replaceAvailability(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

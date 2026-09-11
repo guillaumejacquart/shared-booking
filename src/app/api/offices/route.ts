@@ -19,7 +19,7 @@ export const POST = withAuth(async (user, req: NextRequest) => {
       userId: user.id,
       userName: user.name,
     });
-    const result = await createOffice({}, input);
+    const result = await createOffice(input);
     return NextResponse.json(result, { status: 201 });
   } catch (e) {
     return toResponse(e);

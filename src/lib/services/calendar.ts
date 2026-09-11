@@ -1,4 +1,3 @@
-import type { DbOrTx } from "@/dal/types";
 import * as bookingsDal from "@/dal/bookings";
 import * as membersDal from "@/dal/members";
 import * as practitionersDal from "@/dal/practitioners";
@@ -12,11 +11,6 @@ import { ForbiddenError, NotFoundError } from "./errors";
  * ici, les routes ne font que valider la fenêtre temporelle et sérialiser.
  */
 
-export interface CalendarDeps {
-  /** Override de connexion (tests) ou transaction. Absent = connexion partagée du DAL. */
-  tx?: DbOrTx;
-}
-
 export interface AgendaInput {
   userId: string;
   start: Date;
@@ -24,14 +18,13 @@ export interface AgendaInput {
 }
 
 /** Événements de l'agenda du praticien connecté (tous statuts). */
-export async function getAgendaEvents(deps: CalendarDeps, input: AgendaInput) {
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId, deps.tx);
+export async function getAgendaEvents(input: AgendaInput) {
+  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
   if (!prac) throw new NotFoundError("Praticien introuvable");
   const bookings = await bookingsDal.listBookingsForPractitioner(
     prac.id,
     input.start,
     input.end,
-    deps.tx,
   );
   return {
     events: bookings.map((b) => ({
@@ -81,17 +74,17 @@ export interface SharedCalendarInput {
  * Calendrier partagé du cabinet. Noms des patients masqués sauf pour soi
  * et le owner (SPEC.md §F10). Couleur = praticien.
  */
-export async function getSharedCalendar(deps: CalendarDeps, input: SharedCalendarInput) {
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId, deps.tx);
+export async function getSharedCalendar(input: SharedCalendarInput) {
+  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
   if (!prac) throw new NotFoundError("Praticien introuvable");
-  const membership = await membersDal.getMembership(prac.officeId, input.userId, deps.tx);
+  const membership = await membersDal.getMembership(prac.officeId, input.userId);
   if (!membership) throw new ForbiddenError("Action non autorisée");
   const isOwner = membership.role === "owner";
 
   const [pracs, rooms, bookings] = await Promise.all([
-    practitionersDal.listPractitionersByOffice(prac.officeId, deps.tx),
-    roomsDal.listRooms(prac.officeId, deps.tx),
-    bookingsDal.listOfficeBookings(prac.officeId, input.start, input.end, deps.tx),
+    practitionersDal.listPractitionersByOffice(prac.officeId),
+    roomsDal.listRooms(prac.officeId),
+    bookingsDal.listOfficeBookings(prac.officeId, input.start, input.end),
   ]);
   const pracById = new Map(pracs.map((p) => [p.id, p]));
   const roomById = new Map(rooms.map((r) => [r.id, r]));

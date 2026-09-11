@@ -1,4 +1,3 @@
-import type { DbOrTx } from "@/dal/types";
 import * as bookingsDal from "@/dal/bookings";
 import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
@@ -15,19 +14,17 @@ import {
  * - Bascule les RDV passés en `completed`.
  */
 export async function processReminders(deps: {
-  /** Override de connexion (tests) ou transaction. Absent = connexion partagée du DAL. */
-  tx?: DbOrTx;
   now?: Date;
   sendEmail?: SendEmail;
 }): Promise<{ sent: number; completed: number }> {
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const candidates = await bookingsDal.listRemindersDue(now, deps.tx);
+  const candidates = await bookingsDal.listRemindersDue(now);
   let sent = 0;
   for (const b of candidates) {
-    const office = await officesDal.getOfficeById(b.officeId, deps.tx);
-    const prac = await practitionersDal.getPractitionerById(b.practitionerId, deps.tx);
+    const office = await officesDal.getOfficeById(b.officeId);
+    const prac = await practitionersDal.getPractitionerById(b.practitionerId);
     if (!office || !prac) continue;
     const dueAt = b.startAt.getTime() - office.reminderHoursBefore * 3_600_000;
     if (dueAt > now.getTime()) continue;
@@ -42,10 +39,10 @@ export async function processReminders(deps: {
         manageUrl: "",
       }),
     );
-    await bookingsDal.markReminderSent(b.id, now, deps.tx);
+    await bookingsDal.markReminderSent(b.id, now);
     sent++;
   }
 
-  const completed = await bookingsDal.completePastBookings(now, deps.tx);
+  const completed = await bookingsDal.completePastBookings(now);
   return { sent, completed };
 }

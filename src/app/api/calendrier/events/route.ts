@@ -13,7 +13,7 @@ export const GET = withAuth(async (user, req: NextRequest) => {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    return NextResponse.json(await getSharedCalendar({}, { userId: user.id, start, end }));
+    return NextResponse.json(await getSharedCalendar({ userId: user.id, start, end }));
   } catch (e) {
     return toResponse(e);
   }

@@ -1,15 +1,14 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq } from "drizzle-orm";
 
 import { member, office, practitioner, sessionType } from "@/db/schema";
-import type { DbOrTx, Office, Practitioner, SessionType } from "./types";
+import type { Office, Practitioner, SessionType } from "./types";
 
 /** Repository cabinets (+ page publique). */
 
-export async function getOfficeById(officeId: string,
-  tx?: DbOrTx): Promise<Office | null> {
-  const conn = tx ?? db;
+export async function getOfficeById(officeId: string): Promise<Office | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(office)
@@ -18,9 +17,8 @@ export async function getOfficeById(officeId: string,
   return rows[0] ?? null;
 }
 
-export async function getOfficeBySlug(slug: string,
-  tx?: DbOrTx): Promise<Office | null> {
-  const conn = tx ?? db;
+export async function getOfficeBySlug(slug: string): Promise<Office | null> {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(office)
@@ -40,9 +38,8 @@ export async function createOffice(data: {
       displayName: string;
       slug: string;
     };
-  },
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }) {
+  const conn = getConnection();
   await conn.insert(office).values(data.office);
   await conn.insert(member).values({ ...data.member, active: true });
   await conn.insert(practitioner).values({ ...data.practitioner, active: true });
@@ -58,9 +55,8 @@ export async function updateOffice(officeId: string,
     cancelDeadlineHours: number;
     reminderHoursBefore: number;
     defaultBufferAfterMin: number;
-  }>,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }>) {
+  const conn = getConnection();
   await conn.update(office).set(data).where(eq(office.id, officeId));
 }
 
@@ -70,9 +66,8 @@ export interface OfficePageData {
 }
 
 /** Page publique du cabinet : null si slug inconnu ou page désactivée. */
-export async function getOfficePage(slug: string,
-  tx?: DbOrTx): Promise<OfficePageData | null> {
-  const conn = tx ?? db;
+export async function getOfficePage(slug: string): Promise<OfficePageData | null> {
+  const conn = getConnection();
   const officeRows = await conn
     .select()
     .from(office)

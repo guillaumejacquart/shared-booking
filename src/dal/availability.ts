@@ -1,24 +1,21 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq, gte, lte } from "drizzle-orm";
 
 import { availabilityRule, exception } from "@/db/schema";
-import type { DbOrTx } from "./types";
 
 /** Repository disponibilités : règles hebdo + exceptions. */
 
-export async function listRules(practitionerId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listRules(practitionerId: string) {
+  const conn = getConnection();
   return conn
     .select()
     .from(availabilityRule)
     .where(eq(availabilityRule.practitionerId, practitionerId));
 }
 
-export async function countRulesByRoom(roomId: string,
-  tx?: DbOrTx): Promise<number> {
-  const conn = tx ?? db;
+export async function countRulesByRoom(roomId: string): Promise<number> {
+  const conn = getConnection();
   const rows = await conn
     .select({ id: availabilityRule.id })
     .from(availabilityRule)
@@ -28,9 +25,8 @@ export async function countRulesByRoom(roomId: string,
 
 export async function listExceptions(practitionerId: string,
   fromDate: string, // "YYYY-MM-DD" — comparaison lexicographique valide
-  toDate: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  toDate: string) {
+  const conn = getConnection();
   return conn
     .select()
     .from(exception)
@@ -45,9 +41,8 @@ export async function listExceptions(practitionerId: string,
 
 /** Remplace toutes les règles hebdo d'un praticien. */
 export async function replaceAvailabilityRules(practitionerId: string,
-  rules: { id: string; weekday: number; startTime: string; endTime: string; roomId: string }[],
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  rules: { id: string; weekday: number; startTime: string; endTime: string; roomId: string }[]) {
+  const conn = getConnection();
   await conn.delete(availabilityRule).where(eq(availabilityRule.practitionerId, practitionerId));
   for (const r of rules) {
     await conn.insert(availabilityRule).values({ ...r, practitionerId });
@@ -64,15 +59,13 @@ export async function createException(data: {
     fullDay: boolean;
     roomId: string | null;
     reason: string | null;
-  },
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }) {
+  const conn = getConnection();
   await conn.insert(exception).values(data);
   return data.id;
 }
 
-export async function deleteException(id: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function deleteException(id: string) {
+  const conn = getConnection();
   await conn.delete(exception).where(eq(exception.id, id));
 }

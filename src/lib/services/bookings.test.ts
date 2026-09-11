@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import {
   ConflictError,
@@ -29,7 +30,7 @@ let db: Db;
 let sent: OutgoingEmail[];
 
 function deps(): Deps {
-  return { tx: db, now: NOW, sendEmail: async (e) => void sent.push(e) };
+  return { now: NOW, sendEmail: async (e) => void sent.push(e) };
 }
 
 async function seed() {
@@ -84,7 +85,7 @@ const patient = {
 };
 
 beforeEach(async () => {
-  db = createMemoryDb();
+  db = createMemoryDb();  setConnection(db);
   sent = [];
   await seed();
 });

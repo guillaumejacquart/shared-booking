@@ -22,7 +22,7 @@ export const POST = withAuth(async (user, req: NextRequest,
       officeId: id,
       requesterUserId: user.id,
     });
-    const roomId = await saveRoom({}, input);
+    const roomId = await saveRoom(input);
     return NextResponse.json({ id: roomId }, { status: 201 });
   } catch (e) {
     return toResponse(e);

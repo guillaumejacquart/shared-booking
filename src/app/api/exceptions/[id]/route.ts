@@ -20,7 +20,7 @@ export const DELETE = withAuth(async (user, req: NextRequest,
       practitionerId,
       requesterUserId: user.id,
     });
-    await deleteException({}, input);
+    await deleteException(input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

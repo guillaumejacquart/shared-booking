@@ -1,9 +1,8 @@
-import { db } from "@/db/client";
+import { getConnection } from "./connection";
 
 import { and, eq, isNull } from "drizzle-orm";
 
 import { invite, member, practitioner } from "@/db/schema";
-import type { DbOrTx } from "./types";
 
 /** Repository invitations équipe. */
 
@@ -15,16 +14,14 @@ export async function createInvite(data: {
     token: string;
     expiresAt: Date;
     invitedByUserId: string;
-  },
-  tx?: DbOrTx): Promise<string> {
-  const conn = tx ?? db;
+  }): Promise<string> {
+  const conn = getConnection();
   await conn.insert(invite).values(data);
   return data.id;
 }
 
-export async function getInviteByToken(token: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function getInviteByToken(token: string) {
+  const conn = getConnection();
   const rows = await conn
     .select()
     .from(invite)
@@ -33,9 +30,8 @@ export async function getInviteByToken(token: string,
   return rows[0] ?? null;
 }
 
-export async function listPendingInvites(officeId: string,
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+export async function listPendingInvites(officeId: string) {
+  const conn = getConnection();
   return conn
     .select()
     .from(invite)
@@ -54,9 +50,8 @@ export async function acceptInvite(data: {
       displayName: string;
       slug: string;
     };
-  },
-  tx?: DbOrTx) {
-  const conn = tx ?? db;
+  }) {
+  const conn = getConnection();
   await conn.insert(member).values({ ...data.member, active: true });
   await conn.insert(practitioner).values({ ...data.practitioner, active: true });
   await conn

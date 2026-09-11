@@ -23,7 +23,7 @@ export const POST = withAuth(async (user, req: NextRequest) => {
       practitionerId,
       requesterUserId: user.id,
     });
-    const id = await createException({}, input);
+    const id = await createException(input);
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {
     return toResponse(e);

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const status = await getBookingStatusByStripeSession({}, sessionId);
+  const status = await getBookingStatusByStripeSession(sessionId);
   if (!status) return NextResponse.json({ error: "Réservation introuvable" }, { status: 404 });
   return NextResponse.json(status);
 }

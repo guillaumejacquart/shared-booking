@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { acceptInvite, createInvite, listPendingInvites } from "@/lib/services/team";
 import {
@@ -30,13 +31,13 @@ async function seed() {
 }
 
 beforeEach(async () => {
-  db = createMemoryDb();
+  db = createMemoryDb();  setConnection(db);
   sent = [];
   await seed();
 });
 
 function deps() {
-  return { tx: db, now: NOW, sendEmail: async (e: OutgoingEmail) => void sent.push(e) };
+  return { now: NOW, sendEmail: async (e: OutgoingEmail) => void sent.push(e) };
 }
 
 describe("createInvite", () => {
@@ -71,7 +72,7 @@ describe("createInvite", () => {
 describe("createOffice", () => {
   it("crée cabinet + membre owner + praticien", async () => {
     const { createOffice } = await import("@/lib/services/team");
-    const res = await createOffice(deps(), {
+    const res = await createOffice({
       userId: "owner1",
       userName: "Owner",
       name: "Cabinet du Centre",
@@ -90,7 +91,7 @@ describe("createOffice", () => {
   it("refuse un slug déjà pris (le format invalide est rejeté par le schéma)", async () => {
     const { createOffice } = await import("@/lib/services/team");
     await expect(
-      createOffice(deps(), { userId: "owner1", userName: "Owner", name: "X", slug: "cabinet" }),
+      createOffice({ userId: "owner1", userName: "Owner", name: "X", slug: "cabinet" }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
@@ -178,14 +179,14 @@ describe("listPendingInvites", () => {
       officeId: "o1", email: "nouveau@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });
-    const { invites } = await listPendingInvites(deps(), { officeId: "o1", requesterUserId: "owner1" });
+    const { invites } = await listPendingInvites({ officeId: "o1", requesterUserId: "owner1" });
     expect(invites).toHaveLength(1);
     expect(invites[0].email).toBe("nouveau@example.com");
   });
 
   it("un non-owner est refusé", async () => {
     await expect(
-      listPendingInvites(deps(), { officeId: "o1", requesterUserId: "other" }),
+      listPendingInvites({ officeId: "o1", requesterUserId: "other" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
