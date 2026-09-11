@@ -29,7 +29,7 @@ let db: Db;
 let sent: OutgoingEmail[];
 
 function deps(): Deps {
-  return { db, now: NOW, sendEmail: async (e) => void sent.push(e) };
+  return { tx: db, now: NOW, sendEmail: async (e) => void sent.push(e) };
 }
 
 async function seed() {

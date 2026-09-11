@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { rescheduleBooking } from "@/lib/services/bookings";
 import { rescheduleBookingSchema } from "@/lib/schemas/bookings";
 import { toResponse } from "@/app/api/errors";
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    const result = await rescheduleBooking({ db }, rescheduleBookingSchema.parse(body));
+    const result = await rescheduleBooking({}, rescheduleBookingSchema.parse(body));
     return NextResponse.json(result);
   } catch (e) {
     return toResponse(e);

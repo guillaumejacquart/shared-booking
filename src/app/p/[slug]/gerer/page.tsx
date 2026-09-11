@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 
-import { db } from "@/db/client";
 import { findBookingByCancelToken } from "@/dal/bookings";
 import { formatBookingFr } from "@/lib/email";
 import { t } from "@/lib/i18n";
@@ -20,7 +19,7 @@ export default async function ManagePage({
   const cabinet = typeof sp.cabinet === "string" ? sp.cabinet : "";
   if (!token) notFound();
 
-  const detail = await findBookingByCancelToken(db, token);
+  const detail = await findBookingByCancelToken(token);
   if (
     !detail ||
     detail.office.slug !== cabinet ||

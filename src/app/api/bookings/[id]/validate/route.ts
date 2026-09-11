@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { validateBooking } from "@/lib/services/bookings";
 import { validateBookingSchema } from "@/lib/schemas/bookings";
 import { toResponse } from "@/app/api/errors";
@@ -26,7 +25,7 @@ export async function POST(
       bookingId: id,
       requesterUserId: user.id,
     });
-    const result = await validateBooking({ db }, input);
+    const result = await validateBooking({}, input);
     return NextResponse.json(result);
   } catch (e) {
     return toResponse(e);

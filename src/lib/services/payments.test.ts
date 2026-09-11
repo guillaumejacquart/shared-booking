@@ -30,7 +30,7 @@ const fakeStripe = {
 
 function deps(extra = {}) {
   return {
-    db,
+    tx: db,
     now: NOW,
     sendEmail: async (e: OutgoingEmail) => void sent.push(e),
     stripeClient: fakeStripe,
@@ -102,7 +102,7 @@ describe("paid booking", () => {
 
   it("refuse si Stripe n'est pas configuré", async () => {
     await expect(
-      createBooking({ db, now: NOW, sendEmail: async () => {} }, {
+      createBooking({ tx: db, now: NOW, sendEmail: async () => {} }, {
         practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
       }),
     ).rejects.toBeInstanceOf(ValidationError);

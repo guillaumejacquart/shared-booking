@@ -1,4 +1,3 @@
-import { db } from "@/db/client";
 import * as invitesDal from "@/dal/invites";
 import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
@@ -28,11 +27,11 @@ export default async function ParametresPage({
   const initial: SettingsTab = rawTab === "team" || rawTab === "rooms" ? rawTab : "general";
 
   const [office, members, pending, rooms, pracs] = await Promise.all([
-    officesDal.getOfficeById(db, ctx.officeId),
-    membersDal.listMembersWithUsers(db, ctx.officeId),
-    invitesDal.listPendingInvites(db, ctx.officeId),
-    roomsDal.listRoomsWithMembers(db, ctx.officeId),
-    practitionersDal.listPractitionersByOffice(db, ctx.officeId),
+    officesDal.getOfficeById(ctx.officeId),
+    membersDal.listMembersWithUsers(ctx.officeId),
+    invitesDal.listPendingInvites(ctx.officeId),
+    roomsDal.listRoomsWithMembers(ctx.officeId),
+    practitionersDal.listPractitionersByOffice(ctx.officeId),
   ]);
   if (!office) return null;
 
@@ -41,6 +40,7 @@ export default async function ParametresPage({
       <h1 className="mb-4 text-xl font-semibold">{t("settings.title")}</h1>
       <Tabs<SettingsTab>
         initial={initial}
+        param="tab"
         tabs={[
           { key: "general", label: t("settings.tabGeneral") },
           { key: "team", label: t("settings.tabTeam") },

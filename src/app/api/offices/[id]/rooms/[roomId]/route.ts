@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { deleteRoom, saveRoom } from "@/lib/services/schedule";
 import { deleteRoomSchema, saveRoomSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -30,7 +29,7 @@ export async function PATCH(
       officeId: id,
       requesterUserId: user.id,
     });
-    await saveRoom({ db }, input);
+    await saveRoom({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);
@@ -53,7 +52,7 @@ export async function DELETE(
       requesterUserId: user.id,
       id: roomId,
     });
-    await deleteRoom({ db }, input);
+    await deleteRoom({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

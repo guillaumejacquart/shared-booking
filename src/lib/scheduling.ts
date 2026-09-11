@@ -1,6 +1,5 @@
 import cron from "node-cron";
 
-import { db } from "@/db/client";
 import { processReminders } from "@/lib/services/reminders";
 import { releaseExpiredPendings } from "@/lib/services/bookings";
 
@@ -16,7 +15,7 @@ export function startScheduler(): void {
   started = true;
   cron.schedule("5 * * * *", async () => {
     try {
-      const { sent, completed } = await processReminders({ db });
+      const { sent, completed } = await processReminders({});
       if (sent > 0 || completed > 0) {
         console.log(`[scheduler] rappels envoyés: ${sent}, clôturés: ${completed}`);
       }
@@ -27,7 +26,7 @@ export function startScheduler(): void {
   // Libération des créneaux impayés (toutes les 10 minutes).
   cron.schedule("*/10 * * * *", async () => {
     try {
-      const released = await releaseExpiredPendings({ db });
+      const released = await releaseExpiredPendings({});
       if (released > 0) console.log(`[scheduler] pendings expirés libérés: ${released}`);
     } catch (e) {
       console.error("[scheduler] échec libération pendings", e);

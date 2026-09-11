@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { deleteSessionType, saveSessionType } from "@/lib/services/schedule";
 import { deleteSessionTypeSchema, saveSessionTypeSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -36,7 +35,7 @@ export async function PATCH(
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    await saveSessionType({ db }, input);
+    await saveSessionType({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);
@@ -65,7 +64,7 @@ export async function DELETE(
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    await deleteSessionType({ db }, input);
+    await deleteSessionType({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

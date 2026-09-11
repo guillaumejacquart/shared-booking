@@ -1,10 +1,13 @@
-import type { Db } from "@/dal/types";
+import type { DbOrTx } from "@/dal/types";
 import * as availabilityDal from "@/dal/availability";
+import * as bookingsDal from "@/dal/bookings";
 import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
+import { dateStrInTz } from "@/lib/timezone";
+
 import type {
   CreateExceptionInput,
   DeleteExceptionInput,
@@ -34,20 +37,21 @@ import {
  */
 
 export interface ScheduleDeps {
-  db: Db;
+  /** Override de connexion (tests) ou transaction. Absent = connexion partagée du DAL. */
+  tx?: DbOrTx;
   now?: Date;
 }
 
 async function checkAccess(
-  db: Db,
   practitionerId: string,
   officeId: string,
   req: Requester,
+  tx?: DbOrTx,
 ): Promise<void> {
-  const prac = await practitionersDal.getPractitionerById(db, practitionerId);
+  const prac = await practitionersDal.getPractitionerById(practitionerId, tx);
   if (!prac || prac.officeId !== officeId) throw new NotFoundError("Praticien introuvable");
   if (req.requesterIsOwner) {
-    const m = await membersDal.getMembership(db, officeId, req.requesterUserId);
+    const m = await membersDal.getMembership(officeId, req.requesterUserId, tx);
     if (!m || m.role !== "owner" || !m.active) {
       throw new ForbiddenError("Action non autorisée");
     }
@@ -65,12 +69,12 @@ function toMinutes(t: string): number {
 
 /** Salles utilisables par le praticien : allowlist vide = toutes. */
 async function assertRoomAllowed(
-  db: Db,
   officeId: string,
   practitionerId: string,
   roomId: string,
+  tx?: DbOrTx,
 ): Promise<void> {
-  const rooms = await roomsDal.listRoomsWithMembers(db, officeId);
+  const rooms = await roomsDal.listRoomsWithMembers(officeId, tx);
   const entry = rooms.find((r) => r.room.id === roomId);
   if (!entry) throw new ValidationError("Salle inconnue");
   if (entry.practitionerIds.length > 0 && !entry.practitionerIds.includes(practitionerId)) {
@@ -81,13 +85,13 @@ async function assertRoomAllowed(
 // --- Disponibilités ----------------------------------------------------------
 
 export async function replaceAvailability(deps: ScheduleDeps, input: ReplaceAvailabilityInput): Promise<void> {
-  await checkAccess(deps.db, input.practitionerId, input.officeId, input);
+  await checkAccess(input.practitionerId, input.officeId, input, deps.tx);
 
   for (const r of input.rules) {
     if (toMinutes(r.startTime) >= toMinutes(r.endTime)) {
       throw new ValidationError("L'heure de fin doit être après le début");
     }
-    await assertRoomAllowed(deps.db, input.officeId, input.practitionerId, r.roomId);
+    await assertRoomAllowed(input.officeId, input.practitionerId, r.roomId, deps.tx);
   }
   // Chevauchements sur un même jour (bornes qui se touchent = OK).
   const byDay = new Map<number, { start: number; end: number }[]>();
@@ -101,11 +105,8 @@ export async function replaceAvailability(deps: ScheduleDeps, input: ReplaceAvai
     byDay.set(r.weekday, list);
   }
 
-  await availabilityDal.replaceAvailabilityRules(
-    deps.db,
-    input.practitionerId,
-    input.rules.map((r) => ({ id: crypto.randomUUID(), ...r })),
-  );
+  await availabilityDal.replaceAvailabilityRules(input.practitionerId,
+    input.rules.map((r) => ({ id: crypto.randomUUID(), ...r })), deps.tx);
 }
 
 // --- Types de séances --------------------------------------------------------
@@ -115,14 +116,14 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
     throw new ValidationError("Un prix (centimes) est requis pour une séance payante");
   }
   const { practitionerId, officeId } = input;
-  await checkAccess(deps.db, practitionerId, officeId, input);
+  await checkAccess(practitionerId, officeId, input, deps.tx);
 
   if (input.id) {
-    const existing = (await sessionTypesDal.listSessionTypes(deps.db, practitionerId)).find(
+    const existing = (await sessionTypesDal.listSessionTypes(practitionerId, deps.tx)).find(
       (t) => t.id === input.id,
     );
     if (!existing) throw new NotFoundError("Type de séance introuvable");
-    await sessionTypesDal.updateSessionType(deps.db, input.id, {
+    await sessionTypesDal.updateSessionType(input.id, {
       name: input.name,
       description: input.description ?? null,
       durationMin: input.durationMin,
@@ -132,10 +133,10 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
       requiresPayment: input.requiresPayment,
       priceCents: input.requiresPayment ? (input.priceCents ?? null) : null,
       requiresValidation: input.requiresValidation,
-    });
+    }, deps.tx);
     return input.id;
   }
-  return sessionTypesDal.createSessionType(deps.db, {
+  return sessionTypesDal.createSessionType({
     id: crypto.randomUUID(),
     practitionerId,
     name: input.name,
@@ -146,33 +147,30 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
     requiresPayment: input.requiresPayment,
     priceCents: input.requiresPayment ? (input.priceCents ?? null) : null,
     requiresValidation: input.requiresValidation,
-  });
+  }, deps.tx);
 }
 
 export async function deleteSessionType(deps: ScheduleDeps, input: DeleteSessionTypeInput): Promise<void> {
-  await checkAccess(deps.db, input.practitionerId, input.officeId, input);
-  const existing = (await sessionTypesDal.listSessionTypes(deps.db, input.practitionerId)).find(
+  await checkAccess(input.practitionerId, input.officeId, input, deps.tx);
+  const existing = (await sessionTypesDal.listSessionTypes(input.practitionerId, deps.tx)).find(
     (t) => t.id === input.id,
   );
   if (!existing) throw new NotFoundError("Type de séance introuvable");
-  const future = await sessionTypesDal.countFutureBookingsBySessionType(
-    deps.db,
-    input.id,
-    deps.now ?? new Date(),
-  );
+  const future = await sessionTypesDal.countFutureBookingsBySessionType(input.id,
+    deps.now ?? new Date(), deps.tx);
   if (future > 0) {
     throw new ValidationError(
       "Des réservations à venir utilisent ce type : désactivez-le plutôt que de le supprimer",
     );
   }
-  await sessionTypesDal.deleteSessionType(deps.db, input.id);
+  await sessionTypesDal.deleteSessionType(input.id, deps.tx);
 }
 
 // --- Exceptions --------------------------------------------------------------
 
 export async function createException(deps: ScheduleDeps, input: CreateExceptionInput): Promise<string> {
   const { practitionerId, officeId } = input;
-  await checkAccess(deps.db, practitionerId, officeId, input);
+  await checkAccess(practitionerId, officeId, input, deps.tx);
 
   if (!input.fullDay) {
     if (!input.startTime || !input.endTime) {
@@ -184,10 +182,10 @@ export async function createException(deps: ScheduleDeps, input: CreateException
   }
   if (input.kind === "extra") {
     if (!input.roomId) throw new ValidationError("Une salle est requise pour une ouverture");
-    await assertRoomAllowed(deps.db, officeId, practitionerId, input.roomId);
+    await assertRoomAllowed(officeId, practitionerId, input.roomId, deps.tx);
   }
 
-  return availabilityDal.createException(deps.db, {
+  return availabilityDal.createException({
     id: crypto.randomUUID(),
     practitionerId,
     date: input.date,
@@ -197,85 +195,85 @@ export async function createException(deps: ScheduleDeps, input: CreateException
     fullDay: input.fullDay,
     roomId: input.kind === "extra" ? (input.roomId ?? null) : null,
     reason: input.reason || null,
-  });
+  }, deps.tx);
 }
 
 export async function deleteException(deps: ScheduleDeps, input: DeleteExceptionInput): Promise<void> {
-  await checkAccess(deps.db, input.practitionerId, input.officeId, input);
-  await availabilityDal.deleteException(deps.db, input.id);
+  await checkAccess(input.practitionerId, input.officeId, input, deps.tx);
+  await availabilityDal.deleteException(input.id, deps.tx);
 }
 
 // --- Profil ------------------------------------------------------------------
 
 export async function updateProfile(deps: ScheduleDeps, input: UpdateProfileInput): Promise<void> {
   const { practitionerId } = input;
-  await checkAccess(deps.db, practitionerId, input.officeId, input);
+  await checkAccess(practitionerId, input.officeId, input, deps.tx);
 
   if (input.slug) {
-    const taken = await practitionersDal.getPractitionerBySlug(deps.db, input.slug);
+    const taken = await practitionersDal.getPractitionerBySlug(input.slug, deps.tx);
     if (taken && taken.id !== practitionerId) {
       throw new ConflictError("Cet identifiant public est déjà pris");
     }
   }
-  await practitionersDal.updatePractitioner(deps.db, practitionerId, {
+  await practitionersDal.updatePractitioner(practitionerId, {
     displayName: input.displayName,
     ...(input.slug ? { slug: input.slug } : {}),
     bio: input.bio || null,
     publicContact: input.publicContact || null,
-  });
+  }, deps.tx);
 }
 
 // --- Salles (owner) ----------------------------------------------------------
 
-async function requireOwner(db: Db, officeId: string, userId: string): Promise<void> {
-  const m = await membersDal.getMembership(db, officeId, userId);
+async function requireOwner(officeId: string, userId: string, tx?: DbOrTx): Promise<void> {
+  const m = await membersDal.getMembership(officeId, userId, tx);
   if (!m || m.role !== "owner" || !m.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut gérer les salles");
   }
 }
 
 export async function saveRoom(deps: ScheduleDeps, input: SaveRoomInput): Promise<string> {
-  await requireOwner(deps.db, input.officeId, input.requesterUserId);
+  await requireOwner(input.officeId, input.requesterUserId, deps.tx);
 
-  const pracs = await practitionersDal.listPractitionersByOffice(deps.db, input.officeId);
+  const pracs = await practitionersDal.listPractitionersByOffice(input.officeId, deps.tx);
   const ids = new Set(pracs.map((p) => p.id));
   if (!input.practitionerIds.every((id) => ids.has(id))) {
     throw new ValidationError("Praticien inconnu dans ce cabinet");
   }
 
   if (input.id) {
-    const rooms = await roomsDal.listRooms(deps.db, input.officeId);
+    const rooms = await roomsDal.listRooms(input.officeId, deps.tx);
     if (!rooms.some((r) => r.id === input.id)) throw new NotFoundError("Salle introuvable");
-    await roomsDal.updateRoom(deps.db, input.id, { name: input.name, color: input.color });
-    await roomsDal.replaceRoomMembers(deps.db, input.id, input.practitionerIds);
+    await roomsDal.updateRoom(input.id, { name: input.name, color: input.color }, deps.tx);
+    await roomsDal.replaceRoomMembers(input.id, input.practitionerIds, deps.tx);
     return input.id;
   }
   const id = crypto.randomUUID();
-  await roomsDal.createRoom(deps.db, { id, officeId: input.officeId, name: input.name, color: input.color });
-  await roomsDal.replaceRoomMembers(deps.db, id, input.practitionerIds);
+  await roomsDal.createRoom({ id, officeId: input.officeId, name: input.name, color: input.color }, deps.tx);
+  await roomsDal.replaceRoomMembers(id, input.practitionerIds, deps.tx);
   return id;
 }
 
 export async function deleteRoom(deps: ScheduleDeps, input: DeleteRoomInput): Promise<void> {
-  await requireOwner(deps.db, input.officeId, input.requesterUserId);
-  const rooms = await roomsDal.listRooms(deps.db, input.officeId);
+  await requireOwner(input.officeId, input.requesterUserId, deps.tx);
+  const rooms = await roomsDal.listRooms(input.officeId, deps.tx);
   if (!rooms.some((r) => r.id === input.id)) throw new NotFoundError("Salle introuvable");
-  const future = await roomsDal.countFutureBookingsByRoom(deps.db, input.id, deps.now ?? new Date());
+  const future = await roomsDal.countFutureBookingsByRoom(input.id, deps.now ?? new Date(), deps.tx);
   if (future > 0) {
     throw new ValidationError("Salle utilisée par des réservations à venir");
   }
-  const rules = await availabilityDal.countRulesByRoom(deps.db, input.id);
+  const rules = await availabilityDal.countRulesByRoom(input.id, deps.tx);
   if (rules > 0) {
     throw new ValidationError("Salle utilisée dans des disponibilités : retirez-la d'abord des plages");
   }
-  await roomsDal.deleteRoom(deps.db, input.id);
+  await roomsDal.deleteRoom(input.id, deps.tx);
 }
 
 // --- Paramètres cabinet (owner) ----------------------------------------------
 
 export async function updateOfficeSettings(deps: ScheduleDeps, input: UpdateOfficeSettingsInput): Promise<void> {
-  await requireOwner(deps.db, input.officeId, input.requesterUserId);
-  const office = await officesDal.getOfficeById(deps.db, input.officeId);
+  await requireOwner(input.officeId, input.requesterUserId, deps.tx);
+  const office = await officesDal.getOfficeById(input.officeId, deps.tx);
   if (!office) throw new NotFoundError("Cabinet introuvable");
   const data: Record<string, unknown> = { ...input };
   delete data.officeId;
@@ -285,5 +283,61 @@ export async function updateOfficeSettings(deps: ScheduleDeps, input: UpdateOffi
     else if (v === "" && k === "address") data[k] = null;
   }
   if (Object.keys(data).length === 0) return;
-  await officesDal.updateOffice(deps.db, input.officeId, data as Parameters<typeof officesDal.updateOffice>[2]);
+  await officesDal.updateOffice(input.officeId, data as Parameters<typeof officesDal.updateOffice>[1], deps.tx);
+}
+
+// --- Lecture mois disponibilités (calendrier praticien) ---------------------
+
+export interface AvailabilityMonthInput {
+  userId: string;
+  from: string; // "YYYY-MM-DD", validé par la route
+  days: number; // borné par la route (1..62)
+}
+
+/** Données mensuelles : règles + exceptions + réservations + salles. */
+export async function getAvailabilityMonth(deps: ScheduleDeps, input: AvailabilityMonthInput) {
+  const prac = await practitionersDal.getPractitionerByUserId(input.userId, deps.tx);
+  if (!prac) throw new NotFoundError("Praticien introuvable");
+  const to = dateStrInTz(
+    new Date(new Date(`${input.from}T12:00:00Z`).getTime() + input.days * 86_400_000),
+    "Europe/Paris",
+  );
+  const [rules, exceptions, bookings, rooms] = await Promise.all([
+    availabilityDal.listRules(prac.id, deps.tx),
+    availabilityDal.listExceptions(prac.id, input.from, to, deps.tx),
+    bookingsDal.listBookingsForPractitioner(
+      prac.id,
+      new Date(`${input.from}T00:00:00Z`),
+      new Date(new Date(`${input.from}T00:00:00Z`).getTime() + (input.days + 1) * 86_400_000),
+      deps.tx,
+    ),
+    roomsDal.listRooms(prac.officeId, deps.tx),
+  ]);
+  return {
+    rules: rules.map((r) => ({
+      weekday: r.weekday,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      roomId: r.roomId,
+    })),
+    exceptions: exceptions.map((x) => ({
+      id: x.id,
+      date: x.date,
+      kind: x.kind,
+      startTime: x.startTime,
+      endTime: x.endTime,
+      fullDay: x.fullDay,
+      roomId: x.roomId,
+      reason: x.reason,
+    })),
+    bookings: bookings
+      .filter((b) => b.status !== "cancelled")
+      .map((b) => ({
+        id: b.id,
+        startAt: b.startAt.toISOString(),
+        endAt: b.endAt.toISOString(),
+        status: b.status,
+      })),
+    rooms: rooms.map((r) => ({ id: r.id, name: r.name, color: r.color })),
+  };
 }

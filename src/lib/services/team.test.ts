@@ -36,7 +36,7 @@ beforeEach(async () => {
 });
 
 function deps() {
-  return { db, now: NOW, sendEmail: async (e: OutgoingEmail) => void sent.push(e) };
+  return { tx: db, now: NOW, sendEmail: async (e: OutgoingEmail) => void sent.push(e) };
 }
 
 describe("createInvite", () => {

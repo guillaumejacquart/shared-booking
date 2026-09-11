@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { updateProfile } from "@/lib/services/schedule";
 import { updateProfileSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -31,7 +30,7 @@ export async function PATCH(
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    await updateProfile({ db }, input);
+    await updateProfile({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

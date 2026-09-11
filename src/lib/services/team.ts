@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { Db } from "@/dal/types";
+import type { DbOrTx } from "@/dal/types";
 import * as invitesDal from "@/dal/invites";
 import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
@@ -30,7 +30,8 @@ import {
  */
 
 export interface TeamDeps {
-  db: Db;
+  /** Override de connexion (tests) ou transaction. Absent = connexion partagée du DAL. */
+  tx?: DbOrTx;
   now?: Date;
   sendEmail?: SendEmail;
 }
@@ -42,19 +43,19 @@ export async function createOffice(
   deps: TeamDeps,
   input: CreateOfficeInput,
 ): Promise<{ officeId: string; officeSlug: string; practitionerSlug: string }> {
-  const slugTaken = await officesDal.getOfficeBySlug(deps.db, input.slug);
+  const slugTaken = await officesDal.getOfficeBySlug(input.slug, deps.tx);
   if (slugTaken) throw new ConflictError("Cet identifiant de cabinet est déjà pris");
 
   const base = slugify(input.userName);
   let practitionerSlug = base;
   for (let n = 2; ; n++) {
-    const taken = await practitionersDal.getPractitionerBySlug(deps.db, practitionerSlug);
+    const taken = await practitionersDal.getPractitionerBySlug(practitionerSlug, deps.tx);
     if (!taken) break;
     practitionerSlug = `${base}-${n}`;
   }
 
   const officeId = crypto.randomUUID();
-  await officesDal.createOffice(deps.db, {
+  await officesDal.createOffice({
     office: {
       id: officeId,
       name: input.name,
@@ -69,7 +70,7 @@ export async function createOffice(
       displayName: input.userName,
       slug: practitionerSlug,
     },
-  });
+  }, deps.tx);
   return { officeId, officeSlug: input.slug, practitionerSlug };
 }
 
@@ -91,23 +92,23 @@ export async function createInvite(
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const requester = await membersDal.getMembership(deps.db, input.officeId, input.requesterUserId);
+  const requester = await membersDal.getMembership(input.officeId, input.requesterUserId, deps.tx);
   if (!requester || requester.role !== "owner" || !requester.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut inviter");
   }
   const email = input.email;
-  const office = await officesDal.getOfficeById(deps.db, input.officeId);
+  const office = await officesDal.getOfficeById(input.officeId, deps.tx);
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
   // Déjà membre avec cet email ? On refuse poliment.
-  const existingUser = await usersDal.getUserByEmail(deps.db, email);
+  const existingUser = await usersDal.getUserByEmail(email, deps.tx);
   if (existingUser) {
-    const existing = await membersDal.getMembership(deps.db, input.officeId, existingUser.id);
+    const existing = await membersDal.getMembership(input.officeId, existingUser.id, deps.tx);
     if (existing) throw new ConflictError("Cette personne est déjà membre du cabinet");
   }
 
   const token = randomBytes(32).toString("hex");
-  const id = await invitesDal.createInvite(deps.db, {
+  const id = await invitesDal.createInvite({
     id: crypto.randomUUID(),
     officeId: input.officeId,
     email,
@@ -115,7 +116,7 @@ export async function createInvite(
     token,
     expiresAt: new Date(now.getTime() + INVITE_TTL_MS),
     invitedByUserId: input.requesterUserId,
-  });
+  }, deps.tx);
 
   await send({
     to: email,
@@ -132,7 +133,7 @@ export async function acceptInvite(
 ): Promise<{ officeSlug: string; practitionerSlug: string }> {
   const now = deps.now ?? new Date();
 
-  const inv = await invitesDal.getInviteByToken(deps.db, input.token);
+  const inv = await invitesDal.getInviteByToken(input.token, deps.tx);
   if (!inv) throw new NotFoundError("Invitation introuvable");
   if (inv.acceptedAt) throw new ConflictError("Invitation déjà acceptée");
   if (inv.expiresAt.getTime() < now.getTime()) {
@@ -141,21 +142,21 @@ export async function acceptInvite(
   if (inv.email.toLowerCase() !== input.userEmail.toLowerCase()) {
     throw new ValidationError("Cette invitation est adressée à une autre adresse email");
   }
-  const office = await officesDal.getOfficeById(deps.db, inv.officeId);
+  const office = await officesDal.getOfficeById(inv.officeId, deps.tx);
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
-  const already = await membersDal.getMembership(deps.db, inv.officeId, input.userId);
+  const already = await membersDal.getMembership(inv.officeId, input.userId, deps.tx);
   if (already) throw new ConflictError("Vous êtes déjà membre de ce cabinet");
 
   const base = slugify(input.userName);
   let slug = base;
   for (let n = 2; ; n++) {
-    const taken = await practitionersDal.getPractitionerBySlug(deps.db, slug);
+    const taken = await practitionersDal.getPractitionerBySlug(slug, deps.tx);
     if (!taken) break;
     slug = `${base}-${n}`;
   }
 
-  await invitesDal.acceptInvite(deps.db, {
+  await invitesDal.acceptInvite({
     inviteId: inv.id,
     now,
     member: {
@@ -171,6 +172,20 @@ export async function acceptInvite(
       displayName: input.userName,
       slug,
     },
-  });
+  }, deps.tx);
   return { officeSlug: office.slug, practitionerSlug: slug };
+}
+
+/** Infos publiques d'une invitation (le token fait office de secret). Null si inconnue. */
+export async function getInvitePublicInfo(deps: TeamDeps, token: string) {
+  const now = deps.now ?? new Date();
+  const inv = await invitesDal.getInviteByToken(token, deps.tx);
+  if (!inv) return null;
+  const office = await officesDal.getOfficeById(inv.officeId, deps.tx);
+  return {
+    officeName: office?.name ?? "",
+    email: inv.email,
+    expired: inv.expiresAt.getTime() < now.getTime(),
+    accepted: inv.acceptedAt !== null,
+  };
 }

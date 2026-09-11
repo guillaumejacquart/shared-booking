@@ -49,7 +49,7 @@ beforeEach(async () => {
 describe("processReminders", () => {
   it("envoie les rappels dus une seule fois et clôture le passé", async () => {
     const first = await processReminders({
-      db, now: NOW, sendEmail: async (e) => void sent.push(e),
+      tx: db, now: NOW, sendEmail: async (e) => void sent.push(e),
     });
     expect(first).toEqual({ sent: 1, completed: 1 });
     expect(sent[0].to).toBe("jean@example.com");
@@ -64,7 +64,7 @@ describe("processReminders", () => {
 
     // Second passage : rien à faire (idempotent).
     const second = await processReminders({
-      db, now: NOW, sendEmail: async (e) => void sent.push(e),
+      tx: db, now: NOW, sendEmail: async (e) => void sent.push(e),
     });
     expect(second).toEqual({ sent: 0, completed: 0 });
   });

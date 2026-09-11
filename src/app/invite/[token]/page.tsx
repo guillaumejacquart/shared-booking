@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { db } from "@/db/client";
 import * as invitesDal from "@/dal/invites";
 import * as officesDal from "@/dal/offices";
 import { getSession } from "@/lib/session";
@@ -14,7 +13,7 @@ export default async function InvitePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const inv = await invitesDal.getInviteByToken(db, token);
+  const inv = await invitesDal.getInviteByToken(token);
   if (!inv) {
     return (
       <main className="mx-auto w-full max-w-md px-4 py-16 text-center">
@@ -22,7 +21,7 @@ export default async function InvitePage({
       </main>
     );
   }
-  const office = await officesDal.getOfficeById(db, inv.officeId);
+  const office = await officesDal.getOfficeById(inv.officeId);
   const session = await getSession();
   const status = inviteStatus(inv);
 

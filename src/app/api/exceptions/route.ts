@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { createException } from "@/lib/services/schedule";
 import { createExceptionSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    const id = await createException({ db }, input);
+    const id = await createException({}, input);
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {
     return toResponse(e);

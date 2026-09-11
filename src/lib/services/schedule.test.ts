@@ -51,7 +51,7 @@ beforeEach(async () => {
 });
 
 function deps() {
-  return { db, now: NOW };
+  return { tx: db, now: NOW };
 }
 
 const alice = { requesterUserId: "u1", requesterIsOwner: true };
@@ -236,7 +236,7 @@ describe("saveSessionType paiement/validation", () => {
   it("accepte une séance payante avec prix, refuse sans prix", async () => {
     const { saveSessionType } = await import("@/lib/services/schedule");
     const id = await saveSessionType(
-      { db, now: NOW },
+      { tx: db, now: NOW },
       {
         practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
         name: "Payante", durationMin: 60, bufferAfterMin: 0,
@@ -253,7 +253,7 @@ describe("saveSessionType paiement/validation", () => {
     const { ValidationError } = await import("@/lib/services/errors");
     await expect(
       saveSessionType(
-        { db, now: NOW },
+        { tx: db, now: NOW },
         {
           practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
           name: "Sans prix", durationMin: 60, bufferAfterMin: 0, requiresPayment: true,
@@ -269,7 +269,7 @@ describe("saveSessionType nulls DB", () => {
     const { saveSessionType } = await import("@/lib/services/schedule");
     // Reproduit le payload réel : description/priceCents à null.
     const id = await saveSessionType(
-      { db, now: NOW },
+      { tx: db, now: NOW },
       {
         practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
         id: undefined,

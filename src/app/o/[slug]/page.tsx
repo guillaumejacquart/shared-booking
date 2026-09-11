@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { db } from "@/db/client";
 import { getOfficePage } from "@/dal/offices";
 import { t } from "@/lib/i18n";
 
@@ -12,7 +11,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const page = await getOfficePage(db, slug);
+  const page = await getOfficePage(slug);
   return { title: page ? `${page.office.name} — Réservation` : "Page introuvable" };
 }
 
@@ -22,7 +21,7 @@ export default async function OfficePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const page = await getOfficePage(db, slug);
+  const page = await getOfficePage(slug);
   if (!page) notFound();
 
   return (

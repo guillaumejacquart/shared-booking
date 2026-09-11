@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import { db } from "@/db/client";
 import { env } from "@/lib/env";
 import { applyPaymentCompleted } from "@/lib/services/bookings";
 
@@ -32,7 +31,7 @@ export async function POST(req: Request) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       await applyPaymentCompleted(
-        { db },
+        {},
         {
           stripeSessionId: session.id,
           paymentIntentId:

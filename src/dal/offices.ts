@@ -1,3 +1,5 @@
+import { db } from "@/db/client";
+
 import { and, eq } from "drizzle-orm";
 
 import { member, office, practitioner, sessionType } from "@/db/schema";
@@ -5,11 +7,10 @@ import type { DbOrTx, Office, Practitioner, SessionType } from "./types";
 
 /** Repository cabinets (+ page publique). */
 
-export async function getOfficeById(
-  db: DbOrTx,
-  officeId: string,
-): Promise<Office | null> {
-  const rows = await db
+export async function getOfficeById(officeId: string,
+  tx?: DbOrTx): Promise<Office | null> {
+  const conn = tx ?? db;
+  const rows = await conn
     .select()
     .from(office)
     .where(eq(office.id, officeId))
@@ -17,11 +18,10 @@ export async function getOfficeById(
   return rows[0] ?? null;
 }
 
-export async function getOfficeBySlug(
-  db: DbOrTx,
-  slug: string,
-): Promise<Office | null> {
-  const rows = await db
+export async function getOfficeBySlug(slug: string,
+  tx?: DbOrTx): Promise<Office | null> {
+  const conn = tx ?? db;
+  const rows = await conn
     .select()
     .from(office)
     .where(eq(office.slug, slug))
@@ -30,9 +30,7 @@ export async function getOfficeBySlug(
 }
 
 /** Création complète d'un cabinet (office + membre + praticien). */
-export async function createOffice(
-  db: DbOrTx,
-  data: {
+export async function createOffice(data: {
     office: { id: string; name: string; slug: string; address: string | null };
     member: { id: string; officeId: string; userId: string; role: string };
     practitioner: {
@@ -43,15 +41,14 @@ export async function createOffice(
       slug: string;
     };
   },
-) {
-  await db.insert(office).values(data.office);
-  await db.insert(member).values({ ...data.member, active: true });
-  await db.insert(practitioner).values({ ...data.practitioner, active: true });
+  tx?: DbOrTx) {
+  const conn = tx ?? db;
+  await conn.insert(office).values(data.office);
+  await conn.insert(member).values({ ...data.member, active: true });
+  await conn.insert(practitioner).values({ ...data.practitioner, active: true });
 }
 
-export async function updateOffice(
-  db: DbOrTx,
-  officeId: string,
+export async function updateOffice(officeId: string,
   data: Partial<{
     name: string;
     address: string | null;
@@ -62,8 +59,9 @@ export async function updateOffice(
     reminderHoursBefore: number;
     defaultBufferAfterMin: number;
   }>,
-) {
-  await db.update(office).set(data).where(eq(office.id, officeId));
+  tx?: DbOrTx) {
+  const conn = tx ?? db;
+  await conn.update(office).set(data).where(eq(office.id, officeId));
 }
 
 export interface OfficePageData {
@@ -72,24 +70,23 @@ export interface OfficePageData {
 }
 
 /** Page publique du cabinet : null si slug inconnu ou page désactivée. */
-export async function getOfficePage(
-  db: DbOrTx,
-  slug: string,
-): Promise<OfficePageData | null> {
-  const officeRows = await db
+export async function getOfficePage(slug: string,
+  tx?: DbOrTx): Promise<OfficePageData | null> {
+  const conn = tx ?? db;
+  const officeRows = await conn
     .select()
     .from(office)
     .where(eq(office.slug, slug))
     .limit(1);
   const off = officeRows[0];
   if (!off || !off.enableOfficePage) return null;
-  const pracs = await db
+  const pracs = await conn
     .select()
     .from(practitioner)
     .where(and(eq(practitioner.officeId, off.id), eq(practitioner.active, true)));
   const result: OfficePageData["practitioners"] = [];
   for (const prac of pracs) {
-    const types = await db
+    const types = await conn
       .select()
       .from(sessionType)
       .where(and(eq(sessionType.practitionerId, prac.id), eq(sessionType.active, true)));

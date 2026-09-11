@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { createOffice } from "@/lib/services/team";
 import { createOfficeSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
@@ -22,7 +21,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       userName: user.name,
     });
-    const result = await createOffice({ db }, input);
+    const result = await createOffice({}, input);
     return NextResponse.json(result, { status: 201 });
   } catch (e) {
     return toResponse(e);

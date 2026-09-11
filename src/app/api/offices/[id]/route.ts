@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { updateOfficeSettings } from "@/lib/services/schedule";
 import { updateOfficeSettingsSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -29,7 +28,7 @@ export async function PATCH(
       officeId: id,
       requesterUserId: user.id,
     });
-    await updateOfficeSettings({ db }, input);
+    await updateOfficeSettings({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

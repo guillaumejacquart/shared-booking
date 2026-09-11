@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { saveSessionType } from "@/lib/services/schedule";
 import { saveSessionTypeSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    const id = await saveSessionType({ db }, input);
+    const id = await saveSessionType({}, input);
     return NextResponse.json({ id }, { status: 201 });
   } catch (e) {
     return toResponse(e);

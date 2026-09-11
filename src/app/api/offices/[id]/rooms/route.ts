@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { saveRoom } from "@/lib/services/schedule";
 import { saveRoomSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -29,7 +28,7 @@ export async function POST(
       officeId: id,
       requesterUserId: user.id,
     });
-    const roomId = await saveRoom({ db }, input);
+    const roomId = await saveRoom({}, input);
     return NextResponse.json({ id: roomId }, { status: 201 });
   } catch (e) {
     return toResponse(e);

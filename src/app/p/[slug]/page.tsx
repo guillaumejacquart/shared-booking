@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { db } from "@/db/client";
 import { getPractitionerPage } from "@/dal/practitioners";
 import { t } from "@/lib/i18n";
 import BookingWidget from "./BookingWidget";
@@ -12,7 +11,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const page = await getPractitionerPage(db, slug);
+  const page = await getPractitionerPage(slug);
   return {
     title: page ? `${page.practitioner.displayName} — Réservation` : "Page introuvable",
   };
@@ -27,7 +26,7 @@ export default async function PractitionerPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const page = await getPractitionerPage(db, slug);
+  const page = await getPractitionerPage(slug);
   if (!page) notFound();
   const paymentCanceled = sp.paiement === "annule";
 

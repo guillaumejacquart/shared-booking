@@ -1,3 +1,5 @@
+import { db } from "@/db/client";
+
 import { and, eq, gte } from "drizzle-orm";
 
 import { booking, sessionType } from "@/db/schema";
@@ -5,16 +7,16 @@ import type { DbOrTx } from "./types";
 
 /** Repository types de séances. */
 
-export async function listSessionTypes(db: DbOrTx, practitionerId: string) {
-  return db
+export async function listSessionTypes(practitionerId: string,
+  tx?: DbOrTx) {
+  const conn = tx ?? db;
+  return conn
     .select()
     .from(sessionType)
     .where(eq(sessionType.practitionerId, practitionerId));
 }
 
-export async function createSessionType(
-  db: DbOrTx,
-  data: {
+export async function createSessionType(data: {
     id: string;
     practitionerId: string;
     name: string;
@@ -26,8 +28,9 @@ export async function createSessionType(
     priceCents?: number | null;
     requiresValidation?: boolean;
   },
-) {
-  await db.insert(sessionType).values({
+  tx?: DbOrTx) {
+  const conn = tx ?? db;
+  await conn.insert(sessionType).values({
     ...data,
     active: true,
     requiresPayment: data.requiresPayment ?? false,
@@ -37,9 +40,7 @@ export async function createSessionType(
   return data.id;
 }
 
-export async function updateSessionType(
-  db: DbOrTx,
-  id: string,
+export async function updateSessionType(id: string,
   data: Partial<{
     name: string;
     description: string | null;
@@ -51,20 +52,22 @@ export async function updateSessionType(
     priceCents: number | null;
     requiresValidation: boolean;
   }>,
-) {
-  await db.update(sessionType).set(data).where(eq(sessionType.id, id));
+  tx?: DbOrTx) {
+  const conn = tx ?? db;
+  await conn.update(sessionType).set(data).where(eq(sessionType.id, id));
 }
 
-export async function deleteSessionType(db: DbOrTx, id: string) {
-  await db.delete(sessionType).where(eq(sessionType.id, id));
+export async function deleteSessionType(id: string,
+  tx?: DbOrTx) {
+  const conn = tx ?? db;
+  await conn.delete(sessionType).where(eq(sessionType.id, id));
 }
 
-export async function countFutureBookingsBySessionType(
-  db: DbOrTx,
-  sessionTypeId: string,
+export async function countFutureBookingsBySessionType(sessionTypeId: string,
   now: Date,
-): Promise<number> {
-  const rows = await db
+  tx?: DbOrTx): Promise<number> {
+  const conn = tx ?? db;
+  const rows = await conn
     .select({ id: booking.id })
     .from(booking)
     .where(

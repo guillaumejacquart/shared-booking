@@ -1,4 +1,3 @@
-import { db } from "@/db/client";
 import * as availabilityDal from "@/dal/availability";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
@@ -30,16 +29,13 @@ export default async function ProfilPage({
 
   const now = new Date();
   const [prac, types, rules, roomsWithMembers, exceptions] = await Promise.all([
-    practitionersDal.getPractitionerById(db, ctx.practitionerId),
-    sessionTypesDal.listSessionTypes(db, ctx.practitionerId),
-    availabilityDal.listRules(db, ctx.practitionerId),
-    roomsDal.listRoomsWithMembers(db, ctx.officeId),
-    availabilityDal.listExceptions(
-      db,
-      ctx.practitionerId,
+    practitionersDal.getPractitionerById(ctx.practitionerId),
+    sessionTypesDal.listSessionTypes(ctx.practitionerId),
+    availabilityDal.listRules(ctx.practitionerId),
+    roomsDal.listRoomsWithMembers(ctx.officeId),
+    availabilityDal.listExceptions(ctx.practitionerId,
       dateStrInTz(new Date(now.getTime() - 30 * 86_400_000), tz),
-      dateStrInTz(new Date(now.getTime() + 365 * 86_400_000), tz),
-    ),
+      dateStrInTz(new Date(now.getTime() + 365 * 86_400_000), tz),),
   ]);
   const rooms = roomsWithMembers
     .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(ctx.practitionerId))
@@ -50,6 +46,7 @@ export default async function ProfilPage({
       <h1 className="mb-4 text-xl font-semibold">{t("dashboard.profile")}</h1>
       <Tabs<ProfilTab>
         initial={initial}
+        param="tab"
         tabs={[
           { key: "profil", label: t("profile.tabProfile") },
           { key: "seances", label: t("profile.tabSessionTypes") },

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { replaceAvailability } from "@/lib/services/schedule";
 import { replaceAvailabilitySchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -31,7 +30,7 @@ export async function PUT(req: NextRequest) {
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    await replaceAvailability({ db }, input);
+    await replaceAvailability({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);

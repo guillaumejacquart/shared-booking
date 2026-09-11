@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { createBooking } from "@/lib/services/bookings";
 import { createBookingSchema } from "@/lib/schemas/bookings";
 import { toResponse } from "@/app/api/errors";
@@ -38,7 +37,7 @@ export async function POST(
       ...(body as Record<string, unknown>),
       practitionerSlug: slug,
     });
-    const result = await createBooking({ db }, input);
+    const result = await createBooking({}, input);
     return NextResponse.json(result, { status: 201 });
   } catch (e) {
     return toResponse(e);

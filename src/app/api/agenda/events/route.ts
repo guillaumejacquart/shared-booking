@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
-import * as bookingsDal from "@/dal/bookings";
-import * as practitionersDal from "@/dal/practitioners";
+import { getAgendaEvents } from "@/lib/services/calendar";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
 
@@ -20,45 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    const prac = await practitionersDal.getPractitionerByUserId(db, user.id);
-    if (!prac) return NextResponse.json({ error: "Praticien introuvable" }, { status: 404 });
-    const bookings = await bookingsDal.listBookingsForPractitioner(db, prac.id, start, end);
-    return NextResponse.json({
-      events: bookings.map((b) => ({
-        id: b.id,
-        title: `${b.sessionNameSnapshot} — ${b.patientFirstName} ${b.patientLastName}`,
-        start: b.startAt.toISOString(),
-        end: b.endAt.toISOString(),
-        backgroundColor:
-          b.status === "confirmed"
-            ? "#18181b"
-            : b.status === "pending"
-              ? "#b45309"
-              : b.status === "completed"
-                ? "#a1a1aa"
-                : "#e4e4e7",
-        borderColor:
-          b.status === "confirmed"
-            ? "#18181b"
-            : b.status === "pending"
-              ? "#b45309"
-              : b.status === "completed"
-                ? "#a1a1aa"
-                : "#e4e4e7",
-        textColor: b.status === "cancelled" ? "#52525b" : "#fafafa",
-        extendedProps: {
-          status: b.status,
-          paymentStatus: b.paymentStatus,
-          validationRequired: b.validationRequired,
-          sessionName: b.sessionNameSnapshot,
-          patientName: `${b.patientFirstName} ${b.patientLastName}`,
-          patientEmail: b.patientEmail,
-          patientPhone: b.patientPhone,
-          notes: b.notes,
-          cancelToken: b.cancelToken,
-        },
-      })),
-    });
+    return NextResponse.json(await getAgendaEvents({}, { userId: user.id, start, end }));
   } catch (e) {
     return toResponse(e);
   }

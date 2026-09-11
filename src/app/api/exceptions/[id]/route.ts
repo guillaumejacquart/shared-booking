@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { db } from "@/db/client";
 import { deleteException } from "@/lib/services/schedule";
 import { deleteExceptionSchema } from "@/lib/schemas/schedule";
 import { toResponse } from "@/app/api/errors";
@@ -29,7 +28,7 @@ export async function DELETE(
       requesterUserId: user.id,
       requesterIsOwner: scope.isOwner,
     });
-    await deleteException({ db }, input);
+    await deleteException({}, input);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return toResponse(e);
