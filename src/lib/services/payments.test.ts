@@ -61,7 +61,7 @@ const patient = {
   patientFirstName: "Jean",
   patientLastName: "Dupont",
   patientEmail: "jean@example.com",
-  consent: true,
+  consent: true as const,
 };
 
 beforeEach(async () => {
@@ -151,8 +151,9 @@ describe("applyPaymentCompleted", () => {
       stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
     });
     expect(out).toEqual({ applied: true, confirmed: false });
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2); // reçu patient + demande praticien
     expect(sent[0].subject).toContain("Paiement reçu");
+    expect(sent[1].to).toBe("alice@example.com");
   });
 });
 

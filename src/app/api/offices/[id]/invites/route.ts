@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as invitesDal from "@/dal/invites";
+import * as membersDal from "@/dal/members";
 import { createInvite } from "@/lib/services/team";
 import { createInviteSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
 
 async function requireOwner(officeId: string, userId: string) {
-  const membership = await store.getMembership(db, officeId, userId);
+  const membership = await membersDal.getMembership(db, officeId, userId);
   return membership && membership.role === "owner" && membership.active
     ? membership
     : null;
@@ -25,7 +26,7 @@ export async function GET(
   if (!(await requireOwner(id, user.id))) {
     return NextResponse.json({ error: "Action non autorisée" }, { status: 403 });
   }
-  const invites = await store.listPendingInvites(db, id);
+  const invites = await invitesDal.listPendingInvites(db, id);
   return NextResponse.json({
     invites: invites.map((i) => ({
       id: i.id,

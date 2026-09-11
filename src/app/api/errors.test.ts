@@ -42,21 +42,6 @@ describe("toResponse", () => {
     expect(JSON.stringify(json.details)).toContain("durationMin");
   });
 
-  it("propage les détails d'une ValidationError enrichie", async () => {
-    const { validationError } = await import("@/lib/services/errors");
-    let caught: unknown;
-    try {
-      z.object({ durationMin: z.number().int().min(5) }).parse({ durationMin: 0 });
-    } catch (e) {
-      caught = validationError("Type invalide", e);
-    }
-    const res = toResponse(caught);
-    expect(res.status).toBe(400);
-    const json = await body(res);
-    expect(json.code).toBe("VALIDATION");
-    expect(JSON.stringify(json.details)).toContain("durationMin");
-  });
-
   it("inclut le message d'origine en dev, générique en prod", async () => {
     const res = toResponse(new Error("boom précis"));
     expect(res.status).toBe(500);

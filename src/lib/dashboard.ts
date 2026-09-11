@@ -2,7 +2,9 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as membersDal from "@/dal/members";
+import * as officesDal from "@/dal/offices";
+import * as practitionersDal from "@/dal/practitioners";
 import { getSession } from "@/lib/session";
 
 /**
@@ -26,11 +28,11 @@ export interface DashboardContext {
 export const getDashboardContext = cache(async (): Promise<DashboardContext> => {
   const session = await getSession();
   if (!session) redirect("/login");
-  const memberships = await store.listMemberships(db, session.user.id);
+  const memberships = await membersDal.listMemberships(db, session.user.id);
   if (memberships.length === 0) redirect("/onboarding");
   const membership = memberships[0];
-  const office = await store.getOfficeById(db, membership.officeId);
-  const prac = await store.getPractitionerByUserId(db, session.user.id);
+  const office = await officesDal.getOfficeById(db, membership.officeId);
+  const prac = await practitionersDal.getPractitionerByUserId(db, session.user.id);
   if (!office || !prac) redirect("/onboarding");
   return {
     userId: session.user.id,

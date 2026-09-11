@@ -10,6 +10,7 @@ export default async function AgendaPage() {
       <h1 className="mb-3 text-xl font-semibold">{t("agenda.title")}</h1>
       <div className="mb-4 flex flex-wrap gap-2">
         <Badge tone="green">{t("agenda.confirmed")}</Badge>
+        <Badge tone="amber">{t("agenda.pending")}</Badge>
         <Badge tone="zinc">{t("agenda.completed")}</Badge>
         <Badge tone="red">{t("agenda.cancelledStatus")}</Badge>
       </div>

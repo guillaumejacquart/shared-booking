@@ -93,11 +93,11 @@ describe("schedule schemas", () => {
 
   it("updateOfficeSettings borne les réglages", () => {
     expect(
-      updateOfficeSettingsSchema.parse({ officeId: "o", requesterUserId: "u", bookingLeadTimeMin: 60 }),
-    ).toBeDefined();
-    expect(
-      updateOfficeSettingsSchema.parse({ officeId: "o", requesterUserId: "u", bookingLeadTimeMin: -5 }),
-    ).toThrowError(/bookingLeadTimeMin/);
+      updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", bookingLeadTimeMin: 60 }).success,
+    ).toBe(true);
+    const bad = updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", bookingLeadTimeMin: -5 });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0].path).toEqual(["bookingLeadTimeMin"]);
   });
 });
 
@@ -122,7 +122,7 @@ describe("team schemas", () => {
 
   it("acceptInvite exige tous les champs", () => {
     expect(
-      acceptInviteSchema.parse({ token: "t", userId: "u", userEmail: "a@b.c", userName: "N" }),
+      acceptInviteSchema.parse({ token: "t", userId: "u", userEmail: "a@b.co", userName: "N" }),
     ).toBeDefined();
   });
 });

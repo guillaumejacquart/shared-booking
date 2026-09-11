@@ -1,5 +1,8 @@
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as availabilityDal from "@/dal/availability";
+import * as practitionersDal from "@/dal/practitioners";
+import * as roomsDal from "@/dal/rooms";
+import * as sessionTypesDal from "@/dal/session-types";
 import { getDashboardContext } from "@/lib/dashboard";
 import { dateStrInTz } from "@/lib/timezone";
 import { t } from "@/lib/i18n";
@@ -27,11 +30,11 @@ export default async function ProfilPage({
 
   const now = new Date();
   const [prac, types, rules, roomsWithMembers, exceptions] = await Promise.all([
-    store.getPractitionerById(db, ctx.practitionerId),
-    store.listSessionTypes(db, ctx.practitionerId),
-    store.listRules(db, ctx.practitionerId),
-    store.listRoomsWithMembers(db, ctx.officeId),
-    store.listExceptions(
+    practitionersDal.getPractitionerById(db, ctx.practitionerId),
+    sessionTypesDal.listSessionTypes(db, ctx.practitionerId),
+    availabilityDal.listRules(db, ctx.practitionerId),
+    roomsDal.listRoomsWithMembers(db, ctx.officeId),
+    availabilityDal.listExceptions(
       db,
       ctx.practitionerId,
       dateStrInTz(new Date(now.getTime() - 30 * 86_400_000), tz),

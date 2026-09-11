@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { db } from "@/db/client";
-import { getPractitionerPage } from "@/dal/store";
+import { getPractitionerPage } from "@/dal/practitioners";
 import { t } from "@/lib/i18n";
 import BookingWidget from "./BookingWidget";
 

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as availabilityDal from "@/dal/availability";
+import * as bookingsDal from "@/dal/bookings";
+import * as practitionersDal from "@/dal/practitioners";
+import * as roomsDal from "@/dal/rooms";
 import { dateStrInTz } from "@/lib/timezone";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
@@ -20,19 +23,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    const prac = await store.getPractitionerByUserId(db, user.id);
+    const prac = await practitionersDal.getPractitionerByUserId(db, user.id);
     if (!prac) return NextResponse.json({ error: "Praticien introuvable" }, { status: 404 });
     const to = dateStrInTz(new Date(new Date(`${from}T12:00:00Z`).getTime() + days * 86_400_000), "Europe/Paris");
     const [rules, exceptions, bookings, rooms] = await Promise.all([
-      store.listRules(db, prac.id),
-      store.listExceptions(db, prac.id, from, to),
-      store.listBookingsForPractitioner(
+      availabilityDal.listRules(db, prac.id),
+      availabilityDal.listExceptions(db, prac.id, from, to),
+      bookingsDal.listBookingsForPractitioner(
         db,
         prac.id,
         new Date(`${from}T00:00:00Z`),
         new Date(new Date(`${from}T00:00:00Z`).getTime() + (days + 1) * 86_400_000),
       ),
-      store.listRooms(db, prac.officeId),
+      roomsDal.listRooms(db, prac.officeId),
     ]);
     return NextResponse.json({
       rules: rules.map((r) => ({ weekday: r.weekday, startTime: r.startTime, endTime: r.endTime, roomId: r.roomId })),

@@ -1,5 +1,9 @@
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as invitesDal from "@/dal/invites";
+import * as membersDal from "@/dal/members";
+import * as officesDal from "@/dal/offices";
+import * as practitionersDal from "@/dal/practitioners";
+import * as roomsDal from "@/dal/rooms";
 import { getDashboardContext } from "@/lib/dashboard";
 import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
@@ -24,11 +28,11 @@ export default async function ParametresPage({
   const initial: SettingsTab = rawTab === "team" || rawTab === "rooms" ? rawTab : "general";
 
   const [office, members, pending, rooms, pracs] = await Promise.all([
-    store.getOfficeById(db, ctx.officeId),
-    store.listMembersWithUsers(db, ctx.officeId),
-    store.listPendingInvites(db, ctx.officeId),
-    store.listRoomsWithMembers(db, ctx.officeId),
-    store.listPractitionersByOffice(db, ctx.officeId),
+    officesDal.getOfficeById(db, ctx.officeId),
+    membersDal.listMembersWithUsers(db, ctx.officeId),
+    invitesDal.listPendingInvites(db, ctx.officeId),
+    roomsDal.listRoomsWithMembers(db, ctx.officeId),
+    practitionersDal.listPractitionersByOffice(db, ctx.officeId),
   ]);
   if (!office) return null;
 

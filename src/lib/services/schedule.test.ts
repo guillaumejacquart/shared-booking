@@ -111,10 +111,12 @@ describe("saveSessionType / deleteSessionType", () => {
     const id = await saveSessionType(deps(), {
       practitionerId: "p2", officeId: "o1", ...bob,
       name: "Suivi", durationMin: 45, bufferAfterMin: 5,
+      requiresPayment: false, requiresValidation: false,
     });
     const id2 = await saveSessionType(deps(), {
       practitionerId: "p2", officeId: "o1", ...bob, id,
       name: "Suivi long", durationMin: 60, bufferAfterMin: 5, active: false,
+      requiresPayment: false, requiresValidation: false,
     });
     expect(id2).toBe(id);
   });
@@ -181,7 +183,7 @@ describe("saveRoom / deleteRoom", () => {
   it("crée et modifie une salle avec allowlist (owner uniquement)", async () => {
     const { saveRoom } = await import("@/lib/services/schedule");
     const id = await saveRoom(deps(), {
-      officeId: "o1", requesterUserId: "u1", name: "Salle B", practitionerIds: ["p1", "p2"],
+      officeId: "o1", requesterUserId: "u1", name: "Salle B", color: "#3b82f6", practitionerIds: ["p1", "p2"],
     });
     const id2 = await saveRoom(deps(), {
       officeId: "o1", requesterUserId: "u1", id, name: "Salle B", color: "#ff0000", practitionerIds: ["p1"],
@@ -189,11 +191,11 @@ describe("saveRoom / deleteRoom", () => {
     expect(id2).toBe(id);
     // Bob (non-owner) ne peut pas gérer les salles.
     await expect(
-      saveRoom(deps(), { officeId: "o1", requesterUserId: "u2", name: "X" }),
+      saveRoom(deps(), { officeId: "o1", requesterUserId: "u2", name: "X", color: "#3b82f6", practitionerIds: [] }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     // Praticien d'un autre cabinet refusé dans l'allowlist : on teste avec un id inconnu.
     await expect(
-      saveRoom(deps(), { officeId: "o1", requesterUserId: "u1", name: "Y", practitionerIds: ["nope"] }),
+      saveRoom(deps(), { officeId: "o1", requesterUserId: "u1", name: "Y", color: "#3b82f6", practitionerIds: ["nope"] }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -255,6 +257,7 @@ describe("saveSessionType paiement/validation", () => {
         {
           practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
           name: "Sans prix", durationMin: 60, bufferAfterMin: 0, requiresPayment: true,
+          requiresValidation: false,
         },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -270,9 +273,9 @@ describe("saveSessionType nulls DB", () => {
       {
         practitionerId: "p2", officeId: "o1", requesterUserId: "u2", requesterIsOwner: false,
         id: undefined,
-        name: "Soin 1", description: null as unknown as undefined,
+        name: "Soin 1", description: null,
         durationMin: 60, bufferAfterMin: 20, priceDisplay: "50",
-        active: true, requiresPayment: false, priceCents: null as unknown as undefined,
+        active: true, requiresPayment: false, priceCents: null,
         requiresValidation: true,
       },
     );

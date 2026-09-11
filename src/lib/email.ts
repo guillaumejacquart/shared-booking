@@ -187,6 +187,23 @@ export function paymentReceivedEmail(to: string, m: BookingMailModel): OutgoingE
   };
 }
 
+/** Nouvelle demande à valider (envoyé au praticien). */
+export function validationRequestEmail(
+  to: string, // email du praticien
+  m: BookingMailModel & { patientName: string },
+): OutgoingEmail {
+  const subject = `À valider : ${m.sessionName} le ${when(m)}`;
+  const text = `Bonjour ${m.practitionerName},\n\n${m.patientName} demande un rendez-vous « ${m.sessionName} » le ${when(m)}.\n\nValidez ou refusez depuis votre agenda.`;
+  return {
+    to,
+    subject,
+    text,
+    html: layout(
+      `<p>Bonjour ${escapeHtml(m.practitionerName)},</p><p><strong>${escapeHtml(m.patientName)}</strong> demande un rendez-vous <strong>${escapeHtml(m.sessionName)}</strong> le <strong>${escapeHtml(when(m))}</strong>.</p><p>Validez ou refusez depuis votre agenda.</p>`,
+    ),
+  };
+}
+
 export function practitionerCancelledEmail(
   to: string, // email du patient
   m: BookingMailModel & { reason: string },

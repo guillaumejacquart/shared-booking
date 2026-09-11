@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as invitesDal from "@/dal/invites";
+import * as officesDal from "@/dal/offices";
 import { acceptInvite } from "@/lib/services/team";
 import { acceptInviteSchema } from "@/lib/schemas/team";
 import { toResponse } from "@/app/api/errors";
@@ -13,9 +14,9 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const inv = await store.getInviteByToken(db, token);
+  const inv = await invitesDal.getInviteByToken(db, token);
   if (!inv) return NextResponse.json({ error: "Invitation introuvable" }, { status: 404 });
-  const office = await store.getOfficeById(db, inv.officeId);
+  const office = await officesDal.getOfficeById(db, inv.officeId);
   return NextResponse.json({
     officeName: office?.name ?? "",
     email: inv.email,

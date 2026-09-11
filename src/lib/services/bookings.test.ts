@@ -282,15 +282,18 @@ describe("validateBooking", () => {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
     });
     expect(res.status).toBe("pending");
-    expect(sent).toHaveLength(1); // accusé de réception (validationPending)
+    expect(sent).toHaveLength(2); // accusé patient + demande au praticien
     expect(sent[0].subject).toContain("Demande reçue");
+    expect(sent[0].to).toBe("jean@example.com");
+    expect(sent[1].to).toBe("alice@example.com");
+    expect(sent[1].subject).toContain("À valider");
 
     const out = await validateBooking(deps(), {
       bookingId: res.id, requesterUserId: "u1", accept: true,
     });
     expect(out.status).toBe("confirmed");
-    expect(sent).toHaveLength(2);
-    expect(sent[1].subject).toContain("Confirmation");
+    expect(sent).toHaveLength(3);
+    expect(sent[2].subject).toContain("Confirmation");
   });
 
   it("le praticien refuse avec motif : annulé + patient notifié", async () => {

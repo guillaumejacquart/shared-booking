@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { db } from "@/db/client";
-import { findBookingByCancelToken } from "@/dal/store";
+import { findBookingByCancelToken } from "@/dal/bookings";
 import { formatBookingFr } from "@/lib/email";
 import { t } from "@/lib/i18n";
 import ManageClient from "./ManageClient";

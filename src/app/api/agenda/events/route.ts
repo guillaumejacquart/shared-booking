@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as bookingsDal from "@/dal/bookings";
+import * as practitionersDal from "@/dal/practitioners";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
 
@@ -19,9 +20,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    const prac = await store.getPractitionerByUserId(db, user.id);
+    const prac = await practitionersDal.getPractitionerByUserId(db, user.id);
     if (!prac) return NextResponse.json({ error: "Praticien introuvable" }, { status: 404 });
-    const bookings = await store.listBookingsForPractitioner(db, prac.id, start, end);
+    const bookings = await bookingsDal.listBookingsForPractitioner(db, prac.id, start, end);
     return NextResponse.json({
       events: bookings.map((b) => ({
         id: b.id,

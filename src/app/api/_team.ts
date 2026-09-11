@@ -1,18 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as membersDal from "@/dal/members";
+import * as practitionersDal from "@/dal/practitioners";
 
 /** Résout officeId + isOwner depuis un practitionerId (ou une réponse 404/403). */
 export async function practitionerScope(
   practitionerId: string,
   userId: string,
 ): Promise<{ officeId: string; isOwner: boolean } | { error: NextResponse }> {
-  const prac = await store.getPractitionerById(db, practitionerId);
+  const prac = await practitionersDal.getPractitionerById(db, practitionerId);
   if (!prac) {
     return { error: NextResponse.json({ error: "Praticien introuvable" }, { status: 404 }) };
   }
-  const m = await store.getMembership(db, prac.officeId, userId);
+  const m = await membersDal.getMembership(db, prac.officeId, userId);
   if (!m || !m.active) {
     return { error: NextResponse.json({ error: "Action non autorisée" }, { status: 403 }) };
   }
@@ -24,7 +25,7 @@ export async function requireOfficeOwner(
   officeId: string,
   userId: string,
 ): Promise<null | { error: NextResponse }> {
-  const m = await store.getMembership(db, officeId, userId);
+  const m = await membersDal.getMembership(db, officeId, userId);
   if (!m || m.role !== "owner" || !m.active) {
     return { error: NextResponse.json({ error: "Action non autorisée" }, { status: 403 }) };
   }

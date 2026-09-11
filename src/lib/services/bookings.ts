@@ -1,17 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
 
-import type { Db } from "@/dal/types";
-import * as store from "@/dal/store";
-import { booking } from "@/db/schema";
+import type { Booking, BookingDetail, Db } from "@/dal/types";
+import * as availabilityDal from "@/dal/availability";
+import * as bookingsDal from "@/dal/bookings";
+import * as membersDal from "@/dal/members";
+import * as practitionersDal from "@/dal/practitioners";
+import * as usersDal from "@/dal/users";
 import { env, isStripeConfigured } from "@/lib/env";
 import {
-  applyPaymentSchema,
-  cancelBookingSchema,
-  createBookingSchema,
-  rescheduleBookingSchema,
-  slotsQuerySchema,
-  validateBookingSchema,
   type ApplyPaymentInput,
   type BookingResult,
   type CancelInput,
@@ -33,6 +29,7 @@ import {
   practitionerCancelledEmail,
   rescheduledEmail,
   validationPendingEmail,
+  validationRequestEmail,
   type SendEmail,
 } from "@/lib/email";
 import {
@@ -41,7 +38,6 @@ import {
   ForbiddenError,
   NotFoundError,
   ValidationError,
-  validationError,
 } from "./errors";
 
 /**
@@ -96,6 +92,29 @@ function manageUrl(officeSlug: string, practitionerSlug: string, token: string):
   return `${base}/p/${practitionerSlug}/gerer?token=${token}&cabinet=${officeSlug}`;
 }
 
+/** Notifie le praticien qu'une demande attend sa validation (sinon il ne le sait jamais). */
+async function notifyValidationRequest(
+  db: Db,
+  send: SendEmail,
+  detail: BookingDetail,
+  b: Booking,
+): Promise<void> {
+  const pracEmail = await usersDal.getUserEmail(db, detail.practitioner.userId);
+  if (!pracEmail) return;
+  await send(
+    validationRequestEmail(pracEmail, {
+      practitionerName: detail.practitioner.displayName,
+      sessionName: b.sessionNameSnapshot,
+      start: b.startAt,
+      timeZone: detail.office.timezone,
+      officeName: detail.office.name,
+      officeAddress: detail.office.address,
+      manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
+      patientName: `${b.patientFirstName} ${b.patientLastName}`,
+    }),
+  );
+}
+
 // --- Disponibilités ---------------------------------------------------------
 
 export interface PublicSlot {
@@ -106,7 +125,7 @@ export interface PublicSlot {
 export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<PublicSlot[]> {
   const now = deps.now ?? new Date();
 
-  const page = await store.getPractitionerPage(deps.db, input.practitionerSlug);
+  const page = await practitionersDal.getPractitionerPage(deps.db, input.practitionerSlug);
   if (!page) throw new NotFoundError("Praticien introuvable");
   const st = page.sessionTypes.find((t) => t.id === input.sessionTypeId);
   if (!st) throw new NotFoundError("Type de séance introuvable");
@@ -116,14 +135,14 @@ export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<
   const engineFrom = now.getTime() < dayStart.getTime() ? dayStart : now;
   const horizonEnd = new Date(engineFrom.getTime() + input.days * 86_400_000);
 
-  const rules = await store.listRules(deps.db, page.practitioner.id);
-  const exceptions = await store.listExceptions(
+  const rules = await availabilityDal.listRules(deps.db, page.practitioner.id);
+  const exceptions = await availabilityDal.listExceptions(
     deps.db,
     page.practitioner.id,
     dateStrInTz(engineFrom, tz),
     dateStrInTz(horizonEnd, tz),
   );
-  const bookings = await store.listActiveBookings(deps.db, {
+  const bookings = await bookingsDal.listActiveBookings(deps.db, {
     practitionerId: page.practitioner.id,
     from: engineFrom,
     to: horizonEnd,
@@ -131,7 +150,7 @@ export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<
   const roomIds = [...new Set(rules.map((r) => r.roomId))];
   const roomBookings =
     roomIds.length > 0
-      ? await store.listActiveBookings(deps.db, {
+      ? await bookingsDal.listActiveBookings(deps.db, {
           roomIds,
           from: engineFrom,
           to: horizonEnd,
@@ -187,7 +206,7 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const page = await store.getPractitionerPage(deps.db, input.practitionerSlug);
+  const page = await practitionersDal.getPractitionerPage(deps.db, input.practitionerSlug);
   if (!page) throw new NotFoundError("Praticien introuvable");
   const st = page.sessionTypes.find((t) => t.id === input.sessionTypeId);
   if (!st) throw new NotFoundError("Type de séance introuvable");
@@ -202,7 +221,7 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
   }
 
   // Vérification + insertion sous mutex : sérialise les écritures concurrentes
-  // (mono-processus, voir store.tryInsertBooking). Distingue hors-grille (400)
+  // (mono-processus, voir bookingsDal.tryInsertBooking). Distingue hors-grille (400)
   // de pris (409) via la grille sans occupation.
   const email = input.patientEmail.toLowerCase();
   const { cancelToken, rescheduleToken } = tokens();
@@ -269,7 +288,7 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
     }
     const slot = daySlots[0];
 
-    const futureCount = await store.countFutureConfirmedByEmail(
+    const futureCount = await bookingsDal.countFutureConfirmedByEmail(
       deps.db,
       page.practitioner.id,
       email,
@@ -287,7 +306,7 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
       start,
       page.office.timezone,
     );
-    const inserted = await store.tryInsertBooking(deps.db, {
+    const inserted = await bookingsDal.tryInsertBooking(deps.db, {
       id: bookingId,
       officeId: page.office.id,
       practitionerId: page.practitioner.id,
@@ -340,8 +359,18 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
     // Flux classique : confirmation immédiate.
     await send(confirmationEmail(email, model, ics));
   } else if (!needsPayment) {
-    // Validation praticien sans paiement : accusé de réception.
+    // Validation praticien sans paiement : accusé de réception patient...
+    // ...et notification au praticien (sinon il ne sait pas qu'il doit agir).
     await send(validationPendingEmail(email, model));
+    const pracEmail = await usersDal.getUserEmail(deps.db, page.practitioner.userId);
+    if (pracEmail) {
+      await send(
+        validationRequestEmail(pracEmail, {
+          ...model,
+          patientName: `${input.patientFirstName} ${input.patientLastName}`,
+        }),
+      );
+    }
   }
   // Cas payant : aucun email avant le paiement (le webhook confirme).
 
@@ -369,13 +398,13 @@ export async function applyPaymentCompleted(
 ): Promise<{ applied: boolean; confirmed: boolean }> {
   const send = deps.sendEmail ?? createMailer();
 
-  const detail = await store.findBookingByStripeSession(deps.db, input.stripeSessionId);
+  const detail = await bookingsDal.findBookingByStripeSession(deps.db, input.stripeSessionId);
   if (!detail) return { applied: false, confirmed: false };
   const { booking: b } = detail;
   if (b.paymentStatus === "paid") return { applied: false, confirmed: false };
   if (b.status !== "pending") return { applied: false, confirmed: false };
 
-  await store.markBookingPaid(deps.db, b.id, input.paymentIntentId);
+  await bookingsDal.markBookingPaid(deps.db, b.id, input.paymentIntentId);
   const confirmed = await finalizeBookingIfReady({ ...deps, sendEmail: send }, b.id);
   return { applied: true, confirmed };
 }
@@ -390,18 +419,13 @@ export async function finalizeBookingIfReady(
   bookingId: string,
 ): Promise<boolean> {
   const send = deps.sendEmail ?? createMailer();
-  const rows = await deps.db
-    .select()
-    .from(booking)
-    .where(eq(booking.id, bookingId))
-    .limit(1);
-  const b = rows[0];
+  const b = await bookingsDal.getBookingRowById(deps.db, bookingId);
   if (!b || b.status !== "pending") return false;
   if (b.paymentStatus === "pending") return false;
   if (b.validationRequired && !b.validatedAt) {
     // Payé mais en attente de validation : on prévient le patient.
     if (b.paymentStatus === "paid") {
-      const detail = await store.findBookingByCancelToken(deps.db, b.cancelToken);
+      const detail = await bookingsDal.findBookingByCancelToken(deps.db, b.cancelToken);
       if (detail) {
         await send(
           paymentReceivedEmail(b.patientEmail, {
@@ -414,12 +438,13 @@ export async function finalizeBookingIfReady(
             manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
           }),
         );
+        await notifyValidationRequest(deps.db, send, detail, b);
       }
     }
     return false;
   }
-  await store.markBookingConfirmed(deps.db, b.id);
-  const detail = await store.findBookingByCancelToken(deps.db, b.cancelToken);
+  await bookingsDal.markBookingConfirmed(deps.db, b.id);
+  const detail = await bookingsDal.findBookingByCancelToken(deps.db, b.cancelToken);
   if (!detail) return true;
   await send(
     confirmationEmail(
@@ -451,9 +476,9 @@ export async function finalizeBookingIfReady(
 /** Libère les pendings dont le paiement a expiré (cron). */
 export async function releaseExpiredPendings(deps: Deps): Promise<number> {
   const now = deps.now ?? new Date();
-  const expired = await store.listExpiredPendings(deps.db, now);
+  const expired = await bookingsDal.listExpiredPendings(deps.db, now);
   for (const b of expired) {
-    await store.markBookingCancelled(deps.db, b.id, "Paiement expiré", now);
+    await bookingsDal.markBookingCancelled(deps.db, b.id, "Paiement expiré", now);
   }
   return expired.length;
 }
@@ -471,14 +496,14 @@ export async function validateBooking(
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const detail = await store.getBookingById(deps.db, input.bookingId);
+  const detail = await bookingsDal.getBookingById(deps.db, input.bookingId);
   if (!detail) throw new NotFoundError("Réservation introuvable");
   const { booking: b, practitioner: prac, office } = detail;
   if (b.status !== "pending" || !b.validationRequired || b.validatedAt) {
     throw new ConflictError("Cette réservation n'est plus à valider");
   }
   if (prac.userId !== input.requesterUserId) {
-    const m = await store.getMembership(deps.db, office.id, input.requesterUserId);
+    const m = await membersDal.getMembership(deps.db, office.id, input.requesterUserId);
     if (!m || m.role !== "owner" || !m.active) {
       throw new ForbiddenError("Seul le praticien ou le responsable peut valider");
     }
@@ -497,12 +522,12 @@ export async function validateBooking(
     manageUrl: manageUrl(office.slug, prac.slug, b.cancelToken),
   };
   if (input.accept) {
-    await store.markBookingValidated(deps.db, b.id, now);
+    await bookingsDal.markBookingValidated(deps.db, b.id, now);
     await finalizeBookingIfReady({ ...deps, sendEmail: send }, b.id);
     return { id: b.id, status: "confirmed" };
   }
   if (!input.reason) throw new ValidationError("Un motif de refus est requis");
-  await store.markBookingCancelled(deps.db, b.id, input.reason, now);
+  await bookingsDal.markBookingCancelled(deps.db, b.id, input.reason, now);
   await send(practitionerCancelledEmail(b.patientEmail, { ...model, reason: input.reason }));
   return { id: b.id, status: "cancelled" };
 }
@@ -516,7 +541,7 @@ export async function cancelBooking(
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const detail = await store.findBookingByCancelToken(deps.db, input.token);
+  const detail = await bookingsDal.findBookingByCancelToken(deps.db, input.token);
   if (!detail) throw new NotFoundError("Réservation introuvable");
   const { booking: b, practitioner: prac, office } = detail;
   if (b.status === "cancelled") return { id: b.id, status: b.status };
@@ -531,7 +556,7 @@ export async function cancelBooking(
     throw new ValidationError("Un motif d'annulation est requis");
   }
 
-  await store.markBookingCancelled(deps.db, b.id, input.reason ?? null, now);
+  await bookingsDal.markBookingCancelled(deps.db, b.id, input.reason ?? null, now);
 
   const model = {
     practitionerName: prac.displayName,
@@ -543,7 +568,7 @@ export async function cancelBooking(
     manageUrl: "",
   };
   if (input.by === "patient") {
-    const pracEmail = await store.getUserEmail(deps.db, prac.userId);
+    const pracEmail = await usersDal.getUserEmail(deps.db, prac.userId);
     if (pracEmail) {
       await send(
         patientCancelledEmail(pracEmail, {
@@ -569,7 +594,7 @@ export async function rescheduleBooking(
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const detail = await store.findBookingByRescheduleToken(deps.db, input.token);
+  const detail = await bookingsDal.findBookingByRescheduleToken(deps.db, input.token);
   if (!detail) throw new NotFoundError("Réservation introuvable");
   const { booking: b, practitioner: prac, office } = detail;
   if (b.status !== "confirmed") {
@@ -594,14 +619,14 @@ export async function rescheduleBooking(
     const dateStr = dateStrInTz(newStart, tz);
     const engineFrom = now;
     const horizonEnd = new Date(newStart.getTime() + 86_400_000);
-    const rules = await store.listRules(deps.db, prac.id);
-    const exceptions = await store.listExceptions(
+    const rules = await availabilityDal.listRules(deps.db, prac.id);
+    const exceptions = await availabilityDal.listExceptions(
       deps.db,
       prac.id,
       dateStrInTz(engineFrom, tz),
       dateStrInTz(horizonEnd, tz),
     );
-    const busy = await store.listActiveBookings(deps.db, {
+    const busy = await bookingsDal.listActiveBookings(deps.db, {
       practitionerId: prac.id,
       excludeBookingId: b.id,
       from: engineFrom,
@@ -610,7 +635,7 @@ export async function rescheduleBooking(
     const roomIds = [...new Set(rules.map((r) => r.roomId))];
     const roomBusyRows =
       roomIds.length > 0
-        ? await store.listActiveBookings(deps.db, {
+        ? await bookingsDal.listActiveBookings(deps.db, {
             roomIds,
             excludeBookingId: b.id,
             from: engineFrom,
@@ -660,7 +685,7 @@ export async function rescheduleBooking(
     const found = allSlots.find((s) => s.start.getTime() === newStart.getTime());
     if (!found) throw new ConflictError("Nouveau créneau indisponible");
 
-    const moved = await store.tryMoveBooking(deps.db, b.id, {
+    const moved = await bookingsDal.tryMoveBooking(deps.db, b.id, {
       startAt: found.start,
       endAt: found.end,
       roomId: found.roomId,
@@ -722,7 +747,7 @@ async function resolveSlotRoom(
   start: Date,
   timezone: string,
 ): Promise<string> {
-  const rules = await store.listRules(deps.db, practitionerId);
+  const rules = await availabilityDal.listRules(deps.db, practitionerId);
   const slots = generateSlots({
     timezone,
     windows: rules.map((r) => ({

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as bookingsDal from "@/dal/bookings";
+import * as membersDal from "@/dal/members";
+import * as practitionersDal from "@/dal/practitioners";
+import * as roomsDal from "@/dal/rooms";
 import { practitionerColor } from "@/lib/calendar-colors";
 import { toResponse } from "@/app/api/errors";
 import { getAuthUser, unauthorized } from "@/app/api/_auth";
@@ -21,16 +24,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   try {
-    const prac = await store.getPractitionerByUserId(db, user.id);
+    const prac = await practitionersDal.getPractitionerByUserId(db, user.id);
     if (!prac) return NextResponse.json({ error: "Praticien introuvable" }, { status: 404 });
-    const membership = await store.getMembership(db, prac.officeId, user.id);
+    const membership = await membersDal.getMembership(db, prac.officeId, user.id);
     if (!membership) return NextResponse.json({ error: "Action non autorisée" }, { status: 403 });
     const isOwner = membership.role === "owner";
 
     const [pracs, rooms, bookings] = await Promise.all([
-      store.listPractitionersByOffice(db, prac.officeId),
-      store.listRooms(db, prac.officeId),
-      store.listOfficeBookings(db, prac.officeId, start, end),
+      practitionersDal.listPractitionersByOffice(db, prac.officeId),
+      roomsDal.listRooms(db, prac.officeId),
+      bookingsDal.listOfficeBookings(db, prac.officeId, start, end),
     ]);
     const pracById = new Map(pracs.map((p) => [p.id, p]));
     const roomById = new Map(rooms.map((r) => [r.id, r]));

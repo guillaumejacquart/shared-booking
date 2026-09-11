@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { db } from "@/db/client";
-import { getOfficePage } from "@/dal/store";
+import { getOfficePage } from "@/dal/offices";
 import { t } from "@/lib/i18n";
 
 export async function generateMetadata({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
-import * as store from "@/dal/store";
+import * as bookingsDal from "@/dal/bookings";
 
 /**
  * Statut d'une réservation payée, pour la page de retour Stripe.
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const detail = await store.findBookingByStripeSession(db, sessionId);
+  const detail = await bookingsDal.findBookingByStripeSession(db, sessionId);
   if (!detail) return NextResponse.json({ error: "Réservation introuvable" }, { status: 404 });
   const { booking: b, practitioner: prac } = detail;
   return NextResponse.json({

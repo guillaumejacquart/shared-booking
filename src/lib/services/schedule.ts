@@ -1,32 +1,27 @@
 import type { Db } from "@/dal/types";
-import * as store from "@/dal/store";
-import {
-  createExceptionSchema,
-  deleteExceptionSchema,
-  deleteRoomSchema,
-  deleteSessionTypeSchema,
-  replaceAvailabilitySchema,
-  saveRoomSchema,
-  saveSessionTypeSchema,
-  updateOfficeSettingsSchema,
-  updateProfileSchema,
-  type CreateExceptionInput,
-  type DeleteExceptionInput,
-  type DeleteRoomInput,
-  type DeleteSessionTypeInput,
-  type ReplaceAvailabilityInput,
-  type Requester,
-  type SaveRoomInput,
-  type SaveSessionTypeInput,
-  type UpdateOfficeSettingsInput,
-  type UpdateProfileInput,
+import * as availabilityDal from "@/dal/availability";
+import * as membersDal from "@/dal/members";
+import * as officesDal from "@/dal/offices";
+import * as practitionersDal from "@/dal/practitioners";
+import * as roomsDal from "@/dal/rooms";
+import * as sessionTypesDal from "@/dal/session-types";
+import type {
+  CreateExceptionInput,
+  DeleteExceptionInput,
+  DeleteRoomInput,
+  DeleteSessionTypeInput,
+  ReplaceAvailabilityInput,
+  Requester,
+  SaveRoomInput,
+  SaveSessionTypeInput,
+  UpdateOfficeSettingsInput,
+  UpdateProfileInput,
 } from "@/lib/schemas/schedule";
 import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
   ValidationError,
-  validationError,
 } from "./errors";
 
 /**
@@ -49,10 +44,10 @@ async function checkAccess(
   officeId: string,
   req: Requester,
 ): Promise<void> {
-  const prac = await store.getPractitionerById(db, practitionerId);
+  const prac = await practitionersDal.getPractitionerById(db, practitionerId);
   if (!prac || prac.officeId !== officeId) throw new NotFoundError("Praticien introuvable");
   if (req.requesterIsOwner) {
-    const m = await store.getMembership(db, officeId, req.requesterUserId);
+    const m = await membersDal.getMembership(db, officeId, req.requesterUserId);
     if (!m || m.role !== "owner" || !m.active) {
       throw new ForbiddenError("Action non autorisée");
     }
@@ -75,7 +70,7 @@ async function assertRoomAllowed(
   practitionerId: string,
   roomId: string,
 ): Promise<void> {
-  const rooms = await store.listRoomsWithMembers(db, officeId);
+  const rooms = await roomsDal.listRoomsWithMembers(db, officeId);
   const entry = rooms.find((r) => r.room.id === roomId);
   if (!entry) throw new ValidationError("Salle inconnue");
   if (entry.practitionerIds.length > 0 && !entry.practitionerIds.includes(practitionerId)) {
@@ -106,7 +101,7 @@ export async function replaceAvailability(deps: ScheduleDeps, input: ReplaceAvai
     byDay.set(r.weekday, list);
   }
 
-  await store.replaceAvailabilityRules(
+  await availabilityDal.replaceAvailabilityRules(
     deps.db,
     input.practitionerId,
     input.rules.map((r) => ({ id: crypto.randomUUID(), ...r })),
@@ -123,11 +118,11 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
   await checkAccess(deps.db, practitionerId, officeId, input);
 
   if (input.id) {
-    const existing = (await store.listSessionTypes(deps.db, practitionerId)).find(
+    const existing = (await sessionTypesDal.listSessionTypes(deps.db, practitionerId)).find(
       (t) => t.id === input.id,
     );
     if (!existing) throw new NotFoundError("Type de séance introuvable");
-    await store.updateSessionType(deps.db, input.id, {
+    await sessionTypesDal.updateSessionType(deps.db, input.id, {
       name: input.name,
       description: input.description ?? null,
       durationMin: input.durationMin,
@@ -140,7 +135,7 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
     });
     return input.id;
   }
-  return store.createSessionType(deps.db, {
+  return sessionTypesDal.createSessionType(deps.db, {
     id: crypto.randomUUID(),
     practitionerId,
     name: input.name,
@@ -156,11 +151,11 @@ export async function saveSessionType(deps: ScheduleDeps, input: SaveSessionType
 
 export async function deleteSessionType(deps: ScheduleDeps, input: DeleteSessionTypeInput): Promise<void> {
   await checkAccess(deps.db, input.practitionerId, input.officeId, input);
-  const existing = (await store.listSessionTypes(deps.db, input.practitionerId)).find(
+  const existing = (await sessionTypesDal.listSessionTypes(deps.db, input.practitionerId)).find(
     (t) => t.id === input.id,
   );
   if (!existing) throw new NotFoundError("Type de séance introuvable");
-  const future = await store.countFutureBookingsBySessionType(
+  const future = await sessionTypesDal.countFutureBookingsBySessionType(
     deps.db,
     input.id,
     deps.now ?? new Date(),
@@ -170,7 +165,7 @@ export async function deleteSessionType(deps: ScheduleDeps, input: DeleteSession
       "Des réservations à venir utilisent ce type : désactivez-le plutôt que de le supprimer",
     );
   }
-  await store.deleteSessionType(deps.db, input.id);
+  await sessionTypesDal.deleteSessionType(deps.db, input.id);
 }
 
 // --- Exceptions --------------------------------------------------------------
@@ -192,7 +187,7 @@ export async function createException(deps: ScheduleDeps, input: CreateException
     await assertRoomAllowed(deps.db, officeId, practitionerId, input.roomId);
   }
 
-  return store.createException(deps.db, {
+  return availabilityDal.createException(deps.db, {
     id: crypto.randomUUID(),
     practitionerId,
     date: input.date,
@@ -207,7 +202,7 @@ export async function createException(deps: ScheduleDeps, input: CreateException
 
 export async function deleteException(deps: ScheduleDeps, input: DeleteExceptionInput): Promise<void> {
   await checkAccess(deps.db, input.practitionerId, input.officeId, input);
-  await store.deleteException(deps.db, input.id);
+  await availabilityDal.deleteException(deps.db, input.id);
 }
 
 // --- Profil ------------------------------------------------------------------
@@ -217,12 +212,12 @@ export async function updateProfile(deps: ScheduleDeps, input: UpdateProfileInpu
   await checkAccess(deps.db, practitionerId, input.officeId, input);
 
   if (input.slug) {
-    const taken = await store.getPractitionerBySlug(deps.db, input.slug);
+    const taken = await practitionersDal.getPractitionerBySlug(deps.db, input.slug);
     if (taken && taken.id !== practitionerId) {
       throw new ConflictError("Cet identifiant public est déjà pris");
     }
   }
-  await store.updatePractitioner(deps.db, practitionerId, {
+  await practitionersDal.updatePractitioner(deps.db, practitionerId, {
     displayName: input.displayName,
     ...(input.slug ? { slug: input.slug } : {}),
     bio: input.bio || null,
@@ -233,7 +228,7 @@ export async function updateProfile(deps: ScheduleDeps, input: UpdateProfileInpu
 // --- Salles (owner) ----------------------------------------------------------
 
 async function requireOwner(db: Db, officeId: string, userId: string): Promise<void> {
-  const m = await store.getMembership(db, officeId, userId);
+  const m = await membersDal.getMembership(db, officeId, userId);
   if (!m || m.role !== "owner" || !m.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut gérer les salles");
   }
@@ -242,45 +237,45 @@ async function requireOwner(db: Db, officeId: string, userId: string): Promise<v
 export async function saveRoom(deps: ScheduleDeps, input: SaveRoomInput): Promise<string> {
   await requireOwner(deps.db, input.officeId, input.requesterUserId);
 
-  const pracs = await store.listPractitionersByOffice(deps.db, input.officeId);
+  const pracs = await practitionersDal.listPractitionersByOffice(deps.db, input.officeId);
   const ids = new Set(pracs.map((p) => p.id));
   if (!input.practitionerIds.every((id) => ids.has(id))) {
     throw new ValidationError("Praticien inconnu dans ce cabinet");
   }
 
   if (input.id) {
-    const rooms = await store.listRooms(deps.db, input.officeId);
+    const rooms = await roomsDal.listRooms(deps.db, input.officeId);
     if (!rooms.some((r) => r.id === input.id)) throw new NotFoundError("Salle introuvable");
-    await store.updateRoom(deps.db, input.id, { name: input.name, color: input.color });
-    await store.replaceRoomMembers(deps.db, input.id, input.practitionerIds);
+    await roomsDal.updateRoom(deps.db, input.id, { name: input.name, color: input.color });
+    await roomsDal.replaceRoomMembers(deps.db, input.id, input.practitionerIds);
     return input.id;
   }
   const id = crypto.randomUUID();
-  await store.createRoom(deps.db, { id, officeId: input.officeId, name: input.name, color: input.color });
-  await store.replaceRoomMembers(deps.db, id, input.practitionerIds);
+  await roomsDal.createRoom(deps.db, { id, officeId: input.officeId, name: input.name, color: input.color });
+  await roomsDal.replaceRoomMembers(deps.db, id, input.practitionerIds);
   return id;
 }
 
 export async function deleteRoom(deps: ScheduleDeps, input: DeleteRoomInput): Promise<void> {
   await requireOwner(deps.db, input.officeId, input.requesterUserId);
-  const rooms = await store.listRooms(deps.db, input.officeId);
+  const rooms = await roomsDal.listRooms(deps.db, input.officeId);
   if (!rooms.some((r) => r.id === input.id)) throw new NotFoundError("Salle introuvable");
-  const future = await store.countFutureBookingsByRoom(deps.db, input.id, deps.now ?? new Date());
+  const future = await roomsDal.countFutureBookingsByRoom(deps.db, input.id, deps.now ?? new Date());
   if (future > 0) {
     throw new ValidationError("Salle utilisée par des réservations à venir");
   }
-  const rules = await store.countRulesByRoom(deps.db, input.id);
+  const rules = await availabilityDal.countRulesByRoom(deps.db, input.id);
   if (rules > 0) {
     throw new ValidationError("Salle utilisée dans des disponibilités : retirez-la d'abord des plages");
   }
-  await store.deleteRoom(deps.db, input.id);
+  await roomsDal.deleteRoom(deps.db, input.id);
 }
 
 // --- Paramètres cabinet (owner) ----------------------------------------------
 
 export async function updateOfficeSettings(deps: ScheduleDeps, input: UpdateOfficeSettingsInput): Promise<void> {
   await requireOwner(deps.db, input.officeId, input.requesterUserId);
-  const office = await store.getOfficeById(deps.db, input.officeId);
+  const office = await officesDal.getOfficeById(deps.db, input.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
   const data: Record<string, unknown> = { ...input };
   delete data.officeId;
@@ -290,5 +285,5 @@ export async function updateOfficeSettings(deps: ScheduleDeps, input: UpdateOffi
     else if (v === "" && k === "address") data[k] = null;
   }
   if (Object.keys(data).length === 0) return;
-  await store.updateOffice(deps.db, input.officeId, data as Parameters<typeof store.updateOffice>[2]);
+  await officesDal.updateOffice(deps.db, input.officeId, data as Parameters<typeof officesDal.updateOffice>[2]);
 }

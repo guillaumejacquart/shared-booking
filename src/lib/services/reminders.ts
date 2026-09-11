@@ -1,5 +1,7 @@
 import type { Db } from "@/dal/types";
-import * as store from "@/dal/store";
+import * as bookingsDal from "@/dal/bookings";
+import * as officesDal from "@/dal/offices";
+import * as practitionersDal from "@/dal/practitioners";
 import {
   createMailer,
   reminderEmail,
@@ -20,11 +22,11 @@ export async function processReminders(deps: {
   const now = deps.now ?? new Date();
   const send = deps.sendEmail ?? createMailer();
 
-  const candidates = await store.listRemindersDue(deps.db, now);
+  const candidates = await bookingsDal.listRemindersDue(deps.db, now);
   let sent = 0;
   for (const b of candidates) {
-    const office = await store.getOfficeById(deps.db, b.officeId);
-    const prac = await store.getPractitionerById(deps.db, b.practitionerId);
+    const office = await officesDal.getOfficeById(deps.db, b.officeId);
+    const prac = await practitionersDal.getPractitionerById(deps.db, b.practitionerId);
     if (!office || !prac) continue;
     const dueAt = b.startAt.getTime() - office.reminderHoursBefore * 3_600_000;
     if (dueAt > now.getTime()) continue;
@@ -39,10 +41,10 @@ export async function processReminders(deps: {
         manageUrl: "",
       }),
     );
-    await store.markReminderSent(deps.db, b.id, now);
+    await bookingsDal.markReminderSent(deps.db, b.id, now);
     sent++;
   }
 
-  const completed = await store.completePastBookings(deps.db, now);
+  const completed = await bookingsDal.completePastBookings(deps.db, now);
   return { sent, completed };
 }
