@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAvailabilityMonth } from "@/lib/services/schedule";
-import { toResponse } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
 
 /**
@@ -15,9 +14,5 @@ export const GET = withAuth(async (user, req: NextRequest) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  try {
-    return NextResponse.json(await getAvailabilityMonth({ userId: user.id, from, days }));
-  } catch (e) {
-    return toResponse(e);
-  }
+  return NextResponse.json(await getAvailabilityMonth({ userId: user.id, from, days }));
 });

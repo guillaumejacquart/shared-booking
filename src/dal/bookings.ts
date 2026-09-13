@@ -346,12 +346,10 @@ export async function markReminderSent(bookingId: string, now: Date) {
 export async function completePastBookings(now: Date): Promise<number> {
   const conn = getConnection();
   const rows = await conn
-    .select({ id: booking.id })
-    .from(booking)
-    .where(and(eq(booking.status, "confirmed"), lt(booking.endAt, now)));
-  for (const r of rows) {
-    await conn.update(booking).set({ status: "completed" }).where(eq(booking.id, r.id));
-  }
+    .update(booking)
+    .set({ status: "completed" })
+    .where(and(eq(booking.status, "confirmed"), lt(booking.endAt, now)))
+    .returning({ id: booking.id });
   return rows.length;
 }
 

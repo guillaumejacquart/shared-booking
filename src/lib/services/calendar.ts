@@ -20,7 +20,7 @@ export interface AgendaInput {
 /** Événements de l'agenda du praticien connecté (tous statuts). */
 export async function getAgendaEvents(input: AgendaInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
-  if (!prac) throw new NotFoundError("Praticien introuvable");
+  if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const bookings = await bookingsDal.listBookingsForPractitioner(
     prac.id,
     input.start,
@@ -76,9 +76,9 @@ export interface SharedCalendarInput {
  */
 export async function getSharedCalendar(input: SharedCalendarInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
-  if (!prac) throw new NotFoundError("Praticien introuvable");
+  if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const membership = await membersDal.getMembership(prac.officeId, input.userId);
-  if (!membership) throw new ForbiddenError("Action non autorisée");
+  if (!membership || !membership.active) throw new ForbiddenError("Action non autorisée");
   const isOwner = membership.role === "owner";
 
   const [pracs, rooms, bookings] = await Promise.all([

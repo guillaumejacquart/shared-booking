@@ -28,11 +28,11 @@ export const getDashboardContext = cache(async (): Promise<DashboardContext> => 
   const session = await getSession();
   if (!session) redirect("/login");
   const memberships = await membersDal.listMemberships(session.user.id);
-  if (memberships.length === 0) redirect("/onboarding");
-  const membership = memberships[0];
+  const membership = memberships.find((m) => m.active);
+  if (!membership) redirect("/onboarding");
   const office = await officesDal.getOfficeById(membership.officeId);
   const prac = await practitionersDal.getPractitionerByUserId(session.user.id);
-  if (!office || !prac) redirect("/onboarding");
+  if (!office || !prac || !prac.active) redirect("/onboarding");
   return {
     userId: session.user.id,
     userName: session.user.name,

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAgendaEvents } from "@/lib/services/calendar";
-import { toResponse } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
 
 /**
@@ -15,9 +14,5 @@ export const GET = withAuth(async (user, req: NextRequest) => {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  try {
-    return NextResponse.json(await getAgendaEvents({ userId: user.id, start, end }));
-  } catch (e) {
-    return toResponse(e);
-  }
+  return NextResponse.json(await getAgendaEvents({ userId: user.id, start, end }));
 });

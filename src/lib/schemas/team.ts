@@ -35,3 +35,10 @@ export const createOfficeSchema = z.object({
   address: z.string().trim().max(200).optional(),
 });
 export type CreateOfficeInput = z.infer<typeof createOfficeSchema>;
+
+export const removeMemberSchema = z.object({
+  officeId: z.string().min(1),
+  memberId: z.string().min(1),
+  requesterUserId: z.string().min(1),
+});
+export type RemoveMemberInput = z.infer<typeof removeMemberSchema>;

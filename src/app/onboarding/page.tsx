@@ -8,6 +8,6 @@ export default async function OnboardingPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   const memberships = await membersDal.listMemberships(session.user.id);
-  if (memberships.length > 0) redirect("/dashboard");
+  if (memberships.some((m) => m.active)) redirect("/dashboard");
   return <OnboardingForm userName={session.user.name} />;
 }

@@ -46,7 +46,7 @@ async function checkAccess(
 ): Promise<{ officeId: string }> {
   const prac = await practitionersDal.getPractitionerById(practitionerId);
   if (!prac) throw new NotFoundError("Praticien introuvable");
-  if (prac.userId === requesterUserId) return { officeId: prac.officeId };
+  if (prac.userId === requesterUserId && prac.active) return { officeId: prac.officeId };
   const m = await membersDal.getMembership(prac.officeId, requesterUserId);
   if (!m || m.role !== "owner" || !m.active) {
     throw new ForbiddenError("Action non autorisée");
@@ -265,15 +265,24 @@ export async function updateOfficeSettings(input: UpdateOfficeSettingsInput): Pr
   await requireOwner(input.officeId, input.requesterUserId);
   const office = await officesDal.getOfficeById(input.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
-  const data: Record<string, unknown> = { ...input };
-  delete data.officeId;
-  delete data.requesterUserId;
-  for (const [k, v] of Object.entries(data)) {
-    if (v === undefined) delete data[k];
-    else if (v === "" && k === "address") data[k] = null;
+
+  // Patch explicite : seuls les champs fournis sont écrits (le schéma Zod a
+  // déjà supprimé les clés inconnues et validé chaque type).
+  const patch: Parameters<typeof officesDal.updateOffice>[1] = {};
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.address !== undefined) patch.address = input.address || null;
+  if (input.enablePractitionerPages !== undefined) {
+    patch.enablePractitionerPages = input.enablePractitionerPages;
   }
-  if (Object.keys(data).length === 0) return;
-  await officesDal.updateOffice(input.officeId, data as Parameters<typeof officesDal.updateOffice>[1]);
+  if (input.enableOfficePage !== undefined) patch.enableOfficePage = input.enableOfficePage;
+  if (input.bookingLeadTimeMin !== undefined) patch.bookingLeadTimeMin = input.bookingLeadTimeMin;
+  if (input.cancelDeadlineHours !== undefined) patch.cancelDeadlineHours = input.cancelDeadlineHours;
+  if (input.reminderHoursBefore !== undefined) patch.reminderHoursBefore = input.reminderHoursBefore;
+  if (input.defaultBufferAfterMin !== undefined) {
+    patch.defaultBufferAfterMin = input.defaultBufferAfterMin;
+  }
+  if (Object.keys(patch).length === 0) return;
+  await officesDal.updateOffice(input.officeId, patch);
 }
 
 // --- Lecture mois disponibilités (calendrier praticien) ---------------------
@@ -287,7 +296,7 @@ export interface AvailabilityMonthInput {
 /** Données mensuelles : règles + exceptions + réservations + salles. */
 export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
-  if (!prac) throw new NotFoundError("Praticien introuvable");
+  if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const to = dateStrInTz(
     new Date(new Date(`${input.from}T12:00:00Z`).getTime() + input.days * 86_400_000),
     "Europe/Paris",

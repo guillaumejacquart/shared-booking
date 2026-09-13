@@ -13,6 +13,7 @@ import type {
   AcceptInviteInput,
   CreateInviteInput,
   CreateOfficeInput,
+  RemoveMemberInput,
 } from "@/lib/schemas/team";
 import {
   ConflictError,
@@ -199,4 +200,32 @@ export async function listPendingInvites(input: { officeId: string; requesterUse
       expiresAt: i.expiresAt.toISOString(),
     })),
   };
+}
+
+// --- Retrait de membre -------------------------------------------------------
+
+async function assertOwner(officeId: string, requesterUserId: string): Promise<void> {
+  const m = await membersDal.getMembership(officeId, requesterUserId);
+  if (!m || m.role !== "owner" || !m.active) {
+    throw new ForbiddenError("Seul le responsable du cabinet peut retirer un membre");
+  }
+}
+
+/**
+ * Retire un membre du cabinet (owner uniquement). Désactive l'appartenance et
+ * le praticien : accès révoqué, pages publiques masquées, historique conservé.
+ * On ne peut pas se retirer soi-même (sinon le cabinet peut perdre son owner).
+ */
+export async function removeMember(input: RemoveMemberInput): Promise<void> {
+  await assertOwner(input.officeId, input.requesterUserId);
+
+  const target = await membersDal.getMembershipById(input.memberId);
+  if (!target || target.officeId !== input.officeId) {
+    throw new NotFoundError("Membre introuvable");
+  }
+  if (!target.active) return; // idempotent
+  if (target.userId === input.requesterUserId) {
+    throw new ValidationError("Vous ne pouvez pas vous retirer vous-même");
+  }
+  await membersDal.deactivateMember(target.id);
 }

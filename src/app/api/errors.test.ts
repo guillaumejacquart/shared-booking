@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import {
@@ -8,7 +9,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "@/lib/services/errors";
-import { toResponse } from "./errors";
+import { readJsonBody, route, toResponse } from "./errors";
 
 async function body(res: Response) {
   return (await res.json()) as Record<string, unknown>;
@@ -47,5 +48,35 @@ describe("toResponse", () => {
     expect(res.status).toBe(500);
     // NODE_ENV=test ≠ production → message inclus.
     expect(await body(res)).toMatchObject({ error: "boom précis", code: "INTERNAL" });
+  });
+});
+
+describe("readJsonBody", () => {
+  const post = (payload: string) =>
+    new Request("http://localhost/api", { method: "POST", body: payload });
+
+  it("retourne l'objet JSON tel quel", async () => {
+    expect(await readJsonBody(post(JSON.stringify({ a: 1 })))).toEqual({ a: 1 });
+  });
+
+  it("lève une ValidationError (400) sur JSON invalide", async () => {
+    await expect(readJsonBody(post("pas du json"))).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
+
+  it("retourne {} pour un JSON valide non-objet", async () => {
+    expect(await readJsonBody(post("[1,2]"))).toEqual({});
+  });
+});
+
+describe("route", () => {
+  it("mappe une erreur levée par le handler en réponse HTTP", async () => {
+    const handler = route(async () => {
+      throw new NotFoundError("X");
+    });
+    const res = await handler(new NextRequest("http://localhost/api"));
+    expect(res.status).toBe(404);
+    expect(await body(res)).toMatchObject({ code: "NOT_FOUND" });
   });
 });

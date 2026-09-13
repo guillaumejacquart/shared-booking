@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
 import SettingsForm from "./SettingsForm";
 import InviteForm from "../equipe/InviteForm";
+import RemoveMemberButton from "../equipe/RemoveMemberButton";
 import RoomsManager from "../salles/RoomsManager";
 
 export type SettingsTab = "general" | "team" | "rooms";
@@ -94,16 +95,25 @@ export default async function ParametresPage({
                 )}
               </section>
               <section>
-                <h2 className="mb-2 text-lg font-semibold">Membres ({members.length})</h2>
+                <h2 className="mb-2 text-lg font-semibold">
+                  {t("team.members")} ({members.length})
+                </h2>
                 <ul className="grid gap-2">
                   {members.map(({ member: m, user: u }) => (
                     <li
                       key={m.id}
-                      className="flex flex-wrap gap-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
+                      className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
                     >
                       <span className="font-medium">{u?.name ?? "?"}</span>
                       <span className="text-zinc-500">{u?.email}</span>
-                      <span className="ml-auto text-zinc-500">{m.role}</span>
+                      <span className="text-zinc-500">{m.role}</span>
+                      {m.userId === ctx.userId ? null : (
+                        <RemoveMemberButton
+                          officeId={ctx.officeId}
+                          memberId={m.id}
+                          memberName={u?.name ?? u?.email ?? ""}
+                        />
+                      )}
                     </li>
                   ))}
                 </ul>

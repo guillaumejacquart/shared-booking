@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { acceptInvite, createInvite, listPendingInvites } from "@/lib/services/team";
+import { acceptInvite, createInvite, listPendingInvites, removeMember } from "@/lib/services/team";
 import {
   ConflictError,
   ForbiddenError,
@@ -188,5 +188,68 @@ describe("listPendingInvites", () => {
     await expect(
       listPendingInvites({ officeId: "o1", requesterUserId: "other" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe("removeMember", () => {
+  async function seedPractitioner() {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitioner).values({
+      id: "p-other",
+      officeId: "o1",
+      userId: "other",
+      displayName: "Other",
+      slug: "other",
+    });
+    await db.insert(s.room).values({ id: "room-a", officeId: "o1", name: "Salle A" });
+    await db.insert(s.roomMember).values({
+      id: "rm-a",
+      roomId: "room-a",
+      practitionerId: "p-other",
+    });
+  }
+
+  it("le owner retire un praticien : appartenance + praticien désactivés", async () => {
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await seedPractitioner();
+
+    await removeMember({ officeId: "o1", memberId: "m2", requesterUserId: "owner1" });
+
+    const m = await db.select().from(s.member).where(eq(s.member.id, "m2"));
+    expect(m[0].active).toBe(false);
+    const p = await db.select().from(s.practitioner).where(eq(s.practitioner.id, "p-other"));
+    expect(p[0].active).toBe(false);
+    const rm = await db
+      .select()
+      .from(s.roomMember)
+      .where(eq(s.roomMember.practitionerId, "p-other"));
+    expect(rm).toHaveLength(0);
+  });
+
+  it("est idempotent (retirer deux fois)", async () => {
+    await seedPractitioner();
+    await removeMember({ officeId: "o1", memberId: "m2", requesterUserId: "owner1" });
+    await expect(
+      removeMember({ officeId: "o1", memberId: "m2", requesterUserId: "owner1" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("un non-owner ne peut pas retirer un membre", async () => {
+    await expect(
+      removeMember({ officeId: "o1", memberId: "m1", requesterUserId: "other" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("un owner ne peut pas se retirer lui-même", async () => {
+    await expect(
+      removeMember({ officeId: "o1", memberId: "m1", requesterUserId: "owner1" }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("404 sur membre inconnu", async () => {
+    await expect(
+      removeMember({ officeId: "o1", memberId: "nope", requesterUserId: "owner1" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

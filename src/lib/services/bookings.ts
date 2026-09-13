@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { Booking, BookingDetail } from "@/dal/types";
+import type { Booking, BookingDetail, Office } from "@/dal/types";
 import * as availabilityDal from "@/dal/availability";
 import * as bookingsDal from "@/dal/bookings";
 import * as membersDal from "@/dal/members";
@@ -17,7 +17,7 @@ import {
   type ValidateInput,
 } from "@/lib/schemas/bookings";
 import { dateStrInTz, zonedTimeToUtc } from "@/lib/timezone";
-import { generateSlots } from "@/lib/slots";
+import { generateSlots, type Occupancy, type SlotRequest } from "@/lib/slots";
 import { bookingMutex } from "@/lib/mutex";
 import Stripe from "stripe";
 import {
@@ -30,6 +30,7 @@ import {
   rescheduledEmail,
   validationPendingEmail,
   validationRequestEmail,
+  type BookingMailModel,
   type SendEmail,
 } from "@/lib/email";
 import {
@@ -91,6 +92,40 @@ function manageUrl(officeSlug: string, practitionerSlug: string, token: string):
   return `${base}/p/${practitionerSlug}/gerer?token=${token}&cabinet=${officeSlug}`;
 }
 
+/** Modèle d'email commun à partir d'une réservation et de son détail. */
+function mailModel(
+  b: Pick<Booking, "sessionNameSnapshot" | "startAt" | "cancelToken">,
+  detail: BookingDetail,
+  start: Date = b.startAt,
+): BookingMailModel {
+  return {
+    practitionerName: detail.practitioner.displayName,
+    sessionName: b.sessionNameSnapshot,
+    start,
+    timeZone: detail.office.timezone,
+    officeName: detail.office.name,
+    officeAddress: detail.office.address,
+    manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
+  };
+}
+
+/** Pièce calendrier d'une réservation (uid, libellé, lieu, créneau). */
+function bookingIcs(
+  b: Pick<Booking, "id" | "sessionNameSnapshot" | "startAt" | "endAt" | "patientEmail">,
+  practitionerName: string,
+  office: Pick<Office, "name" | "address">,
+  times?: { start: Date; end: Date },
+) {
+  return buildIcs({
+    uid: b.id,
+    summary: `${b.sessionNameSnapshot} — ${practitionerName}`,
+    location: office.address ? `${office.name}, ${office.address}` : office.name,
+    start: times?.start ?? b.startAt,
+    end: times?.end ?? b.endAt,
+    attendeeEmail: b.patientEmail,
+  });
+}
+
 /** Notifie le praticien qu'une demande attend sa validation (sinon il ne le sait jamais). */
 async function notifyValidationRequest(
   send: SendEmail,
@@ -101,13 +136,7 @@ async function notifyValidationRequest(
   if (!pracEmail) return;
   await send(
     validationRequestEmail(pracEmail, {
-      practitionerName: detail.practitioner.displayName,
-      sessionName: b.sessionNameSnapshot,
-      start: b.startAt,
-      timeZone: detail.office.timezone,
-      officeName: detail.office.name,
-      officeAddress: detail.office.address,
-      manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
+      ...mailModel(b, detail),
       patientName: `${b.patientFirstName} ${b.patientLastName}`,
     }),
   );
@@ -118,6 +147,92 @@ async function notifyValidationRequest(
 export interface PublicSlot {
   startAt: string; // ISO UTC
   endAt: string;
+}
+
+/** Occupation d'un RDV, buffer de fin inclus. */
+function toOccupancy(b: {
+  startAt: Date;
+  endAt: Date;
+  bufferAfterMinSnapshot: number;
+}): Occupancy {
+  return {
+    start: b.startAt,
+    end: new Date(b.endAt.getTime() + b.bufferAfterMinSnapshot * 60_000),
+  };
+}
+
+function toWindows(
+  rules: { weekday: number; startTime: string; endTime: string; roomId: string }[],
+): SlotRequest["windows"] {
+  return rules.map((r) => ({
+    weekday: r.weekday,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    roomId: r.roomId,
+  }));
+}
+
+function toExceptions(
+  rows: {
+    date: string;
+    kind: string;
+    startTime: string | null;
+    endTime: string | null;
+    fullDay: boolean;
+    roomId: string | null;
+  }[],
+): SlotRequest["exceptions"] {
+  return rows.map((e) => ({
+    date: e.date,
+    kind: e.kind as "off" | "extra",
+    startTime: e.startTime ?? undefined,
+    endTime: e.endTime ?? undefined,
+    fullDay: e.fullDay,
+    roomId: e.roomId ?? undefined,
+  }));
+}
+
+/**
+ * Charge tout ce qu'il faut pour générer une grille : règles, exceptions et
+ * occupation (praticien + salles). Partagé par les disponibilités publiques et
+ * le report, pour éviter que les deux vues divergent.
+ */
+async function loadSlotContext(
+  practitionerId: string,
+  from: Date,
+  to: Date,
+  timezone: string,
+  excludeBookingId?: string,
+): Promise<
+  Pick<SlotRequest, "windows" | "exceptions" | "practitionerBusy" | "roomBusy">
+> {
+  const rules = await availabilityDal.listRules(practitionerId);
+  const exceptions = await availabilityDal.listExceptions(
+    practitionerId,
+    dateStrInTz(from, timezone),
+    dateStrInTz(to, timezone),
+  );
+  const bookings = await bookingsDal.listActiveBookings({
+    practitionerId,
+    from,
+    to,
+    excludeBookingId,
+  });
+  const roomIds = [...new Set(rules.map((r) => r.roomId))];
+  const roomBookings =
+    roomIds.length > 0
+      ? await bookingsDal.listActiveBookings({ roomIds, from, to, excludeBookingId })
+      : [];
+  const roomBusy: Record<string, Occupancy[]> = {};
+  for (const b of roomBookings) {
+    (roomBusy[b.roomId] ??= []).push(toOccupancy(b));
+  }
+  return {
+    windows: toWindows(rules),
+    exceptions: toExceptions(exceptions),
+    practitionerBusy: bookings.map(toOccupancy),
+    roomBusy,
+  };
 }
 
 export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<PublicSlot[]> {
@@ -133,55 +248,15 @@ export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<
   const engineFrom = now.getTime() < dayStart.getTime() ? dayStart : now;
   const horizonEnd = new Date(engineFrom.getTime() + input.days * 86_400_000);
 
-  const rules = await availabilityDal.listRules(page.practitioner.id);
-  const exceptions = await availabilityDal.listExceptions(page.practitioner.id,
-    dateStrInTz(engineFrom, tz),
-    dateStrInTz(horizonEnd, tz));
-  const bookings = await bookingsDal.listActiveBookings({
-    practitionerId: page.practitioner.id,
-    from: engineFrom,
-    to: horizonEnd,
-  });
-  const roomIds = [...new Set(rules.map((r) => r.roomId))];
-  const roomBookings =
-    roomIds.length > 0
-      ? await bookingsDal.listActiveBookings({
-          roomIds,
-          from: engineFrom,
-          to: horizonEnd,
-        })
-      : [];
-  const roomBusy: Record<string, { start: Date; end: Date }[]> = {};
-  for (const b of roomBookings) {
-    const list = roomBusy[b.roomId] ?? [];
-    list.push({
-      start: b.startAt,
-      end: new Date(b.endAt.getTime() + b.bufferAfterMinSnapshot * 60_000),
-    });
-    roomBusy[b.roomId] = list;
-  }
-
+  const context = await loadSlotContext(
+    page.practitioner.id,
+    engineFrom,
+    horizonEnd,
+    tz,
+  );
   const slots = generateSlots({
     timezone: tz,
-    windows: rules.map((r) => ({
-      weekday: r.weekday,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      roomId: r.roomId,
-    })),
-    exceptions: exceptions.map((e) => ({
-      date: e.date,
-      kind: e.kind as "off" | "extra",
-      startTime: e.startTime ?? undefined,
-      endTime: e.endTime ?? undefined,
-      fullDay: e.fullDay,
-      roomId: e.roomId ?? undefined,
-    })),
-    practitionerBusy: bookings.map((b) => ({
-      start: b.startAt,
-      end: new Date(b.endAt.getTime() + b.bufferAfterMinSnapshot * 60_000),
-    })),
-    roomBusy,
+    ...context,
     sessionDurationMin: st.durationMin,
     bufferAfterMin: st.bufferAfterMin,
     leadTimeMin: page.office.bookingLeadTimeMin,
@@ -270,7 +345,6 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
     ).filter((s) => s.startAt === start.toISOString());
     if (daySlots.length === 0) {
       await resolveSlotRoom(
-        deps,
         page.practitioner.id,
         st.durationMin,
         st.bufferAfterMin,
@@ -291,7 +365,6 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
     }
 
     const roomId = await resolveSlotRoom(
-      deps,
       page.practitioner.id,
       st.durationMin,
       st.bufferAfterMin,
@@ -337,16 +410,17 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
     officeAddress: page.office.address,
     manageUrl: manageUrl(page.office.slug, page.practitioner.slug, cancelToken),
   };
-  const ics = buildIcs({
-    uid: booked.id,
-    summary: `${st.name} — ${page.practitioner.displayName}`,
-    location: page.office.address
-      ? `${page.office.name}, ${page.office.address}`
-      : page.office.name,
-    start,
-    end,
-    attendeeEmail: email,
-  });
+  const ics = bookingIcs(
+    {
+      id: booked.id,
+      sessionNameSnapshot: st.name,
+      startAt: start,
+      endAt: end,
+      patientEmail: email,
+    },
+    page.practitioner.displayName,
+    page.office,
+  );
   if (status === "confirmed") {
     // Flux classique : confirmation immédiate.
     await send(confirmationEmail(email, model, ics));
@@ -419,17 +493,7 @@ export async function finalizeBookingIfReady(
     if (b.paymentStatus === "paid") {
       const detail = await bookingsDal.findBookingByCancelToken(b.cancelToken);
       if (detail) {
-        await send(
-          paymentReceivedEmail(b.patientEmail, {
-            practitionerName: detail.practitioner.displayName,
-            sessionName: b.sessionNameSnapshot,
-            start: b.startAt,
-            timeZone: detail.office.timezone,
-            officeName: detail.office.name,
-            officeAddress: detail.office.address,
-            manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
-          }),
-        );
+        await send(paymentReceivedEmail(b.patientEmail, mailModel(b, detail)));
         await notifyValidationRequest(send, detail, b);
       }
     }
@@ -441,25 +505,8 @@ export async function finalizeBookingIfReady(
   await send(
     confirmationEmail(
       b.patientEmail,
-      {
-        practitionerName: detail.practitioner.displayName,
-        sessionName: b.sessionNameSnapshot,
-        start: b.startAt,
-        timeZone: detail.office.timezone,
-        officeName: detail.office.name,
-        officeAddress: detail.office.address,
-        manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
-      },
-      buildIcs({
-        uid: b.id,
-        summary: `${b.sessionNameSnapshot} — ${detail.practitioner.displayName}`,
-        location: detail.office.address
-          ? `${detail.office.name}, ${detail.office.address}`
-          : detail.office.name,
-        start: b.startAt,
-        end: b.endAt,
-        attendeeEmail: b.patientEmail,
-      }),
+      mailModel(b, detail),
+      bookingIcs(b, detail.practitioner.displayName, detail.office),
     ),
   );
   return true;
@@ -494,7 +541,7 @@ export async function validateBooking(
   if (b.status !== "pending" || !b.validationRequired || b.validatedAt) {
     throw new ConflictError("Cette réservation n'est plus à valider");
   }
-  if (prac.userId !== input.requesterUserId) {
+  if (prac.userId !== input.requesterUserId || !prac.active) {
     const m = await membersDal.getMembership(office.id, input.requesterUserId);
     if (!m || m.role !== "owner" || !m.active) {
       throw new ForbiddenError("Seul le praticien ou le responsable peut valider");
@@ -504,15 +551,7 @@ export async function validateBooking(
     throw new ConflictError("Paiement en attente");
   }
 
-  const model = {
-    practitionerName: prac.displayName,
-    sessionName: b.sessionNameSnapshot,
-    start: b.startAt,
-    timeZone: office.timezone,
-    officeName: office.name,
-    officeAddress: office.address,
-    manageUrl: manageUrl(office.slug, prac.slug, b.cancelToken),
-  };
+  const model = mailModel(b, detail);
   if (input.accept) {
     await bookingsDal.markBookingValidated(b.id, now);
     await finalizeBookingIfReady({ ...deps, sendEmail: send }, b.id);
@@ -550,15 +589,8 @@ export async function cancelBooking(
 
   await bookingsDal.markBookingCancelled(b.id, input.reason ?? null, now);
 
-  const model = {
-    practitionerName: prac.displayName,
-    sessionName: b.sessionNameSnapshot,
-    start: b.startAt,
-    timeZone: office.timezone,
-    officeName: office.name,
-    officeAddress: office.address,
-    manageUrl: "",
-  };
+  // Pas de lien de gestion dans un email d'annulation : `manageUrl` vide.
+  const model = { ...mailModel(b, detail), manageUrl: "" };
   if (input.by === "patient") {
     const pracEmail = await usersDal.getUserEmail(prac.userId);
     if (pracEmail) {
@@ -611,65 +643,19 @@ export async function rescheduleBooking(
     const dateStr = dateStrInTz(newStart, tz);
     const engineFrom = now;
     const horizonEnd = new Date(newStart.getTime() + 86_400_000);
-    const rules = await availabilityDal.listRules(prac.id);
-    const exceptions = await availabilityDal.listExceptions(prac.id,
-      dateStrInTz(engineFrom, tz),
-      dateStrInTz(horizonEnd, tz));
-    const busy = await bookingsDal.listActiveBookings({
-      practitionerId: prac.id,
-      excludeBookingId: b.id,
-      from: engineFrom,
-      to: horizonEnd,
-    });
-    const roomIds = [...new Set(rules.map((r) => r.roomId))];
-    const roomBusyRows =
-      roomIds.length > 0
-        ? await bookingsDal.listActiveBookings({
-            roomIds,
-            excludeBookingId: b.id,
-            from: engineFrom,
-            to: horizonEnd,
-          })
-        : [];
-    const roomBusy: Record<string, { start: Date; end: Date }[]> = {};
-    for (const rb of roomBusyRows) {
-      const list = roomBusy[rb.roomId] ?? [];
-      list.push({
-        start: rb.startAt,
-        end: new Date(rb.endAt.getTime() + rb.bufferAfterMinSnapshot * 60_000),
-      });
-      roomBusy[rb.roomId] = list;
-    }
+    const context = await loadSlotContext(prac.id, engineFrom, horizonEnd, tz, b.id);
     const allSlots = generateSlots({
-    timezone: tz,
-    windows: rules.map((r) => ({
-      weekday: r.weekday,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      roomId: r.roomId,
-    })),
-    exceptions: exceptions.map((e) => ({
-      date: e.date,
-      kind: e.kind as "off" | "extra",
-      startTime: e.startTime ?? undefined,
-      endTime: e.endTime ?? undefined,
-      fullDay: e.fullDay,
-      roomId: e.roomId ?? undefined,
-    })),
-    practitionerBusy: busy.map((x) => ({
-      start: x.startAt,
-      end: new Date(x.endAt.getTime() + x.bufferAfterMinSnapshot * 60_000),
-    })),
-    roomBusy,
-    sessionDurationMin: b.durationMinSnapshot,
-    bufferAfterMin: b.bufferAfterMinSnapshot,
-    leadTimeMin: office.bookingLeadTimeMin,
-    from: engineFrom,
-    days: Math.max(
-      1,
-      Math.ceil((horizonEnd.getTime() - engineFrom.getTime()) / 86_400_000),
-    ),
-  }).filter((s) => dateStrInTz(s.start, tz) === dateStr);
+      timezone: tz,
+      ...context,
+      sessionDurationMin: b.durationMinSnapshot,
+      bufferAfterMin: b.bufferAfterMinSnapshot,
+      leadTimeMin: office.bookingLeadTimeMin,
+      from: engineFrom,
+      days: Math.max(
+        1,
+        Math.ceil((horizonEnd.getTime() - engineFrom.getTime()) / 86_400_000),
+      ),
+    }).filter((s) => dateStrInTz(s.start, tz) === dateStr);
 
     const found = allSlots.find((s) => s.start.getTime() === newStart.getTime());
     if (!found) throw new ConflictError("Nouveau créneau indisponible");
@@ -682,28 +668,14 @@ export async function rescheduleBooking(
     if (!moved) throw new ConflictError("Nouveau créneau indisponible");
     return found;
   });
-  const tz = office.timezone;
 
-  const model = {
-    practitionerName: prac.displayName,
-    sessionName: b.sessionNameSnapshot,
-    start: target.start,
-    timeZone: tz,
-    officeName: office.name,
-    officeAddress: office.address,
-    manageUrl: manageUrl(office.slug, prac.slug, b.cancelToken),
-  };
   await send(
     rescheduledEmail(
       b.patientEmail,
-      model,
-      buildIcs({
-        uid: b.id,
-        summary: `${b.sessionNameSnapshot} — ${prac.displayName}`,
-        location: office.address ? `${office.name}, ${office.address}` : office.name,
+      mailModel(b, detail, target.start),
+      bookingIcs(b, prac.displayName, office, {
         start: target.start,
         end: target.end,
-        attendeeEmail: b.patientEmail,
       }),
     ),
   );
@@ -744,7 +716,6 @@ export async function getBookingStatusByStripeSession(stripeSessionId: string) {
  * été validé libre juste avant ; la garde atomique du store couvre la course.
  */
 async function resolveSlotRoom(
-  deps: Deps,
   practitionerId: string,
   durationMin: number,
   bufferAfterMin: number,
@@ -754,12 +725,7 @@ async function resolveSlotRoom(
   const rules = await availabilityDal.listRules(practitionerId);
   const slots = generateSlots({
     timezone,
-    windows: rules.map((r) => ({
-      weekday: r.weekday,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      roomId: r.roomId,
-    })),
+    windows: toWindows(rules),
     exceptions: [],
     practitionerBusy: [],
     roomBusy: {},
