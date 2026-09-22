@@ -1,19 +1,15 @@
-import { z } from "zod";
-
 import * as preferencesDal from "@/dal/preferences";
-import { PALETTES, THEME_MODES } from "@/lib/theme";
+import {
+  savePreferencesSchema,
+  type SavePreferencesInput,
+} from "@/lib/schemas/preferences";
+
+export { savePreferencesSchema, type SavePreferencesInput };
 
 /**
  * Préférences d'apparence personnelles : validées (palettes/modes connus),
  * persistées en base, reflétées en cookies par la route API.
  */
-
-export const savePreferencesSchema = z.object({
-  requesterUserId: z.string().min(1),
-  palette: z.enum(PALETTES),
-  mode: z.enum(THEME_MODES),
-});
-export type SavePreferencesInput = z.infer<typeof savePreferencesSchema>;
 
 export async function saveUserPreferences(
   input: SavePreferencesInput,

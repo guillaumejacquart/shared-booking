@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   ConflictError,
   DeadlineError,
+  errorToHttp,
   ForbiddenError,
   NotFoundError,
   ValidationError,
@@ -17,27 +18,22 @@ import {
  */
 export function toResponse(e: unknown): NextResponse {
   const dev = process.env.NODE_ENV !== "production";
-  if (e instanceof NotFoundError) {
-    return NextResponse.json({ error: e.message, code: "NOT_FOUND" }, { status: 404 });
-  }
-  if (e instanceof ValidationError) {
+  if (
+    e instanceof NotFoundError ||
+    e instanceof ValidationError ||
+    e instanceof ConflictError ||
+    e instanceof DeadlineError ||
+    e instanceof ForbiddenError
+  ) {
+    const { status, code } = errorToHttp(e);
     return NextResponse.json(
       {
         error: e.message,
-        code: "VALIDATION",
-        ...(e.details ? { details: e.details } : {}),
+        code,
+        ...(e instanceof ValidationError && e.details ? { details: e.details } : {}),
       },
-      { status: 400 },
+      { status },
     );
-  }
-  if (e instanceof ConflictError) {
-    return NextResponse.json({ error: e.message, code: "CONFLICT" }, { status: 409 });
-  }
-  if (e instanceof DeadlineError) {
-    return NextResponse.json({ error: e.message, code: "DEADLINE" }, { status: 410 });
-  }
-  if (e instanceof ForbiddenError) {
-    return NextResponse.json({ error: e.message, code: "FORBIDDEN" }, { status: 403 });
   }
   if (e instanceof z.ZodError) {
     return NextResponse.json(

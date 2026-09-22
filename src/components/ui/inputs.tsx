@@ -1,36 +1,47 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 const BASE =
-  "rounded-xl border border-line bg-card px-3 py-2 text-sm text-ink placeholder:text-faint transition-colors focus:border-brand";
+  "rounded-xl border border-line bg-card px-3 py-2 text-sm text-ink placeholder:text-faint transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50";
 
-export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`${BASE} w-full ${props.className ?? ""}`} {...props} />;
+export function TextInput({ className = "", type, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input type={type} className={`${BASE} w-full ${className}`} {...props} />;
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={`${BASE} w-full ${props.className ?? ""}`} {...props} />;
+export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`${BASE} w-full ${className}`} {...props} />;
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={`${BASE} ${props.className ?? ""}`} {...props} />;
+export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`${BASE} ${className}`} {...props} />;
 }
 
 /** Input numérique avec suffixe d'unité (ex. "min"). */
 export function NumberInput({
   unit,
+  className = "",
+  type: _type,
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { unit?: string }) {
-  if (!unit) return <input type="number" className={BASE} {...props} />;
+  void _type;
+  if (!unit)
+    return <input type="number" className={`${BASE} ${className}`} {...props} />;
   return (
     <span className="inline-flex items-center gap-1">
-      <input type="number" className={`${BASE} w-20`} {...props} />
+      <input type="number" className={`${BASE} w-20 ${className}`} {...props} />
       <span className="text-sm text-mist">{unit}</span>
     </span>
   );
 }
 
-export function Checkbox(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input type="checkbox" className="h-4 w-4 accent-brand" {...props} />;
+export function Checkbox({ className = "", type: _type, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  void _type;
+  return (
+    <input
+      type="checkbox"
+      className={`h-4 w-4 accent-brand disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      {...props}
+    />
+  );
 }
 
 /** Interrupteur pour les booléens (ex. pages publiques). */

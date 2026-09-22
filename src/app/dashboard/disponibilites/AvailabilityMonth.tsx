@@ -163,12 +163,6 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     return (data?.exceptions ?? []).filter((x) => x.date === key && x.kind === "extra");
   }
 
-  function isOpenDay(key: string) {
-    if (!data) return false;
-    if (data.exceptions.some((x) => x.kind === "extra" && x.date === key)) return true;
-    return regularOpen(key);
-  }
-
   function dayState(key: string) {
     const offs = (data?.exceptions ?? []).filter((x) => x.date === key && x.kind === "off");
     const fullOff = offs.find((x) => x.fullDay);

@@ -42,12 +42,9 @@ export async function createOffice(input: CreateOfficeInput): Promise<{ officeId
   if (slugTaken) throw new ConflictError("Cet identifiant de cabinet est déjà pris");
 
   const base = slugify(input.userName);
-  let practitionerSlug = base;
-  for (let n = 2; ; n++) {
-    const taken = await practitionersDal.getPractitionerBySlug(practitionerSlug);
-    if (!taken) break;
-    practitionerSlug = `${base}-${n}`;
-  }
+  const practitionerSlug = await uniquePractitionerSlug(base, async (slug) =>
+    Boolean(await practitionersDal.getPractitionerBySlug(slug)),
+  );
 
   const officeId = crypto.randomUUID();
   await officesDal.createOffice({
@@ -80,6 +77,18 @@ export function slugify(name: string): string {
   return base;
 }
 
+/** Slug praticien unique : `base`, `base-2`, `base-3`, … */
+export async function uniquePractitionerSlug(
+  base: string,
+  exists: (slug: string) => Promise<boolean>,
+): Promise<string> {
+  let slug = base;
+  for (let n = 2; ; n++) {
+    if (!(await exists(slug))) return slug;
+    slug = `${base}-${n}`;
+  }
+}
+
 export async function createInvite(
   deps: TeamDeps,
   input: CreateInviteInput,
@@ -91,7 +100,7 @@ export async function createInvite(
   if (!requester || requester.role !== "owner" || !requester.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut inviter");
   }
-  const email = input.email;
+  const email = input.email.trim().toLowerCase();
   const office = await officesDal.getOfficeById(input.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
@@ -144,12 +153,9 @@ export async function acceptInvite(
   if (already) throw new ConflictError("Vous êtes déjà membre de ce cabinet");
 
   const base = slugify(input.userName);
-  let slug = base;
-  for (let n = 2; ; n++) {
-    const taken = await practitionersDal.getPractitionerBySlug(slug);
-    if (!taken) break;
-    slug = `${base}-${n}`;
-  }
+  const slug = await uniquePractitionerSlug(base, async (s) =>
+    Boolean(await practitionersDal.getPractitionerBySlug(s)),
+  );
 
   await invitesDal.acceptInvite({
     inviteId: inv.id,

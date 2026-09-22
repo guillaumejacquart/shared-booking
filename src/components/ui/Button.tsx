@@ -36,7 +36,7 @@ export default function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`rounded-full font-medium transition-all duration-200 disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`rounded-full font-medium transition-all duration-200 outline-brand focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     />
   );

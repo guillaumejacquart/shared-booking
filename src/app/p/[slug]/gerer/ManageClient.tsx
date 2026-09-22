@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { t } from "@/lib/i18n";
-import { toKey } from "@/lib/calendar";
 import { timeFmt } from "@/lib/format";
-import { Button, Calendar, ConfirmButton, FormMessage } from "@/components/ui";
-import TimeSlotGrid from "@/components/TimeSlotGrid";
+import { Button, ConfirmButton, FormMessage } from "@/components/ui";
+import SlotPicker from "@/components/SlotPicker";
+import { useAvailableSlots } from "@/hooks/useAvailableSlots";
 
 export interface ManageData {
   practitionerName: string;
@@ -17,11 +17,6 @@ export interface ManageData {
   practitionerSlug: string;
   rescheduleToken: string;
   cancelToken: string;
-}
-
-interface SlotDto {
-  startAt: string;
-  endAt: string;
 }
 
 export default function ManageClient({
@@ -36,37 +31,14 @@ export default function ManageClient({
   const [error, setError] = useState<string | null>(null);
   const [rescheduled, setRescheduled] = useState(false);
 
-  const [allSlots, setAllSlots] = useState<SlotDto[]>([]);
+  const { byDay, availableDays, loading } = useAvailableSlots(
+    data.practitionerSlug,
+    data.sessionTypeId,
+    28,
+  );
   const [day, setDay] = useState<string | null>(null);
   const [newSlot, setNewSlot] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    const today = toKey(new Date());
-    fetch(`/api/p/${data.practitionerSlug}/slots?sessionTypeId=${data.sessionTypeId}&from=${today}&days=28`)
-      .then((r) => (r.ok ? r.json() : { slots: [] }))
-      .then((j) => {
-        if (!cancelled) setAllSlots(j.slots ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setAllSlots([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [data.practitionerSlug, data.sessionTypeId]);
-
-  const byDay = useMemo(() => {
-    const map = new Map<string, SlotDto[]>();
-    for (const s of allSlots) {
-      const key = toKey(new Date(s.startAt));
-      const list = map.get(key) ?? [];
-      list.push(s);
-      map.set(key, list);
-    }
-    return map;
-  }, [allSlots]);
-  const availableDays = useMemo(() => new Set(byDay.keys()), [byDay]);
   const daySlots = day ? (byDay.get(day) ?? []) : [];
 
   async function cancel() {
@@ -157,35 +129,18 @@ export default function ManageClient({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("manage.rescheduleTitle")}</h2>
-        <Calendar
-          initialMonth={new Date()}
-          selected={day}
+        <SlotPicker
           availableDays={availableDays}
-          onSelect={(key) => {
+          day={day}
+          slots={daySlots.map((s) => s.startAt)}
+          selected={newSlot}
+          loading={loading}
+          onSelectDay={(key) => {
             setDay(key);
             setNewSlot("");
           }}
-          renderDay={(key) =>
-            availableDays.has(key) && key !== day ? (
-              <span className="h-1 w-1 rounded-full bg-brand" />
-            ) : null
-          }
+          onSelectSlot={setNewSlot}
         />
-        {day ? (
-          daySlots.length === 0 ? (
-            <p className="mt-3 text-sm text-mist">{t("booking.noSlots")}</p>
-          ) : (
-            <div className="mt-3">
-              <TimeSlotGrid
-                slots={daySlots.map((s) => s.startAt)}
-                selected={newSlot}
-                onSelect={setNewSlot}
-              />
-            </div>
-          )
-        ) : (
-          <p className="mt-3 text-sm text-mist">{t("booking.selectDay")}</p>
-        )}
         {newSlot ? (
           <Button disabled={busy} onClick={reschedule} className="mt-3">
             {t("manage.rescheduleButton")} — {timeFmt.format(new Date(newSlot))}

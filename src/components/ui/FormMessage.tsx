@@ -8,7 +8,10 @@ export default function FormMessage({
 }) {
   if (!children) return null;
   return (
-    <p className={`text-sm ${tone === "ok" ? "text-ok" : "text-danger"}`}>
+    <p
+      role={tone === "error" ? "alert" : "status"}
+      className={`text-sm ${tone === "ok" ? "text-ok" : "text-danger"}`}
+    >
       {children}
     </p>
   );

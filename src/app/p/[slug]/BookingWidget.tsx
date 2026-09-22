@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { t } from "@/lib/i18n";
 import { toKey } from "@/lib/calendar";
 import { fullFmt, timeFmt } from "@/lib/format";
-import { Button, Calendar, Checkbox, Field, FormMessage, TextInput, Textarea } from "@/components/ui";
-import TimeSlotGrid from "@/components/TimeSlotGrid";
+import { Button, Checkbox, Field, FormMessage, TextInput, Textarea } from "@/components/ui";
+import SlotPicker from "@/components/SlotPicker";
+import { useAvailableSlots } from "@/hooks/useAvailableSlots";
 
 export interface SessionTypeOpt {
   id: string;
@@ -41,8 +42,7 @@ export default function BookingWidget({
   sessionTypes: SessionTypeOpt[];
 }) {
   const [typeId, setTypeId] = useState(sessionTypes[0]?.id ?? "");
-  const [allSlots, setAllSlots] = useState<SlotDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { allSlots, byDay, availableDays, loading } = useAvailableSlots(slug, typeId, 56);
   const [day, setDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<string>("");
 
@@ -58,48 +58,14 @@ export default function BookingWidget({
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<SlotDto | null>(null);
 
-  // Un seul appel couvrant ~8 semaines : jours disponibles + prochain créneau.
-  useEffect(() => {
-    if (!typeId) return;
-    let cancelled = false;
-    const today = toKey(new Date());
-    fetch(`/api/p/${slug}/slots?sessionTypeId=${typeId}&from=${today}&days=56`)
-      .then((r) => (r.ok ? r.json() : { slots: [] }))
-      .then((j) => {
-        if (!cancelled) setAllSlots(j.slots ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setAllSlots([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, typeId]);
-
-  const byDay = useMemo(() => {
-    const map = new Map<string, SlotDto[]>();
-    for (const s of allSlots) {
-      const key = toKey(new Date(s.startAt));
-      const list = map.get(key) ?? [];
-      list.push(s);
-      map.set(key, list);
-    }
-    return map;
-  }, [allSlots]);
-  const availableDays = useMemo(() => new Set(byDay.keys()), [byDay]);
   const next = allSlots[0] ?? null;
   const daySlots = day ? (byDay.get(day) ?? []) : [];
   const selectedType = sessionTypes.find((s) => s.id === typeId);
 
   function pickType(id: string) {
     setTypeId(id);
-    setAllSlots([]);
     setDay(null);
     setSlot("");
-    setLoading(true);
   }
 
   function pickDay(key: string) {
@@ -214,13 +180,7 @@ export default function BookingWidget({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("booking.chooseSlot")}</h2>
-        {loading ? (
-          <p className="text-sm text-mist">{t("booking.loading")}</p>
-        ) : allSlots.length === 0 ? (
-          <p className="text-sm text-mist">{t("booking.full")}</p>
-        ) : (
-          <>
-            {next && !slot ? (
+        {!loading && allSlots.length > 0 && next && !slot ? (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border bg-ok-bg p-4 text-ok">
             <p className="text-sm">
               <span className="font-semibold">{t("booking.nextSlot")} : </span>
@@ -231,34 +191,15 @@ export default function BookingWidget({
             </Button>
           </div>
         ) : null}
-        <Calendar
-              initialMonth={new Date()}
-              selected={day}
-              availableDays={availableDays}
-              onSelect={pickDay}
-              renderDay={(key) =>
-                availableDays.has(key) && key !== day ? (
-                  <span className="h-1 w-1 rounded-full bg-brand" />
-                ) : null
-              }
-            />
-            {day ? (
-              daySlots.length === 0 ? (
-                <p className="mt-3 text-sm text-mist">{t("booking.noSlots")}</p>
-              ) : (
-                <div className="mt-3">
-                  <TimeSlotGrid
-                    slots={daySlots.map((s) => s.startAt)}
-                    selected={slot}
-                    onSelect={setSlot}
-                  />
-                </div>
-              )
-            ) : (
-              <p className="mt-3 text-sm text-mist">{t("booking.selectDay")}</p>
-            )}
-          </>
-        )}
+        <SlotPicker
+          availableDays={availableDays}
+          day={day}
+          slots={daySlots.map((s) => s.startAt)}
+          selected={slot}
+          loading={loading}
+          onSelectDay={pickDay}
+          onSelectSlot={setSlot}
+        />
       </section>
 
       {slot ? (

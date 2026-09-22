@@ -3,6 +3,7 @@ import * as membersDal from "@/dal/members";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import { practitionerColor } from "@/lib/calendar-colors";
+import { sortRooms } from "@/lib/rooms";
 import { ForbiddenError, NotFoundError } from "./errors";
 
 /**
@@ -29,13 +30,11 @@ export async function getAgendaEvents(input: AgendaInput) {
   // changement d'allowlist) ; la légende n'expose que les salles utilisables.
   const roomById = new Map(roomsWithMembers.map((r) => [r.room.id, r.room]));
   return {
-    rooms: roomsWithMembers
-      .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(prac.id))
-      .sort((a, b) =>
-        a.room.sortOrder - b.room.sortOrder ||
-        a.room.name.localeCompare(b.room.name) ||
-        (a.room.id < b.room.id ? -1 : a.room.id > b.room.id ? 1 : 0))
-      .map((r) => ({ id: r.room.id, name: r.room.name, color: r.room.color })),
+    rooms: sortRooms(
+      roomsWithMembers.filter(
+        (r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(prac.id),
+      ),
+    ).map((r) => ({ id: r.room.id, name: r.room.name, color: r.room.color })),
     events: bookings.map((b) => {
       const room = roomById.get(b.roomId);
       return {

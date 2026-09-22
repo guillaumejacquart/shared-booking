@@ -5,6 +5,7 @@ import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
+import { sortRooms } from "@/lib/rooms";
 import { dateStrInTz } from "@/lib/timezone";
 
 import type {
@@ -55,22 +56,37 @@ async function checkAccess(
 }
 
 function toMinutes(t: string): number {
+  if (!/^\d{2}:\d{2}$/.test(t)) throw new ValidationError("Heure invalide (HH:MM attendu)");
   const [h, m] = t.split(":").map(Number);
+  if (h > 23 || m > 59) throw new ValidationError("Heure invalide (HH:MM attendu)");
   return h * 60 + m;
 }
 
 /** Salles utilisables par le praticien : allowlist vide = toutes. */
 async function assertRoomAllowed(
-  officeId: string,
+  rooms: Awaited<ReturnType<typeof roomsDal.listRoomsWithMembers>>,
   practitionerId: string,
   roomId: string,
 ): Promise<void> {
-  const rooms = await roomsDal.listRoomsWithMembers(officeId);
   const entry = rooms.find((r) => r.room.id === roomId);
   if (!entry) throw new ValidationError("Salle inconnue");
   if (entry.practitionerIds.length > 0 && !entry.practitionerIds.includes(practitionerId)) {
     throw new ValidationError("Salle non autorisée pour ce praticien");
   }
+}
+
+/** Payload commun création / mise à jour d'un type de séance. */
+function buildSessionTypePayload(input: SaveSessionTypeInput) {
+  return {
+    name: input.name,
+    description: input.description ?? null,
+    durationMin: input.durationMin,
+    bufferAfterMin: input.bufferAfterMin,
+    priceDisplay: input.priceDisplay || null,
+    requiresPayment: input.requiresPayment,
+    priceCents: input.requiresPayment ? (input.priceCents ?? null) : null,
+    requiresValidation: input.requiresValidation,
+  };
 }
 
 // --- Disponibilités ----------------------------------------------------------
@@ -109,9 +125,11 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
   const { officeId } = await checkAccess(practitionerId, input.requesterUserId);
 
   // Salles compatibles : doivent exister et être utilisables par le praticien.
+  // Chargées une seule fois (pas de requête par salle).
   const compatibleRoomIds = [...new Set(input.compatibleRoomIds ?? [])];
+  const roomsWithMembers = await roomsDal.listRoomsWithMembers(officeId);
   for (const roomId of compatibleRoomIds) {
-    await assertRoomAllowed(officeId, practitionerId, roomId);
+    await assertRoomAllowed(roomsWithMembers, practitionerId, roomId);
   }
 
   if (input.id) {
@@ -120,15 +138,8 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
     );
     if (!existing) throw new NotFoundError("Type de séance introuvable");
     await sessionTypesDal.updateSessionType(input.id, {
-      name: input.name,
-      description: input.description ?? null,
-      durationMin: input.durationMin,
-      bufferAfterMin: input.bufferAfterMin,
-      priceDisplay: input.priceDisplay || null,
+      ...buildSessionTypePayload(input),
       active: input.active ?? existing.active,
-      requiresPayment: input.requiresPayment,
-      priceCents: input.requiresPayment ? (input.priceCents ?? null) : null,
-      requiresValidation: input.requiresValidation,
     });
     await sessionTypesDal.replaceCompatibleRooms(input.id, compatibleRoomIds);
     return input.id;
@@ -137,14 +148,7 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
   await sessionTypesDal.createSessionType({
     id,
     practitionerId,
-    name: input.name,
-    description: input.description ?? null,
-    durationMin: input.durationMin,
-    bufferAfterMin: input.bufferAfterMin,
-    priceDisplay: input.priceDisplay || null,
-    requiresPayment: input.requiresPayment,
-    priceCents: input.requiresPayment ? (input.priceCents ?? null) : null,
-    requiresValidation: input.requiresValidation,
+    ...buildSessionTypePayload(input),
   });
   await sessionTypesDal.replaceCompatibleRooms(id, compatibleRoomIds);
   return id;
@@ -181,7 +185,8 @@ export async function createException(input: CreateExceptionInput): Promise<stri
   }
   if (input.kind === "extra") {
     if (!input.roomId) throw new ValidationError("Une salle est requise pour une ouverture");
-    await assertRoomAllowed(officeId, practitionerId, input.roomId);
+    const rooms = await roomsDal.listRoomsWithMembers(officeId);
+    await assertRoomAllowed(rooms, practitionerId, input.roomId);
   }
 
   return availabilityDal.createException({
@@ -308,17 +313,23 @@ export interface AvailabilityMonthInput {
 export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
+  const office = await officesDal.getOfficeById(prac.officeId);
+  const timezone = office?.timezone ?? "Europe/Paris";
+  const fromDate = new Date(`${input.from}T12:00:00Z`);
+  if (Number.isNaN(fromDate.getTime())) throw new ValidationError("Date invalide");
   const to = dateStrInTz(
-    new Date(new Date(`${input.from}T12:00:00Z`).getTime() + input.days * 86_400_000),
-    "Europe/Paris",
+    new Date(fromDate.getTime() + input.days * 86_400_000),
+    timezone,
   );
+  const rangeStart = new Date(`${input.from}T00:00:00Z`);
+  if (Number.isNaN(rangeStart.getTime())) throw new ValidationError("Date invalide");
   const [rules, exceptions, bookings, roomsWithMembers] = await Promise.all([
     availabilityDal.listRules(prac.id),
     availabilityDal.listExceptions(prac.id, input.from, to),
     bookingsDal.listBookingsForPractitioner(
       prac.id,
-      new Date(`${input.from}T00:00:00Z`),
-      new Date(new Date(`${input.from}T00:00:00Z`).getTime() + (input.days + 1) * 86_400_000),
+      rangeStart,
+      new Date(rangeStart.getTime() + (input.days + 1) * 86_400_000),
     ),
     roomsDal.listRoomsWithMembers(prac.officeId),
   ]);
@@ -349,12 +360,10 @@ export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
     // Salles utilisables par le praticien uniquement (allowlist vide = toutes),
     // comme sur la page profil : le formulaire d'ouverture exceptionnelle ne
     // doit pas proposer de salle interdite (l'API la refuserait de toute façon).
-    rooms: roomsWithMembers
-      .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(prac.id))
-      .sort((a, b) =>
-        a.room.sortOrder - b.room.sortOrder ||
-        a.room.name.localeCompare(b.room.name) ||
-        (a.room.id < b.room.id ? -1 : a.room.id > b.room.id ? 1 : 0))
-      .map((r) => ({ id: r.room.id, name: r.room.name, color: r.room.color })),
+    rooms: sortRooms(
+      roomsWithMembers.filter(
+        (r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(prac.id),
+      ),
+    ).map((r) => ({ id: r.room.id, name: r.room.name, color: r.room.color })),
   };
 }
