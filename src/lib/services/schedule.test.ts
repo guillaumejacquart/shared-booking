@@ -7,6 +7,7 @@ import {
   createException,
   deleteException,
   deleteSessionType,
+  getAvailabilityMonth,
   replaceAvailability,
   saveSessionType,
   updateProfile,
@@ -59,8 +60,8 @@ describe("replaceAvailability", () => {
     await replaceAvailability({
       practitionerId: "p1", ...alice,
       rules: [
-        { weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "room-a" },
-        { weekday: 2, startTime: "14:00", endTime: "18:00", roomId: "room-x" },
+        { weekday: 1, startTime: "09:00", endTime: "12:00" },
+        { weekday: 2, startTime: "14:00", endTime: "18:00" },
       ],
     });
     const s = await import("@/db/schema");
@@ -69,26 +70,20 @@ describe("replaceAvailability", () => {
     expect(rows).toHaveLength(2);
   });
 
-  it("refuse chevauchements, horaires invalides et salles interdites", async () => {
+  it("refuse chevauchements et horaires invalides (sans notion de salle)", async () => {
     const base = { practitionerId: "p2", ...bob };
     await expect(
       replaceAvailability({
         ...base,
         rules: [
-          { weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "room-a" },
-          { weekday: 1, startTime: "11:00", endTime: "13:00", roomId: "room-a" },
+          { weekday: 1, startTime: "09:00", endTime: "12:00" },
+          { weekday: 1, startTime: "11:00", endTime: "13:00" },
         ],
       }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
       replaceAvailability({
-        ...base, rules: [{ weekday: 1, startTime: "12:00", endTime: "09:00", roomId: "room-a" }],
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
-    // Bob n'a pas accès à la salle Exclusive.
-    await expect(
-      replaceAvailability({
-        ...base, rules: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "room-x" }],
+        ...base, rules: [{ weekday: 1, startTime: "12:00", endTime: "09:00" }],
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -97,7 +92,7 @@ describe("replaceAvailability", () => {
     await expect(
       replaceAvailability({
         practitionerId: "p1", ...bob,
-        rules: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "room-a" }],
+        rules: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
@@ -108,14 +103,46 @@ describe("saveSessionType / deleteSessionType", () => {
     const id = await saveSessionType({
       practitionerId: "p2", ...bob,
       name: "Suivi", durationMin: 45, bufferAfterMin: 5,
-      requiresPayment: false, requiresValidation: false,
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     const id2 = await saveSessionType({
       practitionerId: "p2", ...bob, id,
       name: "Suivi long", durationMin: 60, bufferAfterMin: 5, active: false,
-      requiresPayment: false, requiresValidation: false,
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     expect(id2).toBe(id);
+  });
+
+  it("restreint les salles compatibles d'une séance (vide = toutes)", async () => {
+    const { listCompatibleRoomIds } = await import("@/dal/session-types");
+    const id = await saveSessionType({
+      practitionerId: "p1", ...alice,
+      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
+    });
+    expect(await listCompatibleRoomIds(id)).toEqual(["room-x"]);
+    // Mise à jour remplace la restriction.
+    await saveSessionType({
+      practitionerId: "p1", ...alice, id,
+      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+    });
+    expect(await listCompatibleRoomIds(id)).toEqual([]);
+  });
+
+  it("refuse les salles inconnues ou interdites au praticien", async () => {
+    const base = {
+      practitionerId: "p2", ...bob,
+      name: "Soin", durationMin: 60, bufferAfterMin: 0,
+      requiresPayment: false, requiresValidation: false,
+    };
+    await expect(
+      saveSessionType({ ...base, compatibleRoomIds: ["nope"] }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    // Bob n'a pas accès à la salle Exclusive (réservée à Alice).
+    await expect(
+      saveSessionType({ ...base, compatibleRoomIds: ["room-x"] }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("refuse de supprimer un type avec des réservations futures", async () => {
@@ -162,6 +189,16 @@ describe("createException / deleteException", () => {
     await deleteException({ id, ...alice, practitionerId: "p2" });
     const { eq } = await import("drizzle-orm");
     expect(await db.select().from(s.exception).where(eq(s.exception.id, id))).toHaveLength(0);
+  });
+});
+
+describe("getAvailabilityMonth", () => {
+  it("ne retourne que les salles utilisables par le praticien", async () => {
+    // room-x est réservée à Alice (p1) : Bob (p2) ne voit que room-a.
+    const bobMonth = await getAvailabilityMonth({ userId: "u2", from: "2026-09-14", days: 7 });
+    expect(bobMonth.rooms.map((r) => r.id)).toEqual(["room-a"]);
+    const aliceMonth = await getAvailabilityMonth({ userId: "u1", from: "2026-09-14", days: 7 });
+    expect(aliceMonth.rooms.map((r) => r.id).sort()).toEqual(["room-a", "room-x"]);
   });
 });
 
@@ -212,6 +249,25 @@ describe("saveRoom / deleteRoom", () => {
     // Salle sans réservation : suppression OK.
     await deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-x" }, NOW);
   });
+
+  it("refuse de supprimer une salle requise par un type de séance", async () => {
+    const { deleteRoom, saveSessionType } = await import("@/lib/services/schedule");
+    const id = await saveSessionType({
+      practitionerId: "p1", requesterUserId: "u1",
+      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
+    });
+    await expect(
+      deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-x" }, NOW),
+    ).rejects.toBeInstanceOf(ValidationError);
+    // Après retrait de la restriction, suppression OK.
+    await saveSessionType({
+      practitionerId: "p1", requesterUserId: "u1", id,
+      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+    });
+    await deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-x" }, NOW);
+  });
 });
 
 describe("updateOfficeSettings", () => {
@@ -227,6 +283,16 @@ describe("updateOfficeSettings", () => {
       updateOfficeSettings({ officeId: "o1", requesterUserId: "u2", name: "Hack" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it("persiste l'ambiance du cabinet", async () => {
+    const { updateOfficeSettings } = await import("@/lib/services/schedule");
+    await updateOfficeSettings({ officeId: "o1", requesterUserId: "u1", themePalette: "brume", themeMode: "dark" });
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.office).where(eq(s.office.id, "o1"));
+    expect(rows[0].themePalette).toBe("brume");
+    expect(rows[0].themeMode).toBe("dark");
+  });
 });
 
 describe("saveSessionType paiement/validation", () => {
@@ -235,7 +301,7 @@ describe("saveSessionType paiement/validation", () => {
     const id = await saveSessionType({
         practitionerId: "p2", requesterUserId: "u2",
         name: "Payante", durationMin: 60, bufferAfterMin: 0,
-        requiresPayment: true, priceCents: 5000, requiresValidation: true,
+        requiresPayment: true, priceCents: 5000, requiresValidation: true, compatibleRoomIds: [],
       },
     );
     const s = await import("@/db/schema");
@@ -250,7 +316,7 @@ describe("saveSessionType paiement/validation", () => {
       saveSessionType({
           practitionerId: "p2", requesterUserId: "u2",
           name: "Sans prix", durationMin: 60, bufferAfterMin: 0, requiresPayment: true,
-          requiresValidation: false,
+          requiresValidation: false, compatibleRoomIds: [],
         },
       ),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -267,7 +333,7 @@ describe("saveSessionType nulls DB", () => {
         name: "Soin 1", description: null,
         durationMin: 60, bufferAfterMin: 20, priceDisplay: "50",
         active: true, requiresPayment: false, priceCents: null,
-        requiresValidation: true,
+        requiresValidation: true, compatibleRoomIds: [],
       },
     );
     expect(typeof id).toBe("string");

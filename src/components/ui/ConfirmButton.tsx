@@ -33,7 +33,7 @@ export default function ConfirmButton({
   }
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="text-xs text-zinc-500">{confirmLabel}</span>
+      <span className="text-xs text-mist">{confirmLabel}</span>
       <Button type="button" size="sm" variant={danger ? "danger" : "primary"} disabled={busy} onClick={() => void onConfirm()}>
         OK
       </Button>

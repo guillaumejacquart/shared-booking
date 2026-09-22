@@ -1,26 +1,366 @@
 @import "tailwindcss";
 
+/**
+ * Design system « bien-être » : neutres chauds teintés, une teinte de
+ * marque douce par palette, ombres diffuses au lieu de bordures dures.
+ *
+ * Mécanique :
+ * - `data-palette` sur <html> (sauge par défaut = :root) choisit la palette ;
+ * - `data-mode` (light | dark | system) choisit le mode ; en `system` le
+ *   média `prefers-color-scheme` prend le relais ;
+ * - les utilitaires Tailwind (bg-surface, text-ink, bg-brand…) lisent ces
+ *   variables via `@theme inline` : aucun `dark:` n'est nécessaire.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* -- Palette par défaut : sauge (clair) -- */
+  --surface: #f3f6f2;
+  --card: #fdfefd;
+  --wash: #e6ece4;
+  --ink: #26332b;
+  --mist: #5a6b60;
+  --faint: #8ba093;
+  --line: #d9e1d7;
+  --brand: #4e7a5b;
+  --brand-deep: #3a5f45;
+  --brand-soft: #e1ebe2;
+  --brand-ink: #ffffff;
+
+  /* -- Statuts (communs aux palettes, déclinaison claire) -- */
+  --ok: #37693f;
+  --ok-bg: #e3f0e5;
+  --warn: #8a5e10;
+  --warn-bg: #f6ecd1;
+  --danger: #a83e2c;
+  --danger-bg: #f6e2dc;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+[data-palette="sauge"] {
+  --surface: #f3f6f2;
+  --card: #fdfefd;
+  --wash: #e6ece4;
+  --ink: #26332b;
+  --mist: #5a6b60;
+  --faint: #8ba093;
+  --line: #d9e1d7;
+  --brand: #4e7a5b;
+  --brand-deep: #3a5f45;
+  --brand-soft: #e1ebe2;
+  --brand-ink: #ffffff;
 }
 
+[data-palette="brume"] {
+  --surface: #f1f5f7;
+  --card: #fcfdfe;
+  --wash: #e3eaef;
+  --ink: #25333b;
+  --mist: #5a6e79;
+  --faint: #899faa;
+  --line: #d6e1e8;
+  --brand: #477791;
+  --brand-deep: #375d73;
+  --brand-soft: #e0eaf0;
+}
+
+[data-palette="lavande"] {
+  --surface: #f4f3f8;
+  --card: #fcfcfe;
+  --wash: #e6e3f1;
+  --ink: #2e2a3d;
+  --mist: #615a7a;
+  --faint: #938bac;
+  --line: #dbd6ec;
+  --brand: #5f549a;
+  --brand-deep: #48407a;
+  --brand-soft: #e7e3f4;
+}
+
+[data-palette="sable"] {
+  --surface: #f7f3ec;
+  --card: #fdfbf5;
+  --wash: #eee2d1;
+  --ink: #3a2e26;
+  --mist: #6e5f52;
+  --faint: #9f8d7b;
+  --line: #e4d5bf;
+  --brand: #9a6a44;
+  --brand-deep: #7a5233;
+  --brand-soft: #f2e4d1;
+}
+
+[data-palette="lotus"] {
+  --surface: #f8f3f4;
+  --card: #fdfafb;
+  --wash: #f0e1e6;
+  --ink: #3b2a2f;
+  --mist: #71555f;
+  --faint: #a4828c;
+  --line: #e6d1d8;
+  --brand: #9e5f74;
+  --brand-deep: #7e4859;
+  --brand-soft: #f4e1e7;
+}
+
+[data-palette="cedre"] {
+  --surface: #f6f2e9;
+  --card: #fcfaf3;
+  --wash: #eadfc9;
+  --ink: #362b20;
+  --mist: #6b5c49;
+  --faint: #9c8b74;
+  --line: #e1d4b9;
+  --brand: #84643f;
+  --brand-deep: #675031;
+  --brand-soft: #efe3cc;
+}
+
+/* -- Mode sombre explicite -- */
+[data-mode="dark"] {
+  color-scheme: dark;
+
+  --surface: #141b16;
+  --card: #1b241e;
+  --wash: #26312a;
+  --ink: #e9efea;
+  --mist: #a9bcb0;
+  --faint: #71836f;
+  --line: #2c3a30;
+  --brand: #8fb89b;
+  --brand-deep: #a8ccb4;
+  --brand-soft: #223128;
+  --brand-ink: #15211a;
+
+  --ok: #8fc79b;
+  --ok-bg: #1e2f23;
+  --warn: #d9b25f;
+  --warn-bg: #2f2716;
+  --danger: #de8b76;
+  --danger-bg: #35211c;
+}
+
+[data-mode="dark"][data-palette="brume"] {
+  --surface: #131a1e;
+  --card: #1a2329;
+  --wash: #25323a;
+  --ink: #e8eff3;
+  --mist: #a7bcc7;
+  --faint: #6e8592;
+  --line: #2b3a43;
+  --brand: #8fb4c7;
+  --brand-deep: #accada;
+  --brand-soft: #213039;
+  --brand-ink: #142026;
+}
+
+[data-mode="dark"][data-palette="lavande"] {
+  --surface: #171522;
+  --card: #1e1b2c;
+  --wash: #2a2540;
+  --ink: #eceaf5;
+  --mist: #b3abcc;
+  --faint: #7b7396;
+  --line: #322c4c;
+  --brand: #a79bdd;
+  --brand-deep: #c2bae9;
+  --brand-soft: #272138;
+  --brand-ink: #1d1930;
+}
+
+[data-mode="dark"][data-palette="sable"] {
+  --surface: #1d1712;
+  --card: #251e16;
+  --wash: #352a1f;
+  --ink: #f2eae0;
+  --mist: #c2b3a2;
+  --faint: #86766a;
+  --line: #3a2f24;
+  --brand: #d3a37e;
+  --brand-deep: #e3bd98;
+  --brand-soft: #2e2418;
+  --brand-ink: #241b12;
+}
+
+[data-mode="dark"][data-palette="lotus"] {
+  --surface: #1f1519;
+  --card: #281c21;
+  --wash: #3a2830;
+  --ink: #f4e9ed;
+  --mist: #c6a8b2;
+  --faint: #8a6e78;
+  --line: #433038;
+  --brand: #d29aad;
+  --brand-deep: #e3b8c6;
+  --brand-soft: #33222a;
+  --brand-ink: #2a1d22;
+}
+
+[data-mode="dark"][data-palette="cedre"] {
+  --surface: #1c1610;
+  --card: #251d14;
+  --wash: #372b1d;
+  --ink: #f1e9db;
+  --mist: #c0b29c;
+  --faint: #847662;
+  --line: #3b3022;
+  --brand: #cfa878;
+  --brand-deep: #e1c197;
+  --brand-soft: #30261a;
+  --brand-ink: #241c12;
+}
+
+/* -- Mode système : le média choisit la déclinaison sombre -- */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  [data-mode="system"] {
+    color-scheme: dark;
+
+    --surface: #141b16;
+    --card: #1b241e;
+    --wash: #26312a;
+    --ink: #e9efea;
+    --mist: #a9bcb0;
+    --faint: #71836f;
+    --line: #2c3a30;
+    --brand: #8fb89b;
+    --brand-deep: #a8ccb4;
+    --brand-soft: #223128;
+    --brand-ink: #15211a;
+
+    --ok: #8fc79b;
+    --ok-bg: #1e2f23;
+    --warn: #d9b25f;
+    --warn-bg: #2f2716;
+    --danger: #de8b76;
+    --danger-bg: #35211c;
+  }
+
+  [data-mode="system"][data-palette="brume"] {
+    --surface: #131a1e;
+    --card: #1a2329;
+    --wash: #25323a;
+    --ink: #e8eff3;
+    --mist: #a7bcc7;
+    --faint: #6e8592;
+    --line: #2b3a43;
+    --brand: #8fb4c7;
+    --brand-deep: #accada;
+    --brand-soft: #213039;
+    --brand-ink: #142026;
+  }
+
+  [data-mode="system"][data-palette="lavande"] {
+    --surface: #171522;
+    --card: #1e1b2c;
+    --wash: #2a2540;
+    --ink: #eceaf5;
+    --mist: #b3abcc;
+    --faint: #7b7396;
+    --line: #322c4c;
+    --brand: #a79bdd;
+    --brand-deep: #c2bae9;
+    --brand-soft: #272138;
+    --brand-ink: #1d1930;
+  }
+
+  [data-mode="system"][data-palette="sable"] {
+    --surface: #1d1712;
+    --card: #251e16;
+    --wash: #352a1f;
+    --ink: #f2eae0;
+    --mist: #c2b3a2;
+    --faint: #86766a;
+    --line: #3a2f24;
+    --brand: #d3a37e;
+    --brand-deep: #e3bd98;
+    --brand-soft: #2e2418;
+    --brand-ink: #241b12;
+  }
+
+  [data-mode="system"][data-palette="lotus"] {
+    --surface: #1f1519;
+    --card: #281c21;
+    --wash: #3a2830;
+    --ink: #f4e9ed;
+    --mist: #c6a8b2;
+    --faint: #8a6e78;
+    --line: #433038;
+    --brand: #d29aad;
+    --brand-deep: #e3b8c6;
+    --brand-soft: #33222a;
+    --brand-ink: #2a1d22;
+  }
+
+  [data-mode="system"][data-palette="cedre"] {
+    --surface: #1c1610;
+    --card: #251d14;
+    --wash: #372b1d;
+    --ink: #f1e9db;
+    --mist: #c0b29c;
+    --faint: #847662;
+    --line: #3b3022;
+    --brand: #cfa878;
+    --brand-deep: #e1c197;
+    --brand-soft: #30261a;
+    --brand-ink: #241c12;
   }
 }
 
+@theme inline {
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-wash: var(--wash);
+  --color-ink: var(--ink);
+  --color-mist: var(--mist);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+}
+
+@theme {
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
+  --shadow-soft:
+    0 1px 2px rgb(40 55 45 / 0.06), 0 10px 28px -14px rgb(40 55 45 / 0.18);
+  --shadow-lift:
+    0 2px 4px rgb(40 55 45 / 0.08), 0 16px 36px -14px rgb(40 55 45 / 0.28);
+}
+
+/* `dark:` hérité : bascule sur le mode explicite uniquement (le code neuf
+   utilise les tokens, qui suivent aussi `system`). */
+@custom-variant dark (&:where([data-mode="dark"] *, [data-mode="dark"]));
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+::selection {
+  background: var(--brand-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

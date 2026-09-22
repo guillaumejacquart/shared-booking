@@ -2,30 +2,18 @@ services:
   shared-booking:
     image: ghcr.io/guillaumejacquart/shared-booking:latest
     restart: unless-stopped
+    # Secrets live only on the VPS, never in git.
+    env_file:
+      - /home/ubuntu/docker/services/shared-booking.env
     environment:
       - NODE_ENV=production
       - SQLITE_PATH=/app/data/shared-booking.db
-      - BETTER_AUTH_SECRET=
-      - BETTER_AUTH_URL=https://resa.guillaumejacquart.com
-      - SMTP_HOST=
-      - SMTP_PORT=587
-      - SMTP_USER=
-      - SMTP_PASS=
-      - EMAIL_FROM=noreply@guillaumejacquart.com
-      - STRIPE_SECRET_KEY=
-      - STRIPE_WEBHOOK_SECRET=
-      - R2_ENDPOINT=
-      - R2_ACCESS_KEY_ID=
-      - R2_SECRET_ACCESS_KEY=
-      - R2_BUCKET=shared-booking-backups
-      - R2_PREFIX=sqlite
-      - "BACKUP_SCHEDULE=0 3 * * *"
-      - BACKUP_TIMEZONE=Europe/Paris
+      - BETTER_AUTH_URL=https://shared-booking.guillaumejacquart.com
     volumes:
       - sqlite-data:/app/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.shared-booking.rule=Host(`resa.guillaumejacquart.com`)"
+      - "traefik.http.routers.shared-booking.rule=Host(`shared-booking.guillaumejacquart.com`)"
       - "traefik.http.routers.shared-booking.entrypoints=websecure"
       - "traefik.http.routers.shared-booking.tls=true"
       - "traefik.http.routers.shared-booking.tls.certresolver=myresolver"

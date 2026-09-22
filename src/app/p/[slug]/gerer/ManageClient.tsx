@@ -122,7 +122,7 @@ export default function ManageClient({
 
   if (status === "cancelled") {
     return (
-      <p className="rounded-2xl border border-zinc-200 p-6 text-center dark:border-zinc-800">
+      <p className="rounded-3xl border border-line bg-card p-6 text-center shadow-soft">
         {t("manage.cancelled")}
       </p>
     );
@@ -130,7 +130,7 @@ export default function ManageClient({
 
   if (status !== "confirmed") {
     return (
-      <p className="rounded-2xl border border-zinc-200 p-6 text-center dark:border-zinc-800">
+      <p className="rounded-3xl border border-line bg-card p-6 text-center shadow-soft">
         {t("manage.completed")}
       </p>
     );
@@ -138,13 +138,13 @@ export default function ManageClient({
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <section className="rounded-3xl border border-line bg-card p-6 shadow-soft">
         <h2 className="text-lg font-semibold">
           {data.sessionName} {t("manage.with")} {data.practitionerName}
         </h2>
-        <p className="mt-1 text-zinc-600 dark:text-zinc-300">{when}</p>
+        <p className="mt-1 text-mist">{when}</p>
         {rescheduled ? (
-          <p className="mt-3 text-sm text-green-700 dark:text-green-300">
+          <p className="mt-3 text-sm text-ok">
             {t("manage.rescheduled")}
           </p>
         ) : null}
@@ -167,13 +167,13 @@ export default function ManageClient({
           }}
           renderDay={(key) =>
             availableDays.has(key) && key !== day ? (
-              <span className="h-1 w-1 rounded-full bg-zinc-400" />
+              <span className="h-1 w-1 rounded-full bg-brand" />
             ) : null
           }
         />
         {day ? (
           daySlots.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">{t("booking.noSlots")}</p>
+            <p className="mt-3 text-sm text-mist">{t("booking.noSlots")}</p>
           ) : (
             <div className="mt-3">
               <TimeSlotGrid
@@ -184,7 +184,7 @@ export default function ManageClient({
             </div>
           )
         ) : (
-          <p className="mt-3 text-sm text-zinc-500">{t("booking.selectDay")}</p>
+          <p className="mt-3 text-sm text-mist">{t("booking.selectDay")}</p>
         )}
         {newSlot ? (
           <Button disabled={busy} onClick={reschedule} className="mt-3">

@@ -58,7 +58,7 @@ export default function ValidateButtons({
     }
   }
 
-  if (done) return <p className="text-sm text-green-700 dark:text-green-300">{done}</p>;
+  if (done) return <p className="text-sm text-ok">{done}</p>;
 
   if (!refusing) {
     return (

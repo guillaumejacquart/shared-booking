@@ -51,7 +51,7 @@ function MerciStatus({ slug }: { slug: string }) {
   return (
     <main className="mx-auto w-full max-w-md px-4 py-16 text-center">
       <h1 className="text-2xl font-semibold tracking-tight">{t("merci.title")}</h1>
-      <div className="mt-4 text-sm text-zinc-600 dark:text-zinc-300">
+      <div className="mt-4 text-sm text-mist">
         {state === "waiting" ? <p>{t("merci.waiting")}</p> : null}
         {state === "confirmed" ? <p>{t("merci.confirmed")}</p> : null}
         {state === "pendingValidation" ? <p>{t("merci.pendingValidation")}</p> : null}

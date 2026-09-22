@@ -63,7 +63,7 @@ describe("schedule schemas", () => {
   const req = { practitionerId: "p", requesterUserId: "u" };
 
   it("replaceAvailability refuse les horaires mal formés", () => {
-    const rule = { weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "r" };
+    const rule = { weekday: 1, startTime: "09:00", endTime: "12:00" };
     expect(replaceAvailabilitySchema.parse({ ...req, rules: [rule] })).toBeDefined();
     expect(() =>
       replaceAvailabilitySchema.parse({
@@ -98,6 +98,24 @@ describe("schedule schemas", () => {
     const bad = updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", bookingLeadTimeMin: -5 });
     expect(bad.success).toBe(false);
     if (!bad.success) expect(bad.error.issues[0].path).toEqual(["bookingLeadTimeMin"]);
+  });
+
+  it("updateOfficeSettings valide l'ambiance (palette connue)", () => {
+    expect(
+      updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", themePalette: "lavande" }).success,
+    ).toBe(true);
+    const bad = updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", themePalette: "zinc" });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0].path).toEqual(["themePalette"]);
+  });
+
+  it("updateOfficeSettings valide le mode forcé des pages publiques", () => {
+    expect(
+      updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", themeMode: "dark" }).success,
+    ).toBe(true);
+    const bad = updateOfficeSettingsSchema.safeParse({ officeId: "o", requesterUserId: "u", themeMode: "sombre" });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0].path).toEqual(["themeMode"]);
   });
 });
 

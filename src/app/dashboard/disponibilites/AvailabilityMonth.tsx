@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -12,7 +13,7 @@ import "@/components/FullCalendarTheme.css";
 import { t } from "@/lib/i18n";
 import { fromKey, toKey } from "@/lib/calendar";
 import { AVAILABILITIES_CHANGED } from "@/lib/availabilities-events";
-import { Button, FormMessage } from "@/components/ui";
+import { Button, Field, FormMessage, Select, TextInput } from "@/components/ui";
 
 const TZ = "Europe/Paris";
 
@@ -20,7 +21,6 @@ interface Rule {
   weekday: number;
   startTime: string;
   endTime: string;
-  roomId: string;
 }
 interface Exception {
   id: string;
@@ -41,6 +41,7 @@ interface MonthData {
   rules: Rule[];
   exceptions: Exception[];
   bookings: Booking[];
+  rooms: { id: string; name: string }[];
 }
 
 /** 0 = dimanche … 6 = samedi, vu à Paris. */
@@ -55,10 +56,16 @@ function weekdayParis(d: Date): number {
  * `ssr: false` via import dynamique (voir page).
  */
 export default function AvailabilityMonth({ practitionerId }: { practitionerId: string }) {
+  const router = useRouter();
   const [data, setData] = useState<MonthData | null>(null);
   const [range, setRange] = useState<{ from: string; days: number } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Sélection fermée en attente d'ouverture exceptionnelle (horaires + salle).
+  const [pendingOpen, setPendingOpen] = useState<string[] | null>(null);
+  const [openStart, setOpenStart] = useState("09:00");
+  const [openEnd, setOpenEnd] = useState("18:00");
+  const [openRoomId, setOpenRoomId] = useState("");
 
   // Requêtes dédupliquées par plage : `datesSet` peut être réémis à chaque
   // rendu FullCalendar — sans garde, fetch → setState → rendu → boucle.
@@ -122,9 +129,9 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
       const open = data.rules.some((r) => r.weekday === weekdayParis(d)) || extraDates.has(key);
       const fullOff = (offByDate.get(key) ?? []).some((x) => x.fullDay);
       if (fullOff) {
-        out.push({ start: key, end: key, display: "background", color: "rgba(239,68,68,0.20)" });
+        out.push({ start: key, end: key, display: "background", color: "var(--danger-bg)" });
       } else if (open) {
-        out.push({ start: key, end: key, display: "background", color: "rgba(34,197,94,0.14)" });
+        out.push({ start: key, end: key, display: "background", color: "var(--brand-soft)" });
       }
     }
     // Fermetures partielle : bandeau rouge sur la plage horaire.
@@ -135,17 +142,32 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
           start: `${date}T${x.startTime}:00`,
           end: `${date}T${x.endTime}:00`,
           display: "background",
-          color: "rgba(239,68,68,0.25)",
+          color: "var(--danger-bg)",
         });
       }
     }
     for (const b of data.bookings) {
       if (b.status === "cancelled") continue;
       // Pastille horaire sans libellé (vue mois uniquement).
-      out.push({ id: b.id, start: b.startAt, end: b.endAt, title: "", color: "#18181b" });
+      out.push({ id: b.id, start: b.startAt, end: b.endAt, title: "", color: "var(--brand)" });
     }
     return out;
   }, [data, range]);
+
+  function regularOpen(key: string) {
+    if (!data) return false;
+    return data.rules.some((r) => r.weekday === weekdayParis(fromKey(key)));
+  }
+
+  function extrasOf(key: string) {
+    return (data?.exceptions ?? []).filter((x) => x.date === key && x.kind === "extra");
+  }
+
+  function isOpenDay(key: string) {
+    if (!data) return false;
+    if (data.exceptions.some((x) => x.kind === "extra" && x.date === key)) return true;
+    return regularOpen(key);
+  }
 
   function dayState(key: string) {
     const offs = (data?.exceptions ?? []).filter((x) => x.date === key && x.kind === "off");
@@ -153,12 +175,30 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     const bookings = (data?.bookings ?? []).filter(
       (b) => b.status !== "cancelled" && toKey(new Date(b.startAt)) === key,
     );
-    return { fullOff, bookings };
+    const ro = regularOpen(key);
+    const extras = extrasOf(key);
+    return { fullOff, bookings, regularOpen: ro, extras, open: ro || extras.length > 0 };
+  }
+
+  /** Pré-remplit le formulaire d'ouverture (horaires = 1re règle, sinon 9h-18h). */
+  function startOpening(keys: string[]) {
+    const fallback = data?.rules[0];
+    setOpenStart(fallback?.startTime ?? "09:00");
+    setOpenEnd(fallback?.endTime ?? "18:00");
+    setOpenRoomId((data?.rooms ?? [])[0]?.id ?? "");
+    setPendingOpen(keys);
+    setHint(null);
+  }
+
+  async function deleteException(id: string) {
+    await fetch(`/api/exceptions/${id}?practitionerId=${practitionerId}`, { method: "DELETE" });
   }
 
   async function toggleDay(key: string) {
-    const { fullOff, bookings } = dayState(key);
+    if (!data) return;
+    const { fullOff, bookings, regularOpen: ro, extras } = dayState(key);
     setHint(null);
+    setPendingOpen(null);
     if (bookings.length > 0 && !fullOff) {
       setHint(t("availability.hasBookings", { n: bookings.length }));
       return;
@@ -166,7 +206,15 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     setBusy(true);
     try {
       if (fullOff) {
-        await fetch(`/api/exceptions/${fullOff.id}?practitionerId=${practitionerId}`, { method: "DELETE" });
+        // Rouvre : supprime la fermeture (les ouvertures éventuelles restent).
+        await deleteException(fullOff.id);
+      } else if (!ro && extras.length > 0) {
+        // Annule l'ouverture exceptionnelle au lieu d'empiler une fermeture.
+        for (const x of extras) await deleteException(x.id);
+      } else if (!ro) {
+        // Jour hors horaires habituels : propose une ouverture exceptionnelle.
+        startOpening([key]);
+        return;
       } else {
         const res = await fetch("/api/exceptions", {
           method: "POST",
@@ -176,6 +224,9 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
         if (!res.ok) throw new Error();
       }
       if (range) await fetchRange(range.from, range.days, true);
+      // La liste des exceptions (rendue côté serveur) ne se met à jour
+      // qu'au refresh : on le déclenche pour un retour visuel immédiat.
+      router.refresh();
     } catch {
       setHint(t("booking.errorGeneric"));
     } finally {
@@ -184,25 +235,102 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
   }
 
   async function closeRange(keys: string[]) {
+    if (!data) return;
     setBusy(true);
     setHint(null);
     let skipped = 0;
+    let closed = 0;
+    let changed = 0;
     try {
       for (const key of keys) {
-        const { fullOff, bookings } = dayState(key);
+        const { fullOff, bookings, regularOpen: ro, extras } = dayState(key);
         if (fullOff) continue;
         if (bookings.length > 0) {
           skipped++;
           continue;
         }
-        await fetch("/api/exceptions", {
+        if (!ro && extras.length > 0) {
+          // Annule l'ouverture exceptionnelle au lieu d'empiler une fermeture.
+          for (const x of extras) await deleteException(x.id);
+          changed++;
+          continue;
+        }
+        // Ignore les jours déjà fermés (hors ouvertures habituelles) :
+        // créer une fermeture dessus serait sans effet.
+        if (!ro) {
+          closed++;
+          continue;
+        }
+        const res = await fetch("/api/exceptions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ practitionerId, date: key, kind: "off", fullDay: true }),
         });
+        if (res.ok) changed++;
       }
-      if (skipped > 0) setHint(t("availability.rangeSkipped", { n: skipped }));
-      if (range) await fetchRange(range.from, range.days, true);
+      const hints: string[] = [];
+      if (skipped > 0) hints.push(t("availability.rangeSkipped", { n: skipped }));
+      if (closed > 0) hints.push(t("availability.rangeClosedSkipped", { n: closed }));
+      if (hints.length > 0) setHint(hints.join(" "));
+      if (changed > 0 && range) {
+        await fetchRange(range.from, range.days, true);
+        router.refresh();
+      }
+    } catch {
+      setHint(t("booking.errorGeneric"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Crée une ouverture exceptionnelle (horaires + salle) sur chaque jour. */
+  async function createOpenings(keys: string[]) {
+    if (!data) return;
+    setHint(null);
+    if (openStart >= openEnd) {
+      setHint(t("availability.invalidHours"));
+      return;
+    }
+    if (!openRoomId) {
+      setHint(t("availability.needRoom"));
+      return;
+    }
+    setBusy(true);
+    let skipped = 0;
+    let created = 0;
+    try {
+      for (const key of keys) {
+        const { fullOff, bookings, extras } = dayState(key);
+        if (bookings.length > 0 || extras.length > 0) {
+          skipped++;
+          continue;
+        }
+        // Nettoie une fermeture redondante avant d'ouvrir (sinon elle
+        // continuerait de bloquer les créneaux).
+        if (fullOff) await deleteException(fullOff.id);
+        const res = await fetch("/api/exceptions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            practitionerId,
+            date: key,
+            kind: "extra",
+            fullDay: false,
+            startTime: openStart,
+            endTime: openEnd,
+            roomId: openRoomId,
+          }),
+        });
+        if (!res.ok) throw new Error();
+        created++;
+      }
+      if (skipped > 0 && created === 0) setHint(t("availability.alreadyOpen"));
+      else if (skipped > 0) setHint(t("availability.rangeSkipped", { n: skipped }));
+      if (created > 0 && range) {
+        await fetchRange(range.from, range.days, true);
+        router.refresh();
+      }
+      setPendingOpen(null);
     } catch {
       setHint(t("booking.errorGeneric"));
     } finally {
@@ -217,14 +345,32 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
       keys.push(toKey(d));
     }
     info.view.calendar.unselect();
-    if (busy) return;
-    if (keys.length <= 1) void toggleDay(keys[0] ?? toKey(info.start));
-    else void closeRange(keys);
+    if (busy || !data) return;
+    if (keys.length <= 1) {
+      void toggleDay(keys[0] ?? toKey(info.start));
+      return;
+    }
+    // Plage entièrement hors horaires habituels → ouverture exceptionnelle
+    // (horaires + salle) plutôt que fermetures sans effet.
+    const closable = keys.filter((k) => {
+      const s = dayState(k);
+      return (s.regularOpen || s.extras.length > 0) && !s.fullOff && s.bookings.length === 0;
+    });
+    const openable = keys.filter((k) => {
+      const s = dayState(k);
+      return !s.regularOpen && s.extras.length === 0 && s.bookings.length === 0;
+    });
+    if (openable.length > 0 && closable.length === 0) {
+      startOpening(openable);
+      return;
+    }
+    setPendingOpen(null);
+    void closeRange(keys);
   }
 
   return (
     <div>
-      <p className="mb-2 text-xs text-zinc-500">{t("availability.calHint")}</p>
+      <p className="mb-2 text-xs text-mist">{t("availability.calHint")}</p>
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
@@ -246,6 +392,53 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
           <Button size="sm" disabled>
             {t("booking.loading")}
           </Button>
+        </div>
+      ) : null}
+      {pendingOpen && data ? (
+        <div className="mt-3 rounded-2xl border border-line bg-card p-3 shadow-soft">
+          <p className="mb-2 text-sm font-medium">
+            {t("availability.openTitle")} ·{" "}
+            {pendingOpen.length === 1
+              ? pendingOpen[0]
+              : `${pendingOpen[0]} → ${pendingOpen[pendingOpen.length - 1]} (${pendingOpen.length} j)`}
+          </p>
+          {(data.rooms ?? []).length === 0 ? (
+            <FormMessage tone="error">{t("availability.needRoom")}</FormMessage>
+          ) : (
+            <div className="flex flex-wrap items-end gap-2">
+              <Field label="Début">
+                <TextInput
+                  type="time"
+                  value={openStart}
+                  onChange={(e) => setOpenStart(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Fin">
+                <TextInput
+                  type="time"
+                  value={openEnd}
+                  onChange={(e) => setOpenEnd(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label={t("availability.room")}>
+                <Select value={openRoomId} onChange={(e) => setOpenRoomId(e.target.value)}>
+                  {data.rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button size="sm" disabled={busy} onClick={() => void createOpenings(pendingOpen)}>
+                {t("availability.createOpening")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPendingOpen(null)}>
+                {t("availability.cancel")}
+              </Button>
+            </div>
+          )}
         </div>
       ) : null}
       <div className="mt-2">

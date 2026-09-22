@@ -10,8 +10,8 @@ const AgendaCalendar = dynamic(() => import("./AgendaCalendar"), {
 function CalendarSkeleton() {
   return (
     <div className="flex flex-col gap-2" aria-busy="true">
-      <div className="h-8 w-48 animate-pulse rounded-full bg-zinc-100 dark:bg-zinc-800" />
-      <div className="h-72 animate-pulse rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
+      <div className="h-8 w-48 animate-pulse rounded-full bg-wash" />
+      <div className="h-72 animate-pulse rounded-2xl bg-wash" />
     </div>
   );
 }

@@ -21,7 +21,7 @@ export default async function ParametresPage({
 }) {
   const ctx = await getDashboardContext();
   if (ctx.role !== "owner") {
-    return <p className="text-sm text-zinc-500">{t("dashboard.forbidden")}</p>;
+    return <p className="text-sm text-mist">{t("dashboard.forbidden")}</p>;
   }
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "general";
@@ -62,6 +62,8 @@ export default async function ParametresPage({
                 cancelDeadlineHours: office.cancelDeadlineHours,
                 reminderHoursBefore: office.reminderHoursBefore,
                 defaultBufferAfterMin: office.defaultBufferAfterMin,
+                themePalette: office.themePalette,
+                themeMode: office.themeMode,
               }}
             />
           ),
@@ -76,17 +78,17 @@ export default async function ParametresPage({
                   {t("team.pending")} ({pending.length})
                 </h2>
                 {pending.length === 0 ? (
-                  <p className="text-sm text-zinc-500">—</p>
+                  <p className="text-sm text-mist">—</p>
                 ) : (
                   <ul className="grid gap-2">
                     {pending.map((i) => (
                       <li
                         key={i.id}
-                        className="flex flex-wrap gap-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
+                        className="flex flex-wrap gap-2 rounded-2xl border border-line bg-card p-3 text-sm shadow-soft"
                       >
                         <span className="font-medium">{i.email}</span>
-                        <span className="text-zinc-500">{i.role}</span>
-                        <span className="ml-auto text-zinc-500">
+                        <span className="text-mist">{i.role}</span>
+                        <span className="ml-auto text-mist">
                           expire le {new Date(i.expiresAt).toLocaleDateString("fr-FR")}
                         </span>
                       </li>
@@ -102,11 +104,11 @@ export default async function ParametresPage({
                   {members.map(({ member: m, user: u }) => (
                     <li
                       key={m.id}
-                      className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
+                      className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-3 text-sm shadow-soft"
                     >
                       <span className="font-medium">{u?.name ?? "?"}</span>
-                      <span className="text-zinc-500">{u?.email}</span>
-                      <span className="text-zinc-500">{m.role}</span>
+                      <span className="text-mist">{u?.email}</span>
+                      <span className="text-mist">{m.role}</span>
                       {m.userId === ctx.userId ? null : (
                         <RemoveMemberButton
                           officeId={ctx.officeId}

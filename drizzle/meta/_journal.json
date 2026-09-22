@@ -22,6 +22,41 @@
       "when": 1789153589379,
       "tag": "0002_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790105744182,
+      "tag": "0003_cloudy_phil_sheldon",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790105963074,
+      "tag": "0004_sloppy_lenny_balinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790108080914,
+      "tag": "0005_steep_siren",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790109544849,
+      "tag": "0006_salty_whiplash",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790109891002,
+      "tag": "0007_neat_madrox",
+      "breakpoints": true
     }
   ]
 }

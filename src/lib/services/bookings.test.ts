@@ -38,6 +38,7 @@ async function seed() {
   await db.insert(s.user).values([
     { id: "u1", name: "Alice", email: "alice@example.com" },
     { id: "u2", name: "Bob", email: "bob@example.com" },
+    { id: "u3", name: "Carol", email: "carol@example.com" },
   ]);
   await db.insert(s.office).values({
     id: "o1",
@@ -55,25 +56,32 @@ async function seed() {
   await db.insert(s.practitioner).values([
     { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice" },
     { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "bob" },
+    { id: "p3", officeId: "o1", userId: "u3", displayName: "Carol", slug: "carol" },
   ]);
   await db.insert(s.roomMember).values([
     { id: "rm1", roomId: "room-a", practitionerId: "p1" },
     { id: "rm2", roomId: "room-a", practitionerId: "p2" },
     { id: "rm3", roomId: "room-b", practitionerId: "p1" },
+    { id: "rm4", roomId: "room-b", practitionerId: "p3" },
   ]);
   await db.insert(s.sessionType).values([
     { id: "st1", practitionerId: "p1", name: "Séance 60min", durationMin: 60, bufferAfterMin: 10 },
     { id: "st2", practitionerId: "p2", name: "Suivi 60min", durationMin: 60, bufferAfterMin: 0 },
     { id: "st3", practitionerId: "p1", name: "À valider", durationMin: 60, bufferAfterMin: 10, requiresValidation: true },
     { id: "st4", practitionerId: "p2", name: "À valider", durationMin: 60, bufferAfterMin: 0, requiresValidation: true },
+    { id: "st5", practitionerId: "p3", name: "Soin 60min", durationMin: 60, bufferAfterMin: 0 },
+    { id: "st6", practitionerId: "p1", name: "Massage (salle B)", durationMin: 60, bufferAfterMin: 10 },
   ]);
+  // st6 restreint à la salle B ; les autres types restent compatibles partout.
+  await db.insert(s.sessionTypeRoom).values([{ id: "str1", sessionTypeId: "st6", roomId: "room-b" }]);
   await db.insert(s.member).values([
     { id: "m1", officeId: "o1", userId: "u1", role: "owner" },
     { id: "m2", officeId: "o1", userId: "u2", role: "practitioner" },
   ]);
   await db.insert(s.availabilityRule).values([
-    { id: "r1", practitionerId: "p1", weekday: 1, startTime: "09:00", endTime: "13:00", roomId: "room-a" },
-    { id: "r2", practitionerId: "p2", weekday: 1, startTime: "09:00", endTime: "13:00", roomId: "room-a" },
+    { id: "r1", practitionerId: "p1", weekday: 1, startTime: "09:00", endTime: "13:00" },
+    { id: "r2", practitionerId: "p2", weekday: 1, startTime: "09:00", endTime: "13:00" },
+    { id: "r3", practitionerId: "p3", weekday: 1, startTime: "09:00", endTime: "13:00" },
   ]);
 }
 
@@ -146,6 +154,31 @@ describe("createBooking", () => {
     expect(sent[0].ics).toBeDefined();
   });
 
+  it("attribue la première salle libre (ordre sortOrder puis nom)", async () => {
+    const res = await createBooking(deps(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
+    });
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
+    expect(rows[0].roomId).toBe("room-a");
+  });
+
+  it("bascule sur une autre salle libre quand la première est occupée", async () => {
+    // Bob (salle A uniquement) occupe 10h00–11h00 en A → Alice bascule en B.
+    await createBooking(deps(), {
+      practitionerSlug: "bob", sessionTypeId: "st2", startAt: BOB_10H, ...patient,
+      patientEmail: "bob-patient@example.com",
+    });
+    const res = await createBooking(deps(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
+    });
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
+    expect(rows[0].roomId).toBe("room-b");
+  });
+
   it("refuse un créneau déjà pris (même praticien)", async () => {
     await createBooking(deps(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
@@ -156,6 +189,37 @@ describe("createBooking", () => {
         ...patient, patientEmail: "autre@example.com",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("une séance restreinte réserve dans ses salles compatibles", async () => {
+    const res = await createBooking(deps(), {
+      practitionerSlug: "alice", sessionTypeId: "st6", startAt: SLOT_A, ...patient,
+    });
+    expect(res.status).toBe("confirmed");
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
+    expect(rows[0].roomId).toBe("room-b");
+  });
+
+  it("refuse si la seule salle compatible est occupée (autre salle libre)", async () => {
+    // Carol (salle B uniquement) occupe 10h00–11h00 en B → le massage d'Alice
+    // (restreint à B) n'a plus de salle, bien que A soit libre.
+    await createBooking(deps(), {
+      practitionerSlug: "carol", sessionTypeId: "st5", startAt: "2026-09-14T08:00:00.000Z",
+      ...patient, patientEmail: "carol-patient@example.com",
+    });
+    await expect(
+      createBooking(deps(), {
+        practitionerSlug: "alice", sessionTypeId: "st6", startAt: SLOT_A, ...patient,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    // …alors que la séance non restreinte reste réservable (en A).
+    const res = await createBooking(deps(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A,
+      ...patient, patientEmail: "autre@example.com",
+    });
+    expect(res.status).toBe("confirmed");
   });
 
   it("refuse un créneau en conflit de salle (Bob en salle A à la même heure)", async () => {

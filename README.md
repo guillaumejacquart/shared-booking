@@ -75,6 +75,6 @@ sqlite3 /tmp/restore.db "PRAGMA integrity_check;"
 
 ## Déploiement
 
-Recette VPS standard (`AGENTS.md`) : DNS `resa.guillaumejacquart.com` →
+Recette VPS standard (`AGENTS.md`) : DNS `shared-booking.guillaumejacquart.com` →
 `npm run deploy` après un push sur `main` (image GHCR `linux/arm64`).
 Ne jamais déployer sans demande explicite.

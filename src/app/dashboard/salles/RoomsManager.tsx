@@ -13,6 +13,61 @@ export interface RoomRow {
   practitionerIds: string[];
 }
 
+/** Couleurs de salle proposées (tons sourds, lisibles sur fond clair). */
+const ROOM_COLORS = [
+  "#4e7a5b",
+  "#3f6e85",
+  "#6a5fa0",
+  "#96603a",
+  "#9e5f74",
+  "#4f7d6a",
+  "#7a5c8f",
+  "#6b7a5e",
+];
+
+const DEFAULT_ROOM_COLOR = ROOM_COLORS[0];
+
+/** Nuancier : pastilles prédéfinies + couleur libre. */
+function ColorDots({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (c: string) => void;
+  label: string;
+}) {
+  const presets = ROOM_COLORS.includes(value) ? ROOM_COLORS : [...ROOM_COLORS, value];
+  return (
+    <div className="flex items-center gap-1.5" role="radiogroup" aria-label={label}>
+      {presets.map((c) => (
+        <button
+          key={c}
+          type="button"
+          role="radio"
+          aria-checked={c === value}
+          aria-label={c}
+          onClick={() => onChange(c)}
+          style={{ backgroundColor: c }}
+          className={`h-7 w-7 rounded-full transition-all duration-200 ${
+            c === value
+              ? "scale-110 ring-2 ring-brand ring-offset-2 ring-offset-card"
+              : "hover:scale-105 opacity-75 hover:opacity-100"
+          }`}
+        />
+      ))}
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-7 w-7 cursor-pointer appearance-none rounded-full border border-line bg-transparent p-0 [&::-webkit-color-swatch-wrapper]:p-0.5 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-none"
+        aria-label={`${label} (libre)`}
+        title={`${label} (libre)`}
+      />
+    </div>
+  );
+}
+
 export default function RoomsManager({
   officeId,
   initial,
@@ -25,7 +80,7 @@ export default function RoomsManager({
   const router = useRouter();
   const [drafts, setDrafts] = useState<RoomRow[]>(initial);
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#3b82f6");
+  const [color, setColor] = useState(DEFAULT_ROOM_COLOR);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -95,7 +150,7 @@ export default function RoomsManager({
     <div>
       <div className="grid gap-3">
         {drafts.map((r) => (
-          <div key={r.id} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <div key={r.id} className="rounded-2xl border border-line bg-card p-4 shadow-soft">
             <div className="flex flex-wrap items-end gap-2">
               <span
                 className="mb-2 inline-block h-4 w-4 shrink-0 rounded-full"
@@ -105,13 +160,7 @@ export default function RoomsManager({
                 <TextInput value={r.name} onChange={(e) => patch(r.id, { name: e.target.value })} maxLength={60} />
               </Field>
               <Field label={t("rooms.color")}>
-                <input
-                  type="color"
-                  value={r.color}
-                  onChange={(e) => patch(r.id, { color: e.target.value })}
-                  className="h-9 w-14 cursor-pointer rounded-lg border border-zinc-300 dark:border-zinc-700"
-                  aria-label={t("rooms.color")}
-                />
+                <ColorDots value={r.color} onChange={(c) => patch(r.id, { color: c })} label={t("rooms.color")} />
               </Field>
               <Button size="sm" onClick={() => void save(r)}>
                 {t("sessionTypesAdmin.save")}
@@ -132,7 +181,7 @@ export default function RoomsManager({
               ))}
             </div>
             {r.practitionerIds.length === 0 ? (
-              <p className="mt-2 text-xs text-zinc-500">{t("rooms.allowed")}</p>
+              <p className="mt-2 text-xs text-mist">{t("rooms.allowed")}</p>
             ) : null}
           </div>
         ))}
@@ -142,13 +191,7 @@ export default function RoomsManager({
           <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
         </Field>
         <Field label={t("rooms.color")}>
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="h-9 w-14 cursor-pointer rounded-lg border border-zinc-300 dark:border-zinc-700"
-            aria-label={t("rooms.color")}
-          />
+          <ColorDots value={color} onChange={setColor} label={t("rooms.color")} />
         </Field>
         <Button type="submit">{t("rooms.create")}</Button>
       </form>

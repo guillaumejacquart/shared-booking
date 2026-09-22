@@ -20,10 +20,10 @@ export default function TimeSlotGrid({
           type="button"
           onClick={() => onSelect(startAt)}
           aria-pressed={selected === startAt}
-          className={`rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
+          className={`rounded-full border px-2 py-2 text-sm font-medium transition-all duration-200 ${
             selected === startAt
-              ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-              : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800"
+              ? "border-brand bg-brand text-brand-ink shadow-soft"
+              : "border-line bg-card hover:border-brand hover:bg-brand-soft"
           }`}
         >
           {timeFmt.format(new Date(startAt))}

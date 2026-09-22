@@ -1,20 +1,20 @@
 import type { ButtonHTMLAttributes } from "react";
 
 /**
- * Bouton du design system. `primary` = action principale (fond sombre),
- * `secondary` = action secondaire (contour), `danger` = destructif,
- * `ghost` = discret.
+ * Bouton du design system. `primary` = action principale (teinte de marque),
+ * `secondary` = action secondaire (carte + contour doux), `danger` =
+ * destructif (ton doux, jamais agressif), `ghost` = discret.
  */
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white",
+    "bg-brand text-brand-ink shadow-soft hover:bg-brand-deep hover:shadow-lift",
   secondary:
-    "border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800",
-  danger: "bg-red-700 text-white hover:bg-red-600",
-  ghost: "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
+    "border border-line bg-card text-ink hover:bg-wash",
+  danger: "bg-danger-bg text-danger hover:bg-danger hover:text-white",
+  ghost: "text-mist hover:bg-wash hover:text-ink",
 };
 
 const SIZES: Record<Size, string> = {
@@ -36,7 +36,7 @@ export default function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`rounded-full font-medium transition-colors disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`rounded-full font-medium transition-all duration-200 disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     />
   );

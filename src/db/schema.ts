@@ -124,6 +124,23 @@ export const office = sqliteTable("office", {
   defaultBufferAfterMin: integer("default_buffer_after_min")
     .notNull()
     .default(0),
+  // Ambiance des pages publiques (palette vue par les patients).
+  themePalette: text("theme_palette").notNull().default("sauge"),
+  // Mode forcé des pages publiques ('system' = suit l'appareil du patient).
+  themeMode: text("theme_mode").notNull().default("system"),
+  ...timestamps,
+});
+
+/**
+ * Préférences d'apparence par utilisateur (dashboard). Table dédiée pour
+ * laisser la table `user` de better-auth intacte.
+ */
+export const userPreferences = sqliteTable("user_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  palette: text("palette").notNull().default("sauge"),
+  mode: text("mode").notNull().default("system"), // 'light' | 'dark' | 'system'
   ...timestamps,
 });
 
@@ -173,7 +190,7 @@ export const room = sqliteTable(
       .notNull()
       .references(() => office.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    color: text("color").notNull().default("#3b82f6"),
+    color: text("color").notNull().default("#4e7a5b"),
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,
   },
@@ -223,6 +240,24 @@ export const sessionType = sqliteTable(
   (t) => [index("session_type_practitioner_idx").on(t.practitionerId)],
 );
 
+/**
+ * Salles compatibles par type de séance. Zéro ligne = toutes les salles
+ * autorisées au praticien (pas de restriction).
+ */
+export const sessionTypeRoom = sqliteTable(
+  "session_type_room",
+  {
+    id: id(),
+    sessionTypeId: text("session_type_id")
+      .notNull()
+      .references(() => sessionType.id, { onDelete: "cascade" }),
+    roomId: text("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "restrict" }),
+  },
+  (t) => [uniqueIndex("session_type_room_idx").on(t.sessionTypeId, t.roomId)],
+);
+
 export const availabilityRule = sqliteTable(
   "availability_rule",
   {
@@ -233,9 +268,8 @@ export const availabilityRule = sqliteTable(
     weekday: integer("weekday").notNull(), // 0 = dimanche … 6 = samedi
     startTime: text("start_time").notNull(), // "HH:MM"
     endTime: text("end_time").notNull(), // "HH:MM"
-    roomId: text("room_id")
-      .notNull()
-      .references(() => room.id, { onDelete: "restrict" }),
+    // Pas de salle : la plage déclare une disponibilité du praticien, la
+    // salle est attribuée à la réservation (première salle autorisée libre).
   },
   (t) => [index("availability_practitioner_idx").on(t.practitionerId)],
 );

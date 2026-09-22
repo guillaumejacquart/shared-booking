@@ -33,7 +33,7 @@ export default function AcceptInviteButton({ token }: { token: string }) {
         type="button"
         disabled={busy}
         onClick={accept}
-        className="rounded-full bg-zinc-900 px-5 py-3 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+        className="rounded-full bg-brand px-5 py-3 text-sm font-medium text-brand-ink shadow-soft transition-all duration-200 hover:bg-brand-deep disabled:opacity-50"
       >
         {t("invite.accept")}
       </button>

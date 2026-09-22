@@ -21,46 +21,65 @@ export interface AgendaInput {
 export async function getAgendaEvents(input: AgendaInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
-  const bookings = await bookingsDal.listBookingsForPractitioner(
-    prac.id,
-    input.start,
-    input.end,
-  );
+  const [bookings, roomsWithMembers] = await Promise.all([
+    bookingsDal.listBookingsForPractitioner(prac.id, input.start, input.end),
+    roomsDal.listRoomsWithMembers(prac.officeId),
+  ]);
+  // Résolution sur toutes les salles (une réservation peut précéder un
+  // changement d'allowlist) ; la légende n'expose que les salles utilisables.
+  const roomById = new Map(roomsWithMembers.map((r) => [r.room.id, r.room]));
   return {
-    events: bookings.map((b) => ({
-      id: b.id,
-      title: `${b.sessionNameSnapshot} — ${b.patientFirstName} ${b.patientLastName}`,
-      start: b.startAt.toISOString(),
-      end: b.endAt.toISOString(),
-      backgroundColor:
-        b.status === "confirmed"
-          ? "#18181b"
-          : b.status === "pending"
-            ? "#b45309"
-            : b.status === "completed"
-              ? "#a1a1aa"
-              : "#e4e4e7",
-      borderColor:
-        b.status === "confirmed"
-          ? "#18181b"
-          : b.status === "pending"
-            ? "#b45309"
-            : b.status === "completed"
-              ? "#a1a1aa"
-              : "#e4e4e7",
-      textColor: b.status === "cancelled" ? "#52525b" : "#fafafa",
-      extendedProps: {
-        status: b.status,
-        paymentStatus: b.paymentStatus,
-        validationRequired: b.validationRequired,
-        sessionName: b.sessionNameSnapshot,
-        patientName: `${b.patientFirstName} ${b.patientLastName}`,
-        patientEmail: b.patientEmail,
-        patientPhone: b.patientPhone,
-        notes: b.notes,
-        cancelToken: b.cancelToken,
-      },
-    })),
+    rooms: roomsWithMembers
+      .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(prac.id))
+      .sort((a, b) =>
+        a.room.sortOrder - b.room.sortOrder ||
+        a.room.name.localeCompare(b.room.name) ||
+        (a.room.id < b.room.id ? -1 : a.room.id > b.room.id ? 1 : 0))
+      .map((r) => ({ id: r.room.id, name: r.room.name, color: r.room.color })),
+    events: bookings.map((b) => {
+      const room = roomById.get(b.roomId);
+      return {
+        id: b.id,
+        title: `${b.sessionNameSnapshot} — ${b.patientFirstName} ${b.patientLastName}`,
+        start: b.startAt.toISOString(),
+        end: b.endAt.toISOString(),
+        // Paires fond doux / texte soutenu : lisibles en clair comme en
+        // sombre (tokens résolus côté client par FullCalendar).
+        backgroundColor:
+          b.status === "confirmed"
+            ? "var(--brand-soft)"
+            : b.status === "pending"
+              ? "var(--warn-bg)"
+              : "var(--wash)",
+        borderColor:
+          b.status === "confirmed"
+            ? "var(--brand-soft)"
+            : b.status === "pending"
+              ? "var(--warn-bg)"
+              : "var(--wash)",
+        textColor:
+          b.status === "confirmed"
+            ? "var(--brand-deep)"
+            : b.status === "pending"
+              ? "var(--warn)"
+              : b.status === "cancelled"
+                ? "var(--faint)"
+                : "var(--mist)",
+        extendedProps: {
+          status: b.status,
+          paymentStatus: b.paymentStatus,
+          validationRequired: b.validationRequired,
+          sessionName: b.sessionNameSnapshot,
+          roomName: room?.name ?? "",
+          roomColor: room?.color ?? null,
+          patientName: `${b.patientFirstName} ${b.patientLastName}`,
+          patientEmail: b.patientEmail,
+          patientPhone: b.patientPhone,
+          notes: b.notes,
+          cancelToken: b.cancelToken,
+        },
+      };
+    }),
   };
 }
 

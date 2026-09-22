@@ -14,15 +14,6 @@ export async function listRules(practitionerId: string) {
     .where(eq(availabilityRule.practitionerId, practitionerId));
 }
 
-export async function countRulesByRoom(roomId: string): Promise<number> {
-  const conn = getConnection();
-  const rows = await conn
-    .select({ id: availabilityRule.id })
-    .from(availabilityRule)
-    .where(eq(availabilityRule.roomId, roomId));
-  return rows.length;
-}
-
 export async function listExceptions(practitionerId: string,
   fromDate: string, // "YYYY-MM-DD" — comparaison lexicographique valide
   toDate: string) {
@@ -39,9 +30,9 @@ export async function listExceptions(practitionerId: string,
     );
 }
 
-/** Remplace toutes les règles hebdo d'un praticien. */
+/** Remplace toutes les règles hebdo d'un praticien (fenêtres sans salle). */
 export async function replaceAvailabilityRules(practitionerId: string,
-  rules: { id: string; weekday: number; startTime: string; endTime: string; roomId: string }[]) {
+  rules: { id: string; weekday: number; startTime: string; endTime: string }[]) {
   const conn = getConnection();
   await conn.delete(availabilityRule).where(eq(availabilityRule.practitionerId, practitionerId));
   for (const r of rules) {

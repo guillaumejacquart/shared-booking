@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PALETTES, THEME_MODES } from "@/lib/theme";
+
 /**
  * Contrats du domaine paramétrage (dispos, séances, salles, profil, cabinet).
  * Même principe que `schemas/bookings.ts` : source unique, types dérivés.
@@ -28,7 +30,8 @@ const ruleSchema = z.object({
   weekday: z.number().int().min(0).max(6),
   startTime: z.string().regex(TIME_RE),
   endTime: z.string().regex(TIME_RE),
-  roomId: z.string().min(1),
+  // Pas de salle : la disponibilité hebdo est celle du praticien, la salle
+  // est attribuée à la réservation (première salle autorisée libre).
 });
 
 export const replaceAvailabilitySchema = scopeSchema
@@ -47,6 +50,8 @@ export const saveSessionTypeSchema = scopeSchema.merge(requesterSchema).extend({
   requiresPayment: z.boolean().default(false),
   priceCents: z.number().int().min(1).max(999999).nullish(),
   requiresValidation: z.boolean().default(false),
+  /** Salles compatibles (vide = toutes les salles autorisées au praticien). */
+  compatibleRoomIds: z.array(z.string().min(1)).max(20).default([]),
 });
 export type SaveSessionTypeInput = z.infer<typeof saveSessionTypeSchema>;
 
@@ -94,7 +99,7 @@ export const saveRoomSchema = z.object({
   requesterUserId: z.string().min(1),
   id: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(60),
-  color: z.string().regex(COLOR_RE).default("#3b82f6"),
+  color: z.string().regex(COLOR_RE).default("#4e7a5b"),
   practitionerIds: z.array(z.string().min(1)).default([]),
 });
 export type SaveRoomInput = z.infer<typeof saveRoomSchema>;
@@ -117,5 +122,7 @@ export const updateOfficeSettingsSchema = z.object({
   cancelDeadlineHours: z.number().int().min(0).max(168).optional(),
   reminderHoursBefore: z.number().int().min(0).max(168).optional(),
   defaultBufferAfterMin: z.number().int().min(0).max(480).optional(),
+  themePalette: z.enum(PALETTES).optional(),
+  themeMode: z.enum(THEME_MODES).optional(),
 });
 export type UpdateOfficeSettingsInput = z.infer<typeof updateOfficeSettingsSchema>;

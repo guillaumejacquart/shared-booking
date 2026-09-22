@@ -56,7 +56,7 @@ export default function PublicLinkCard({
           </span>
         </div>
       ) : (
-        <p className="text-sm text-zinc-500">{disabledHint}</p>
+        <p className="text-sm text-mist">{disabledHint}</p>
       )}
     </Card>
   );

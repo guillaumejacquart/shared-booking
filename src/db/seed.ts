@@ -58,8 +58,8 @@ async function main() {
     enableOfficePage: true,
   });
 
-  await put("room", { id: "demo-a", officeId: "demo-office", name: "Salle A", color: "#3b82f6" });
-  await put("room", { id: "demo-cedre", officeId: "demo-office", name: "Salle Cèdre", color: "#22c55e" });
+  await put("room", { id: "demo-a", officeId: "demo-office", name: "Salle A", color: "#4e7a5b" });
+  await put("room", { id: "demo-cedre", officeId: "demo-office", name: "Salle Cèdre", color: "#96603a" });
 
   await put("member", { id: "m-cam", officeId: "demo-office", userId: camille, role: "owner" });
   await put("member", { id: "m-kar", officeId: "demo-office", userId: karim, role: "practitioner" });
@@ -80,13 +80,13 @@ async function main() {
   await put("sessionType", { id: "st-lea-1", practitionerId: "p-lea", name: "Découverte", durationMin: 30, bufferAfterMin: 10, priceDisplay: "35 €" });
   await put("sessionType", { id: "st-lea-2", practitionerId: "p-lea", name: "Séance complète", durationMin: 60, bufferAfterMin: 15, priceDisplay: "60 €" });
 
-  await put("availabilityRule", { id: "ar-1", practitionerId: "p-cam", weekday: 1, startTime: "09:00", endTime: "12:00", roomId: "demo-a" });
-  await put("availabilityRule", { id: "ar-2", practitionerId: "p-cam", weekday: 3, startTime: "09:00", endTime: "12:00", roomId: "demo-a" });
-  await put("availabilityRule", { id: "ar-3", practitionerId: "p-cam", weekday: 2, startTime: "14:00", endTime: "18:00", roomId: "demo-cedre" });
-  await put("availabilityRule", { id: "ar-4", practitionerId: "p-kar", weekday: 1, startTime: "14:00", endTime: "18:00", roomId: "demo-a" });
-  await put("availabilityRule", { id: "ar-5", practitionerId: "p-kar", weekday: 4, startTime: "09:00", endTime: "12:00", roomId: "demo-a" });
-  await put("availabilityRule", { id: "ar-6", practitionerId: "p-lea", weekday: 5, startTime: "09:00", endTime: "12:00", roomId: "demo-a" });
-  await put("availabilityRule", { id: "ar-7", practitionerId: "p-lea", weekday: 6, startTime: "09:00", endTime: "12:00", roomId: "demo-a" });
+  await put("availabilityRule", { id: "ar-1", practitionerId: "p-cam", weekday: 1, startTime: "09:00", endTime: "12:00" });
+  await put("availabilityRule", { id: "ar-2", practitionerId: "p-cam", weekday: 3, startTime: "09:00", endTime: "12:00" });
+  await put("availabilityRule", { id: "ar-3", practitionerId: "p-cam", weekday: 2, startTime: "14:00", endTime: "18:00" });
+  await put("availabilityRule", { id: "ar-4", practitionerId: "p-kar", weekday: 1, startTime: "14:00", endTime: "18:00" });
+  await put("availabilityRule", { id: "ar-5", practitionerId: "p-kar", weekday: 4, startTime: "09:00", endTime: "12:00" });
+  await put("availabilityRule", { id: "ar-6", practitionerId: "p-lea", weekday: 5, startTime: "09:00", endTime: "12:00" });
+  await put("availabilityRule", { id: "ar-7", practitionerId: "p-lea", weekday: 6, startTime: "09:00", endTime: "12:00" });
 
   console.log("✓ Seed démo appliqué (mot de passe : %s)", PASSWORD);
   console.log("  Cabinet : http://localhost:3000/o/tilleuls");

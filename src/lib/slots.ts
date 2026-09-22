@@ -3,15 +3,19 @@ import { dateStrInTz, weekdayInTz, zonedTimeToUtc } from "./timezone";
 /**
  * Moteur de créneaux (SPEC.md §F7) — logique pure, sans accès DB.
  *
- * Entrées : règles hebdo + exceptions + occupation existante (praticien ET
- * salles, buffers déjà inclus dans les plages d'occupation).
- * Sortie : créneaux réservables triés par heure de début.
+ * Entrées : règles hebdo (fenêtres du praticien, SANS salle) + exceptions +
+ * occupation existante (praticien ET salles, buffers déjà inclus).
+ * Sortie : créneaux réservables triés par heure de début, chacun avec la
+ * salle attribuée (première salle autorisée libre, dans l'ordre fourni).
  *
  * Règles :
  * - Chaque fenêtre de dispo est découpée en blocs `duration + buffer` accolés.
  * - Un créneau est gardé si `start + duration <= fin de fenêtre`.
  * - Le buffer déborde librement hors fenêtre (temps de battement, pas de
  *   réservation) mais bloque praticien ET salle (inclus dans l'occupation).
+ * - Un créneau hebdo est réservable si le praticien est libre ET au moins
+ *   une salle autorisée est libre ; une ouverture exceptionnelle impose sa
+ *   salle (réservable seulement si celle-ci est libre).
  * - Les chevauchements sont stricts : deux occupations qui se touchent
  *   (fin == début) ne se bloquent pas.
  */
@@ -20,7 +24,7 @@ export interface AvailabilityWindow {
   weekday: number; // 0 = dimanche … 6 = samedi
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"
-  roomId: string;
+  // Pas de salle : la disponibilité est celle du praticien.
 }
 
 export interface DayException {
@@ -45,6 +49,18 @@ export interface SlotRequest {
   practitionerBusy: Occupancy[];
   /** Occupation par salle (buffers inclus), indexée par roomId. */
   roomBusy: Record<string, Occupancy[]>;
+  /**
+   * Salles attribuables au praticien, par ordre de préférence : la première
+   * libre au créneau gagne. Les ouvertures exceptionnelles gardent leur
+   * salle imposée (hors de cette liste si besoin).
+   */
+  allowedRoomIds: string[];
+  /**
+   * Restriction du type de séance demandé (vide/absent = toutes les salles
+   * autorisées). S'applique aussi aux ouvertures exceptionnelles : un extra
+   * dans une salle incompatible ne produit aucun créneau.
+   */
+  sessionRoomIds?: string[];
   sessionDurationMin: number;
   bufferAfterMin: number;
   leadTimeMin: number;
@@ -76,7 +92,8 @@ export function generateSlots(req: SlotRequest): Slot[] {
   const earliest = req.from.getTime() + req.leadTimeMin * 60_000;
 
   const offByDate = new Map<string, Interval[]>();
-  const extraByDate = new Map<string, AvailabilityWindow[]>();
+  /** Fenêtre du jour : les extras imposent leur salle, les règles hebdo non. */
+  const extraByDate = new Map<string, { startTime: string; endTime: string; roomId?: string }[]>();
   for (const e of req.exceptions) {
     if (e.kind === "off") {
       const list = offByDate.get(e.date) ?? [];
@@ -89,19 +106,26 @@ export function generateSlots(req: SlotRequest): Slot[] {
             },
       );
       offByDate.set(e.date, list);
-    } else if (e.roomId && e.startTime && e.endTime) {
+    } else if (e.startTime && e.endTime) {
       const list = extraByDate.get(e.date) ?? [];
       // Le jour de semaine sera recalculé au traitement du jour ; on stocke
       // la fenêtre brute et on l'applique directement à cette date.
-      list.push({ weekday: -1, startTime: e.startTime, endTime: e.endTime, roomId: e.roomId });
+      list.push({ startTime: e.startTime, endTime: e.endTime, roomId: e.roomId });
       extraByDate.set(e.date, list);
     }
   }
 
-  const byWeekday = new Map<number, AvailabilityWindow[]>();
+  /** Fenêtre ramenée au jour traité : salle imposée (extra) ou non (hebdo). */
+  interface DayWindow {
+    startTime: string;
+    endTime: string;
+    roomId?: string;
+  }
+
+  const byWeekday = new Map<number, DayWindow[]>();
   for (const w of req.windows) {
     const list = byWeekday.get(w.weekday) ?? [];
-    list.push(w);
+    list.push({ startTime: w.startTime, endTime: w.endTime });
     byWeekday.set(w.weekday, list);
   }
 
@@ -120,15 +144,24 @@ export function generateSlots(req: SlotRequest): Slot[] {
       const ws = zonedTimeToUtc(dateStr, w.startTime, tz).getTime();
       const we = zonedTimeToUtc(dateStr, w.endTime, tz).getTime();
       if (!(ws < we)) continue;
-      const roomBusy = req.roomBusy[w.roomId] ?? [];
+      // Salle imposée (extra) ou salles autorisées (hebdo), intersectées
+      // avec la restriction éventuelle du type de séance.
+      const base = w.roomId ? [w.roomId] : req.allowedRoomIds;
+      const candidates =
+        req.sessionRoomIds && req.sessionRoomIds.length > 0
+          ? base.filter((id) => req.sessionRoomIds!.includes(id))
+          : base;
 
       for (let t = ws; t + durationMs <= we; t += stepMs) {
         if (t < earliest) continue;
         const candidate: Interval = { start: t, end: t + stepMs };
         if (offs.some((o) => candidate.start < o.end && o.start < candidate.end)) continue;
         if (req.practitionerBusy.some((b) => overlaps(candidate, b))) continue;
-        if (roomBusy.some((b) => overlaps(candidate, b))) continue;
-        slots.push({ start: new Date(t), end: new Date(t + durationMs), roomId: w.roomId });
+        const roomId = candidates.find(
+          (id) => !(req.roomBusy[id] ?? []).some((b) => overlaps(candidate, b)),
+        );
+        if (!roomId) continue;
+        slots.push({ start: new Date(t), end: new Date(t + durationMs), roomId });
       }
     }
 

@@ -53,7 +53,7 @@ export default function OnboardingForm({ userName }: { userName: string }) {
       <h1 className="text-2xl font-semibold tracking-tight">
         {t("onboarding.title")}, {userName}
       </h1>
-      <p className="mt-2 text-sm text-zinc-500">{t("onboarding.subtitle")}</p>
+      <p className="mt-2 text-sm text-mist">{t("onboarding.subtitle")}</p>
       <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
         <Field label={t("onboarding.officeName")}>
           <TextInput value={name} onChange={(e) => onName(e.target.value)} required maxLength={80} />

@@ -1,0 +1,1 @@
+ALTER TABLE `office` ADD `theme_mode` text DEFAULT 'system' NOT NULL;

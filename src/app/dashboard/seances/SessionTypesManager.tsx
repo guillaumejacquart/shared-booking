@@ -18,14 +18,18 @@ export interface SessionTypeRow {
   priceCents: number | null;
   currency: string;
   requiresValidation: boolean;
+  /** Salles compatibles (vide = toutes les salles du praticien). */
+  compatibleRoomIds: string[];
 }
 
 export default function SessionTypesManager({
   practitionerId,
   initial,
+  rooms,
 }: {
   practitionerId: string;
   initial: SessionTypeRow[];
+  rooms: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<SessionTypeRow[]>(initial);
@@ -39,6 +43,11 @@ export default function SessionTypesManager({
   const [requiresPayment, setRequiresPayment] = useState(false);
   const [priceEuros, setPriceEuros] = useState("");
   const [requiresValidation, setRequiresValidation] = useState(false);
+  const [newRoomIds, setNewRoomIds] = useState<string[]>([]);
+
+  function toggleRoom(list: string[], roomId: string): string[] {
+    return list.includes(roomId) ? list.filter((id) => id !== roomId) : [...list, roomId];
+  }
 
   function patch(id: string, data: Partial<SessionTypeRow>) {
     setSaved(false);
@@ -76,6 +85,7 @@ export default function SessionTypesManager({
         requiresPayment,
         priceCents: requiresPayment ? Math.round(Number(priceEuros) * 100) : undefined,
         requiresValidation,
+        compatibleRoomIds: newRoomIds,
       }),
     });
     if (!res.ok) {
@@ -88,6 +98,7 @@ export default function SessionTypesManager({
     setRequiresPayment(false);
     setPriceEuros("");
     setRequiresValidation(false);
+    setNewRoomIds([]);
     // Mise à jour optimiste (même raison que RoomsManager : `initial` n'est lu qu'au montage).
     const created = (await res.json()) as { id: string };
     setRows((rs) => [
@@ -104,6 +115,7 @@ export default function SessionTypesManager({
         priceCents: requiresPayment ? Math.round(Number(priceEuros) * 100) : null,
         currency: "eur",
         requiresValidation,
+        compatibleRoomIds: newRoomIds,
       },
     ]);
     router.refresh();
@@ -126,7 +138,7 @@ export default function SessionTypesManager({
     <div>
       <div className="grid gap-3">
         {rows.map((r) => (
-          <div key={r.id} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <div key={r.id} className="rounded-2xl border border-line bg-card p-4 shadow-soft">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label={t("sessionTypesAdmin.name")}>
                 <TextInput value={r.name} onChange={(e) => patch(r.id, { name: e.target.value })} maxLength={80} />
@@ -199,11 +211,33 @@ export default function SessionTypesManager({
                 </Button>
               </span>
             </div>
+            {rooms.length > 0 ? (
+              <div className="mt-3">
+                <Field label={t("sessionTypesAdmin.compatibleRooms")} hint={t("sessionTypesAdmin.compatibleRoomsHint")}>
+                  <div className="flex flex-wrap gap-3">
+                    {rooms.map((room) => (
+                      <label key={room.id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={r.compatibleRoomIds.includes(room.id)}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...r.compatibleRoomIds, room.id]
+                              : r.compatibleRoomIds.filter((id) => id !== room.id);
+                            patch(r.id, { compatibleRoomIds: next });
+                          }}
+                        />
+                        {room.name}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
 
-      <form onSubmit={create} className="mt-4 rounded-xl border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+      <form onSubmit={create} className="mt-4 rounded-2xl border border-dashed border-line bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t("sessionTypesAdmin.name")}>
             <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />
@@ -233,6 +267,23 @@ export default function SessionTypesManager({
             {t("sessionTypesAdmin.requiresValidation")}
           </label>
         </div>
+        {rooms.length > 0 ? (
+          <div className="mt-3">
+            <Field label={t("sessionTypesAdmin.compatibleRooms")} hint={t("sessionTypesAdmin.compatibleRoomsHint")}>
+              <div className="flex flex-wrap gap-3">
+                {rooms.map((room) => (
+                  <label key={room.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={newRoomIds.includes(room.id)}
+                      onChange={() => setNewRoomIds((ids) => toggleRoom(ids, room.id))}
+                    />
+                    {room.name}
+                  </label>
+                ))}
+              </div>
+            </Field>
+          </div>
+        ) : null}
         <Button type="submit" size="sm" className="mt-3">
           {t("sessionTypesAdmin.create")}
         </Button>

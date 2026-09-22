@@ -158,18 +158,18 @@ export default function BookingWidget({
   }
 
   if (sessionTypes.length === 0) {
-    return <p className="text-sm text-zinc-500">{t("booking.noSessionTypes")}</p>;
+    return <p className="text-sm text-mist">{t("booking.noSessionTypes")}</p>;
   }
 
   if (confirmed) {
     return (
-      <section className="rounded-2xl border border-green-300 bg-green-50 p-6 text-center dark:border-green-800 dark:bg-green-950">
+      <section className="rounded-2xl border bg-ok-bg p-6 text-center text-ok">
         <h2 className="text-xl font-semibold">{t("booking.successTitle")}</h2>
         <p className="mt-2 font-medium">
           {selectedType?.name} — {fullFmt.format(new Date(confirmed.startAt))} à{" "}
           {timeFmt.format(new Date(confirmed.startAt))}
         </p>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{t("booking.successDetail")}</p>
+        <p className="mt-2 text-sm text-mist">{t("booking.successDetail")}</p>
       </section>
     );
   }
@@ -184,28 +184,28 @@ export default function BookingWidget({
               key={s.id}
               type="button"
               onClick={() => pickType(s.id)}
-              className={`rounded-xl border p-3 text-left transition-colors ${
+              className={`rounded-2xl border p-3 text-left transition-all duration-200 ${
                 s.id === typeId
-                  ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800"
-                  : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-800"
+                  ? "border-brand bg-brand-soft shadow-soft"
+                  : "border-line bg-card hover:border-brand"
               }`}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-medium">{s.name}</span>
-                <span className="shrink-0 text-sm text-zinc-500">
+                <span className="shrink-0 text-sm text-mist">
                   {t("booking.minutes", { min: s.durationMin })}
                   {displayPrice(s) ? ` · ${displayPrice(s)}` : ""}
                 </span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 {s.requiresPayment ? (
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                  <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-medium text-brand-deep">
                     {t("booking.payOnline")}
                   </span>
                 ) : null}
               </div>
               {s.description ? (
-                <p className="mt-1 text-sm text-zinc-500">{s.description}</p>
+                <p className="mt-1 text-sm text-mist">{s.description}</p>
               ) : null}
             </button>
           ))}
@@ -215,13 +215,13 @@ export default function BookingWidget({
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("booking.chooseSlot")}</h2>
         {loading ? (
-          <p className="text-sm text-zinc-500">{t("booking.loading")}</p>
+          <p className="text-sm text-mist">{t("booking.loading")}</p>
         ) : allSlots.length === 0 ? (
-          <p className="text-sm text-zinc-500">{t("booking.full")}</p>
+          <p className="text-sm text-mist">{t("booking.full")}</p>
         ) : (
           <>
             {next && !slot ? (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-green-300 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border bg-ok-bg p-4 text-ok">
             <p className="text-sm">
               <span className="font-semibold">{t("booking.nextSlot")} : </span>
               {fullFmt.format(new Date(next.startAt))} à {timeFmt.format(new Date(next.startAt))}
@@ -238,13 +238,13 @@ export default function BookingWidget({
               onSelect={pickDay}
               renderDay={(key) =>
                 availableDays.has(key) && key !== day ? (
-                  <span className="h-1 w-1 rounded-full bg-zinc-400" />
+                  <span className="h-1 w-1 rounded-full bg-brand" />
                 ) : null
               }
             />
             {day ? (
               daySlots.length === 0 ? (
-                <p className="mt-3 text-sm text-zinc-500">{t("booking.noSlots")}</p>
+                <p className="mt-3 text-sm text-mist">{t("booking.noSlots")}</p>
               ) : (
                 <div className="mt-3">
                   <TimeSlotGrid
@@ -255,7 +255,7 @@ export default function BookingWidget({
                 </div>
               )
             ) : (
-              <p className="mt-3 text-sm text-zinc-500">{t("booking.selectDay")}</p>
+              <p className="mt-3 text-sm text-mist">{t("booking.selectDay")}</p>
             )}
           </>
         )}
@@ -264,7 +264,7 @@ export default function BookingWidget({
       {slot ? (
         <section>
           <h2 className="mb-3 text-lg font-semibold">{t("booking.yourDetails")}</h2>
-          <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-300">
+          <p className="mb-3 text-sm text-mist">
             {selectedType?.name} — {fullFmt.format(new Date(slot))} à{" "}
             {timeFmt.format(new Date(slot))}
           </p>

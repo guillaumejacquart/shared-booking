@@ -25,6 +25,12 @@ interface PractitionerLegend {
   color: string;
 }
 
+interface RoomLegend {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface Selected {
   id: string;
   status: string;
@@ -58,6 +64,7 @@ function initials(name: string): string {
  */
 export default function SharedCalendar() {
   const [practitioners, setPractitioners] = useState<PractitionerLegend[]>([]);
+  const [rooms, setRooms] = useState<RoomLegend[]>([]);
   const [selected, setSelected] = useState<Selected | null>(null);
   const ref = useRef<FullCalendar | null>(null);
 
@@ -68,13 +75,16 @@ export default function SharedCalendar() {
       fetch(
         `/api/calendrier/events?start=${encodeURIComponent(fetchInfo.startStr)}&end=${encodeURIComponent(fetchInfo.endStr)}`,
       )
-        .then((r) => (r.ok ? r.json() : { events: [], practitioners: [] }))
+        .then((r) => (r.ok ? r.json() : { events: [], practitioners: [], rooms: [] }))
         .then((j) => {
           // Même référence si inchangé : évite un rendu (et donc une recharge).
           setPractitioners((prev) =>
             JSON.stringify(prev) === JSON.stringify(j.practitioners ?? [])
               ? prev
               : (j.practitioners ?? []),
+          );
+          setRooms((prev) =>
+            JSON.stringify(prev) === JSON.stringify(j.rooms ?? []) ? prev : (j.rooms ?? []),
           );
           successCallback(j.events ?? []);
         })
@@ -122,19 +132,36 @@ export default function SharedCalendar() {
 
   return (
     <div className="flex flex-col gap-4">
-      {practitioners.length > 0 ? (
-        <div className="flex flex-wrap gap-3 text-sm">
-          {practitioners.map((p) => (
-            <span key={p.id} className="inline-flex items-center gap-1.5">
-              <span
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                style={{ backgroundColor: p.color }}
-              >
-                {initials(p.displayName)}
-              </span>
-              {p.displayName}
-            </span>
-          ))}
+      {practitioners.length > 0 || rooms.length > 0 ? (
+        <div className="flex flex-col gap-2 text-sm">
+          {practitioners.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {practitioners.map((p) => (
+                <span key={p.id} className="inline-flex items-center gap-1.5">
+                  <span
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    style={{ backgroundColor: p.color }}
+                  >
+                    {initials(p.displayName)}
+                  </span>
+                  {p.displayName}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {rooms.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {rooms.map((r) => (
+                <span key={r.id} className="inline-flex items-center gap-1.5">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: r.color ?? "var(--faint)" }}
+                  />
+                  {r.name}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       <FullCalendar
@@ -162,7 +189,7 @@ export default function SharedCalendar() {
       >
         {selected ? (
           <div className="flex flex-col gap-2 text-sm">
-            <p className="text-zinc-500">
+            <p className="text-mist">
               {selected.start ? fullFmt.format(new Date(selected.start)) : ""}
             </p>
             <p>
@@ -173,8 +200,18 @@ export default function SharedCalendar() {
                 {initials(selected.practitionerName)}
               </span>{" "}
               <span className="font-medium">{selected.practitionerName}</span>
-              {selected.roomName ? ` · ${selected.roomName}` : ""}
             </p>
+            {selected.roomName ? (
+              <p>
+                {selected.roomColor ? (
+                  <span
+                    className="mr-1 inline-block h-2.5 w-2.5 rounded-full align-middle"
+                    style={{ backgroundColor: selected.roomColor }}
+                  />
+                ) : null}
+                <span className="font-medium">{selected.roomName}</span>
+              </p>
+            ) : null}
             {selected.patientName ? (
               <p>
                 {selected.patientName}
@@ -182,7 +219,7 @@ export default function SharedCalendar() {
                 {selected.patientPhone ? ` · ${selected.patientPhone}` : ""}
               </p>
             ) : (
-              <p className="text-zinc-500">{t("sharedCalendar.masked")}</p>
+              <p className="text-mist">{t("sharedCalendar.masked")}</p>
             )}
             {selected.mine ? (
               <p>

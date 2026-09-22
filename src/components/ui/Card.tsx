@@ -9,9 +9,9 @@ export default function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800 sm:p-5">
+    <section className="rounded-3xl border border-line bg-card p-4 shadow-soft sm:p-6">
       {title ? <h2 className="text-lg font-semibold">{title}</h2> : null}
-      {description ? <p className="mt-1 text-sm text-zinc-500">{description}</p> : null}
+      {description ? <p className="mt-1 text-sm text-mist">{description}</p> : null}
       <div className={title || description ? "mt-4" : ""}>{children}</div>
     </section>
   );

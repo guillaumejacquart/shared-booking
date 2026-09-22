@@ -28,7 +28,7 @@ export default async function ProfilPage({
     rawTab === "seances" || rawTab === "disponibilites" ? rawTab : "profil";
 
   const now = new Date();
-  const [prac, types, rules, roomsWithMembers, exceptions] = await Promise.all([
+  const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms] = await Promise.all([
     practitionersDal.getPractitionerById(ctx.practitionerId),
     sessionTypesDal.listSessionTypes(ctx.practitionerId),
     availabilityDal.listRules(ctx.practitionerId),
@@ -36,10 +36,21 @@ export default async function ProfilPage({
     availabilityDal.listExceptions(ctx.practitionerId,
       dateStrInTz(new Date(now.getTime() - 30 * 86_400_000), tz),
       dateStrInTz(new Date(now.getTime() + 365 * 86_400_000), tz),),
+    sessionTypesDal.listCompatibleRoomsByPractitioner(ctx.practitionerId),
   ]);
   const rooms = roomsWithMembers
     .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(ctx.practitionerId))
+    .sort((a, b) =>
+      a.room.sortOrder - b.room.sortOrder ||
+      a.room.name.localeCompare(b.room.name) ||
+      (a.room.id < b.room.id ? -1 : a.room.id > b.room.id ? 1 : 0))
     .map((r) => ({ id: r.room.id, name: r.room.name }));
+  const compatibleByType = new Map<string, string[]>();
+  for (const c of compatibleRooms) {
+    const list = compatibleByType.get(c.sessionTypeId) ?? [];
+    list.push(c.roomId);
+    compatibleByType.set(c.sessionTypeId, list);
+  }
 
   return (
     <div>
@@ -80,14 +91,16 @@ export default async function ProfilPage({
                 priceCents: s.priceCents,
                 currency: s.currency,
                 requiresValidation: s.requiresValidation,
+                compatibleRoomIds: compatibleByType.get(s.id) ?? [],
               }))}
+              rooms={rooms}
             />
           ),
           disponibilites: (
             <div className="flex flex-col gap-8">
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("availability.title")}</h2>
-                <p className="mb-3 text-sm text-zinc-500">{t("availability.regularHint")}</p>
+                <p className="mb-3 text-sm text-mist">{t("availability.regularHint")}</p>
                 <AvailabilityEditor
                   practitionerId={ctx.practitionerId}
                   initial={rules.map((r) => ({
@@ -95,9 +108,7 @@ export default async function ProfilPage({
                     weekday: r.weekday,
                     startTime: r.startTime,
                     endTime: r.endTime,
-                    roomId: r.roomId,
                   }))}
-                  rooms={rooms}
                 />
               </section>
               <section>

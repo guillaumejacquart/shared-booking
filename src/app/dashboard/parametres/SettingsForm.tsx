@@ -3,8 +3,10 @@
 import { useState } from "react";
 
 import { t } from "@/lib/i18n";
+import { parseMode, parsePalette, type PaletteId, type ThemeMode } from "@/lib/theme";
 import { Button, Field, FormMessage, NumberInput, TextInput, Toggle } from "@/components/ui";
 import PublicLinkCard from "@/components/PublicLinkCard";
+import ThemePicker from "@/components/ThemePicker";
 
 interface Settings {
   name: string;
@@ -15,6 +17,8 @@ interface Settings {
   cancelDeadlineHours: number;
   reminderHoursBefore: number;
   defaultBufferAfterMin: number;
+  themePalette: PaletteId;
+  themeMode: ThemeMode;
 }
 
 export default function SettingsForm({
@@ -24,14 +28,23 @@ export default function SettingsForm({
 }: {
   officeId: string;
   officeSlug: string;
-  initial: Settings;
+  initial: Omit<Settings, "themePalette" | "themeMode"> & { themePalette: string; themeMode: string };
 }) {
-  const [form, setForm] = useState<Settings>(initial);
+  const [form, setForm] = useState<Settings>(() => ({
+    ...initial,
+    themePalette: parsePalette(initial.themePalette),
+    themeMode: parseMode(initial.themeMode),
+  }));
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   function set<K extends keyof Settings>(k: K, v: Settings[K]) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  /** Aperçu immédiat : le tableau de bord suit l'ambiance enregistrée. */
+  function applyOfficePalette(palette: PaletteId) {
+    document.documentElement.dataset.palette = palette;
   }
 
   async function save(e: React.FormEvent) {
@@ -47,6 +60,19 @@ export default function SettingsForm({
       if (!res.ok) {
         const j = await res.json().catch(() => null);
         throw new Error((j?.error as string) || t("booking.errorGeneric"));
+      }
+      // L'ambiance choisie devient aussi celle du tableau de bord du
+      // responsable (son choix personnel suit, mode inchangé).
+      try {
+        const currentMode = parseMode(document.documentElement.dataset.mode);
+        applyOfficePalette(form.themePalette);
+        await fetch("/api/preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ palette: form.themePalette, mode: currentMode }),
+        });
+      } catch {
+        // Ambiance cabinet enregistrée ; seule la synchro locale a échoué.
       }
       setMessage({ ok: true, text: t("settings.saved") });
     } catch (err) {
@@ -82,6 +108,18 @@ export default function SettingsForm({
         checked={form.enableOfficePage}
         onChange={(v) => set("enableOfficePage", v)}
       />
+      <div className="rounded-3xl border border-line bg-card p-4 shadow-soft">
+        <h2 className="text-base font-semibold">{t("settings.ambiance")}</h2>
+        <p className="mt-1 text-sm text-mist">{t("settings.ambianceHint")}</p>
+        <div className="mt-3">
+          <ThemePicker
+            palette={form.themePalette}
+            mode={form.themeMode}
+            onPalette={(p) => set("themePalette", p)}
+            onMode={(m) => set("themeMode", m)}
+          />
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t("settings.leadTime")}>
           <NumberInput unit="min" value={form.bookingLeadTimeMin} min={0} max={1440} onChange={(e) => set("bookingLeadTimeMin", Number(e.target.value))} />

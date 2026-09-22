@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { getPractitionerPage } from "@/dal/practitioners";
 import { t } from "@/lib/i18n";
+import { parseMode, parsePalette } from "@/lib/theme";
 import BookingWidget from "./BookingWidget";
 
 export async function generateMetadata({
@@ -31,20 +32,25 @@ export default async function PractitionerPage({
   const paymentCanceled = sp.paiement === "annule";
 
   return (
+    <div
+      data-palette={parsePalette(page.office.themePalette)}
+      data-mode={parseMode(page.office.themeMode)}
+      className="flex min-h-full flex-1 flex-col bg-surface text-ink"
+    >
     <main className="mx-auto w-full max-w-2xl px-4 py-10">
-      <header className="mb-8">
-        <p className="text-sm text-zinc-500">{page.office.name}</p>
+      <header className="mb-8 text-center">
+        <p className="text-sm text-mist">{page.office.name}</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
           {page.practitioner.displayName}
         </h1>
         {page.practitioner.bio ? (
-          <p className="mt-2 whitespace-pre-line text-zinc-600 dark:text-zinc-300">
+          <p className="mx-auto mt-3 max-w-lg whitespace-pre-line text-mist">
             {page.practitioner.bio}
           </p>
         ) : null}
       </header>
       {paymentCanceled ? (
-        <p className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950">
+        <p className="mb-6 rounded-2xl bg-warn-bg p-4 text-sm text-warn">
           {t("booking.paymentCanceled")}
         </p>
       ) : null}
@@ -61,6 +67,7 @@ export default async function PractitionerPage({
           currency: s.currency,
         }))}
       />
-    </main>
+      </main>
+    </div>
   );
 }

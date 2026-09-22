@@ -60,7 +60,7 @@ export default function CancelBookingButton({
 
   return (
     <div className="flex max-w-sm flex-col gap-2">
-      <p className="text-xs text-zinc-500">{t("agenda.confirmCancel")}</p>
+      <p className="text-xs text-mist">{t("agenda.confirmCancel")}</p>
       <Field label={t("agenda.reason")}>
         <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
       </Field>

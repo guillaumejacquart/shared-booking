@@ -155,13 +155,20 @@
   },
   "availability": {
     "title": "Mes disponibilités hebdo",
-    "regularHint": "Vos plages d'accueil habituelles, répétées chaque semaine.",
+    "regularHint": "Vos plages d'accueil habituelles, répétées chaque semaine. La salle est attribuée automatiquement à la réservation (première salle disponible).",
     "calTitle": "Vue calendrier",
-    "calHint": "Cliquez un jour pour le fermer / le rouvrir. Glissez sur plusieurs jours pour fermer une période.",
+    "calHint": "Cliquez un jour ouvert pour le fermer, un jour fermé pour l'ouvrir. Glissez sur plusieurs jours pour fermer une période (ou ouvrir si tout est fermé).",
     "closed": "Fermé",
     "reopen": "Rouvrir",
     "closeRange": "Fermer {n} jours",
     "rangeSkipped": "{n} jour(s) avec des RDV ignoré(s).",
+    "rangeClosedSkipped": "{n} jour(s) déjà fermé(s) ignoré(s).",
+    "alreadyOpen": "Jours déjà ouverts.",
+    "openTitle": "Ouverture exceptionnelle",
+    "createOpening": "Ouvrir",
+    "cancel": "Annuler",
+    "invalidHours": "L'heure de fin doit être après le début.",
+    "needRoom": "Aucune salle disponible pour ouvrir.",
     "hasBookings": "{n} RDV",
     "extra": "Exceptionnel",
     "add": "Ajouter",
@@ -183,6 +190,8 @@
     "requiresPayment": "Paiement en ligne requis",
     "priceCents": "Prix à débiter",
     "requiresValidation": "Validation manuelle par le praticien",
+    "compatibleRooms": "Salles compatibles",
+    "compatibleRoomsHint": "Laisser vide pour toutes les salles accessibles.",
     "active": "Actif",
     "save": "Enregistrer",
     "create": "Créer",
@@ -222,6 +231,25 @@
     "officePageOff": "Page désactivée — activez-la avec l'interrupteur ci-dessous pour la partager.",
     "tabGeneral": "Général",
     "tabTeam": "Équipe",
-    "tabRooms": "Salles"
+    "tabRooms": "Salles",
+    "ambiance": "Ambiance des pages publiques",
+    "ambianceHint": "Couleurs et mode d'affichage vus par vos patients sur vos pages de réservation (« Système » suit leur appareil)."
+  },
+  "theme": {
+    "appearance": "Apparence",
+    "followingOffice": "Vous suivez l'ambiance du cabinet. Choisissez une palette pour personnaliser votre tableau de bord.",
+    "palette": {
+      "sauge": "Sauge",
+      "brume": "Brume",
+      "lavande": "Lavande",
+      "sable": "Sable",
+      "lotus": "Lotus",
+      "cedre": "Cèdre"
+    },
+    "mode": {
+      "light": "Clair",
+      "dark": "Sombre",
+      "system": "Système"
+    }
   }
 }

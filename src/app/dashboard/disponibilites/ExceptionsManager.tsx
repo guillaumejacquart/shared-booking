@@ -129,10 +129,10 @@ export default function ExceptionsManager({
         {initial.map((x) => (
           <li
             key={x.id}
-            className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 p-2 text-sm dark:border-zinc-800"
+            className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-2 text-sm shadow-soft"
           >
             <span className="font-medium">{x.date}</span>
-            <span className="text-zinc-500">
+            <span className="text-mist">
               {x.kind === "off" ? t("availability.dayOff") : t("availability.extra")}
               {x.fullDay ? "" : ` ${x.startTime}→${x.endTime}`}
               {x.reason ? ` · ${x.reason}` : ""}

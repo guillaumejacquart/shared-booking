@@ -36,22 +36,22 @@ export default function Calendar({
         <button
           type="button"
           onClick={() => setOffset((o) => o - 1)}
-          className="rounded-full border border-zinc-300 px-3 py-1 text-sm dark:border-zinc-700"
+          className="rounded-full border border-line bg-card px-3 py-1 text-sm transition-colors hover:bg-wash"
           aria-label="Mois précédent"
         >
           ←
         </button>
-        <p className="font-medium capitalize">{monthLabel(year, monthIndex)}</p>
+        <p className="font-display font-medium capitalize">{monthLabel(year, monthIndex)}</p>
         <button
           type="button"
           onClick={() => setOffset((o) => o + 1)}
-          className="rounded-full border border-zinc-300 px-3 py-1 text-sm dark:border-zinc-700"
+          className="rounded-full border border-line bg-card px-3 py-1 text-sm transition-colors hover:bg-wash"
           aria-label="Mois suivant"
         >
           →
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-zinc-500">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-mist">
         {WEEKDAY_SHORT.map((d) => (
           <span key={d} className="py-1">
             {d}
@@ -68,14 +68,14 @@ export default function Calendar({
               type="button"
               disabled={!c.inMonth || !available}
               onClick={() => onSelect?.(c.key)}
-              className={`flex min-h-11 flex-col items-center justify-center rounded-lg px-1 py-1 text-sm transition-colors ${
+              className={`flex min-h-11 flex-col items-center justify-center rounded-xl px-1 py-1 text-sm transition-colors ${
                 !c.inMonth
                   ? "invisible"
                   : isSelected
-                    ? "bg-zinc-900 font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "bg-brand font-semibold text-brand-ink shadow-soft"
                     : available
-                      ? "hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      : "text-zinc-300 dark:text-zinc-700"
+                      ? "hover:bg-wash"
+                      : "text-faint"
               }`}
             >
               <span>{c.date.getUTCDate()}</span>

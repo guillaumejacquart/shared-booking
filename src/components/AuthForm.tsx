@@ -77,7 +77,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
           </p>
         ) : null}
       </form>
-      <p className="mt-4 text-center text-sm text-zinc-500">
+      <p className="mt-4 text-center text-sm text-mist">
         {mode === "signup" ? (
           <>
             {t("auth.haveAccount")} <Link className="underline" href="/login">{t("auth.loginButton")}</Link>

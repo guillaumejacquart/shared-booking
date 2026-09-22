@@ -16,6 +16,7 @@ function base(overrides: Partial<SlotRequest> = {}): SlotRequest {
     exceptions: [],
     practitionerBusy: [],
     roomBusy: {},
+    allowedRoomIds: [ROOM_A],
     sessionDurationMin: 60,
     bufferAfterMin: 0,
     leadTimeMin: 0,
@@ -33,7 +34,7 @@ describe("generateSlots", () => {
   it("découpe une fenêtre en créneaux accolés", () => {
     const slots = generateSlots(
       base({
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
       }),
     );
     // from = lundi 10h Paris : le créneau de 9h est passé, restent 10h et 11h.
@@ -47,7 +48,7 @@ describe("generateSlots", () => {
     const slots = generateSlots(
       base({
         from: new Date("2026-09-14T06:00:00Z"), // 8h Paris, avant l'ouverture
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
         sessionDurationMin: 45,
         bufferAfterMin: 10,
       }),
@@ -65,7 +66,7 @@ describe("generateSlots", () => {
       base({
         from: new Date("2026-01-11T07:00:00Z"), // dim. 8h Paris (hiver)
         days: 1,
-        windows: [{ weekday: 0, startTime: "09:00", endTime: "10:00", roomId: ROOM_A }],
+        windows: [{ weekday: 0, startTime: "09:00", endTime: "10:00" }],
       }),
     );
     expect(slots.map(iso)).toEqual([
@@ -77,7 +78,7 @@ describe("generateSlots", () => {
     const slots = generateSlots(
       base({
         from: new Date("2026-09-14T06:00:00Z"),
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
         practitionerBusy: [
           { start: new Date("2026-09-14T07:00:00Z"), end: new Date("2026-09-14T08:00:00Z") },
         ],
@@ -92,7 +93,7 @@ describe("generateSlots", () => {
   it("scénario pilote : P2 réserve 9h en salle A → P3 perd 9h mais garde 10h", () => {
     const req = base({
       from: new Date("2026-09-14T06:00:00Z"),
-      windows: [{ weekday: 2, startTime: "09:00", endTime: "12:00", roomId: ROOM_A }],
+      windows: [{ weekday: 2, startTime: "09:00", endTime: "12:00" }],
       sessionDurationMin: 45,
       bufferAfterMin: 15, // occupation 09:00→10:00
       days: 2, // lun. + mar.
@@ -114,7 +115,7 @@ describe("generateSlots", () => {
   it("respecte le délai minimum de réservation (lead time)", () => {
     const slots = generateSlots(
       base({
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "13:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "13:00" }],
         leadTimeMin: 120, // from = 10h → créneaux dès 12h
       }),
     );
@@ -127,7 +128,7 @@ describe("generateSlots", () => {
     const slots = generateSlots(
       base({
         from: new Date("2026-09-14T06:00:00Z"),
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
         exceptions: [{ date: "2026-09-14", kind: "off", fullDay: true }],
       }),
     );
@@ -138,7 +139,7 @@ describe("generateSlots", () => {
     const slots = generateSlots(
       base({
         from: new Date("2026-09-14T06:00:00Z"),
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
         exceptions: [
           { date: "2026-09-14", kind: "off", fullDay: false, startTime: "10:00", endTime: "11:00" },
         ],
@@ -171,7 +172,7 @@ describe("generateSlots", () => {
     const slots = generateSlots(
       base({
         from: new Date("2026-09-14T06:00:00Z"),
-        windows: [{ weekday: 1, startTime: "09:00", endTime: "11:00", roomId: ROOM_A }],
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "11:00" }],
         practitionerBusy: [
           { start: new Date("2026-09-14T06:00:00Z"), end: new Date("2026-09-14T07:00:00Z") },
         ],
@@ -181,5 +182,92 @@ describe("generateSlots", () => {
       "2026-09-14T07:00:00.000Z",
       "2026-09-14T08:00:00.000Z",
     ]);
+  });
+
+  it("attribue la première salle autorisée libre", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"),
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "11:00" }],
+        allowedRoomIds: [ROOM_A, ROOM_B],
+        roomBusy: {
+          // Salle A occupée 9h–10h : le créneau de 9h bascule en salle B.
+          [ROOM_A]: [
+            { start: new Date("2026-09-14T07:00:00Z"), end: new Date("2026-09-14T08:00:00Z") },
+          ],
+        },
+      }),
+    );
+    expect(slots.map(iso)).toEqual([
+      "2026-09-14T07:00:00.000Z→2026-09-14T08:00:00.000Z@room-b",
+      "2026-09-14T08:00:00.000Z→2026-09-14T09:00:00.000Z@room-a",
+    ]);
+  });
+
+  it("aucune salle libre → aucun créneau", () => {
+    const busy = {
+      [ROOM_A]: [
+        { start: new Date("2026-09-14T07:00:00Z"), end: new Date("2026-09-14T09:00:00Z") },
+      ],
+      [ROOM_B]: [
+        { start: new Date("2026-09-14T07:00:00Z"), end: new Date("2026-09-14T09:00:00Z") },
+      ],
+    };
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"),
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "11:00" }],
+        allowedRoomIds: [ROOM_A, ROOM_B],
+        roomBusy: busy,
+      }),
+    );
+    expect(slots).toEqual([]);
+  });
+
+  it("sans salle autorisée → aucun créneau", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"),
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "11:00" }],
+        allowedRoomIds: [],
+      }),
+    );
+    expect(slots).toEqual([]);
+  });
+
+  it("restreint les créneaux aux salles compatibles de la séance", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"),
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "11:00" }],
+        allowedRoomIds: [ROOM_A, ROOM_B],
+        sessionRoomIds: [ROOM_B],
+        roomBusy: {
+          // Salle A libre mais incompatible : seul le créneau de 10h en B sort.
+          [ROOM_B]: [
+            { start: new Date("2026-09-14T07:00:00Z"), end: new Date("2026-09-14T08:00:00Z") },
+          ],
+        },
+      }),
+    );
+    expect(slots.map(iso)).toEqual([
+      "2026-09-14T08:00:00.000Z→2026-09-14T09:00:00.000Z@room-b",
+    ]);
+  });
+
+  it("une ouverture extra dans une salle incompatible ne produit rien", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-18T06:00:00Z"), // vendredi
+        days: 2, // ven. + sam.
+        windows: [],
+        allowedRoomIds: [ROOM_A, ROOM_B],
+        sessionRoomIds: [ROOM_A],
+        exceptions: [
+          { date: "2026-09-19", kind: "extra", fullDay: false, startTime: "09:00", endTime: "11:00", roomId: ROOM_B },
+        ],
+      }),
+    );
+    expect(slots).toEqual([]);
   });
 });

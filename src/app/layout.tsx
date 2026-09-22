@@ -1,14 +1,21 @@
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Work_Sans } from "next/font/google";
 import "./globals.css";
+import {
+  COOKIE_MODE,
+  COOKIE_PALETTE,
+  parseMode,
+  parsePalette,
+} from "@/lib/theme";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const display = Fraunces({
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sans = Work_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
@@ -17,13 +24,24 @@ export const metadata: Metadata = {
   description: "Réservez votre séance bien-être en ligne, sans compte.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Thème lu côté serveur (cookies) : pas de flash au chargement.
+  // Les pages publiques surchargent via leur propre wrapper (ambiance).
+  const store = await cookies();
+  const palette = parsePalette(store.get(COOKIE_PALETTE)?.value);
+  const mode = parseMode(store.get(COOKIE_MODE)?.value);
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      data-palette={palette}
+      data-mode={mode}
+      className={`${display.variable} ${sans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="font-sans min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

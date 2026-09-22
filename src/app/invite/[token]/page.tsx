@@ -28,7 +28,7 @@ export default async function InvitePage({
   return (
     <main className="mx-auto w-full max-w-md px-4 py-16">
       <h1 className="text-2xl font-semibold tracking-tight">{office?.name}</h1>
-      <p className="mt-2 text-sm text-zinc-500">
+      <p className="mt-2 text-sm text-mist">
         {t("invite.for", { email: inv.email })}
       </p>
       <div className="mt-6">

@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
           </Button>
         </form>
       )}
-      <p className="mt-4 text-center text-sm text-zinc-500">
+      <p className="mt-4 text-center text-sm text-mist">
         <Link className="underline" href="/login">
           {t("auth.loginButton")}
         </Link>

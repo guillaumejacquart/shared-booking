@@ -44,7 +44,7 @@ MVP simplification: `owner` is also a practitioner in the pilot. Support `owner`
 * **Practitioner:** member of an office with a public page `/p/[slug]`. Slug unique globally (simpler + allows future directory).
 * **Room:** physical room in an office. Has allowlist of practitioners (empty = all office members).
 * **SessionType:** a bookable service, e.g. "1ère séance 60min". `durationMin` + `bufferAfterMin`.
-* **AvailabilityRule:** recurring weekly window in which a practitioner can receive, **in a given room**: "Tue 09:00–12:00 in Room A".
+* **AvailabilityRule:** recurring weekly window in which a practitioner can receive: "Tue 09:00–12:00" (no room — assigned at booking time).
 * **Exception:** one-off override: day off, holiday, or extra opening.
 * **Slot:** generated bookable unit = AvailabilityRule ÷ SessionType durations, minus existing bookings, buffers, lead-time rules.
 * **Booking:** a reserved slot + patient identity + room assignment + status + tokens.
@@ -77,16 +77,16 @@ MVP simplification: `owner` is also a practitioner in the pilot. Support `owner`
 
 ### F4 — Session types
 * Fields per practitioner: `name, description?, durationMin (15/30/45/60/90/120 presets + custom), bufferAfterMin (default from office), price? (display only, optional, no payment), active flag`.
+* Optional compatible rooms (`session_type_room`, empty = all allowed rooms): e.g. massage only in the equipped room, talk session anywhere. Must be rooms the practitioner is allowed in (validated at save); intersected with the practitioner's rooms at slot generation.
 * Example: P1: "Découverte 30min + 10min buffer", "Séance complète 60min + 15min buffer".
 * Changing duration does not affect existing bookings. Deactivating hides from public page but keeps history.
 
 ### F5 — Weekly availability (recurring)
-* Per practitioner, per weekday, list of windows: `{ weekday 0–6, start "09:00", end "12:00", roomId }`.
+* Per practitioner, per weekday, list of windows: `{ weekday 0–6, start "09:00", end "12:00" }`. **No room**: a window declares practitioner availability; the room is assigned at booking time (first free allowed room, deterministic order).
 * Rules:
   * `start < end`, no overlap between two windows of the **same practitioner** (error message, prevent save).
-  * `roomId` must be a room the practitioner is allowed in.
-  * This is what makes P1's case work: P1 sets "Mon 09:00–12:00 in B" and "Tue 09:00–12:00 in A".
-* UX: week-grid editor (Mon–Sun rows, add window, pick room via color dot). Copy week-to-week not needed (it's recurring by nature).
+  * This is what makes P1's case work: P1 sets "Mon 09:00–12:00" and "Tue 09:00–12:00" — patients land in whichever allowed room is free.
+* UX: week-grid editor (Mon–Sun rows, add window). No room picker. Copy week-to-week not needed (it's recurring by nature).
 
 ### F6 — Exceptions (one-off)
 * Two kinds:
@@ -104,11 +104,11 @@ Generation for (practitioner, sessionType, dateRange):
 3. Exclude slots that:
    * start before `now + bookingLeadTimeMin`,
    * overlap any existing non-cancelled booking of the **same practitioner** (including its buffer),
-   * overlap any non-cancelled booking in the **same room** (including its buffer),
+   * overlap any non-cancelled booking in **all** of the practitioner's allowed rooms at once (including buffers) — a slot survives if at least one allowed room is free,
    * overlap an Unavailable exception.
-4. Room is fixed at generation time (comes from the AvailabilityRule). No auto-reassignment in MVP — if P1 opens Tue morning in A, those slots are in A, period. If P1 wants choice, they open two windows (but overlapping own windows are forbidden → they must pick one room per window; to offer both they use different days/halves, which matches the pilot).
+4. Room is assigned at booking time: first free room among (practitioner's allowed rooms ∩ session's compatible rooms, if any), deterministic order (`sortOrder`, then name). Exception: Extra openings pin their room (which must also be session-compatible, else no slots). The room stays internal (never shown to patients). Practitioner-created bookings (phone, P1 scope) may override the room explicitly.
 
-> Deliberate MVP simplification: no "book me in any free room" logic. Explicit room per availability window. Auto-fallback is P1 scope.
+> Weekly windows carry no room: a slot is offered as soon as the practitioner is free AND at least one allowed room is free. First free room wins at booking time.
 
 ### F8 — Public booking (unauthenticated)
 Routes:
@@ -166,8 +166,9 @@ rooms(id, officeId, name, color, sortOrder)
 room_members(roomId, practitionerId)  // empty set = everyone allowed; else allowlist
 
 session_types(id, practitionerId, name, description, durationMin, bufferAfterMin, priceDisplay?, active DEFAULT 1)
+session_type_room(sessionTypeId, roomId)  // empty set = all practitioner rooms compatible
 
-availability_rules(id, practitionerId, weekday, startTime 'HH:MM', endTime 'HH:MM', roomId)
+availability_rules(id, practitionerId, weekday, startTime 'HH:MM', endTime 'HH:MM')
 exceptions(id, practitionerId, date 'YYYY-MM-DD', kind 'off|extra', startTime?, endTime?, fullDay DEFAULT 0, roomId?, reason?)
 
 bookings(id, officeId, practitionerId, roomId, sessionTypeId,
@@ -184,7 +185,7 @@ Overlap checks must be done in a transaction (SQLite: `BEGIN IMMEDIATE`) checkin
 
 ## 7. Pilot acceptance scenarios (must pass)
 
-1. P1 opens Mon 09:00–12:00 in B (60min sessions) → patient books Mon 09:00 → P2 cannot be booked in B (not allowed anyway) and P1's 09:00 gone; P2 can still be booked in A at 09:00.
+1. P1 opens Mon 09:00–12:00 (60min sessions) → patient books Mon 09:00 (first free allowed room assigned) → P1's 09:00 gone; P2 can still be booked in A at 09:00 (different practitioner, room free).
 2. P2 and P3 both open Tue 09:00–12:00 in A → first booking at 09:00 by P2's patient blocks 09:00–09:45+buffer in A → P3's 09:00 slot disappears, 10:00 (after buffer) remains.
 3. Session types with buffers: 45min + 15min buffer from 09:00 → next slot 10:00, not 09:45.
 4. Cancel deadline: office set to 24h → patient cancelling 2h before gets "contactez le praticien" page; practitioner can still cancel with reason.

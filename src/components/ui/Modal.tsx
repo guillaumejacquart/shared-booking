@@ -37,14 +37,14 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-zinc-900"
+        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-line bg-card p-5 shadow-lift"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2">
@@ -53,7 +53,7 @@ export default function Modal({
             type="button"
             aria-label={t("common.close")}
             onClick={onClose}
-            className="rounded-full border border-zinc-300 px-2.5 py-1 text-sm dark:border-zinc-700"
+            className="rounded-full border border-line px-2.5 py-1 text-sm text-mist transition-colors hover:bg-wash hover:text-ink"
           >
             ✕
           </button>

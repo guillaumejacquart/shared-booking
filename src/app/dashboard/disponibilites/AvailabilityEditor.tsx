@@ -13,17 +13,14 @@ export interface RuleRow {
   weekday: number;
   startTime: string;
   endTime: string;
-  roomId: string;
 }
 
 export default function AvailabilityEditor({
   practitionerId,
   initial,
-  rooms,
 }: {
   practitionerId: string;
   initial: RuleRow[];
-  rooms: { id: string; name: string }[];
 }) {
   const [rows, setRows] = useState<RuleRow[]>(initial);
   const [busy, setBusy] = useState(false);
@@ -46,7 +43,6 @@ export default function AvailabilityEditor({
             weekday: r.weekday,
             startTime: r.startTime,
             endTime: r.endTime,
-            roomId: r.roomId,
           })),
         }),
       });
@@ -70,7 +66,7 @@ export default function AvailabilityEditor({
         {rows.map((r) => (
           <div
             key={r.key}
-            className="grid grid-cols-2 items-end gap-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800 sm:grid-cols-5"
+            className="grid grid-cols-2 items-end gap-2 rounded-2xl border border-line bg-card p-3 shadow-soft sm:grid-cols-4"
           >
             <Field label="Jour">
               <Select value={r.weekday} onChange={(e) => patch(r.key, { weekday: Number(e.target.value) })}>
@@ -86,15 +82,6 @@ export default function AvailabilityEditor({
             </Field>
             <Field label="Fin">
               <TextInput type="time" value={r.endTime} onChange={(e) => patch(r.key, { endTime: e.target.value })} required />
-            </Field>
-            <Field label={t("availability.room")}>
-              <Select value={r.roomId} onChange={(e) => patch(r.key, { roomId: e.target.value })}>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.name}
-                  </option>
-                ))}
-              </Select>
             </Field>
             <Button
               size="sm"
@@ -117,14 +104,13 @@ export default function AvailabilityEditor({
                 weekday: 1,
                 startTime: "09:00",
                 endTime: "12:00",
-                roomId: rooms[0]?.id ?? "",
               },
             ])
           }
         >
           {t("availability.add")}
         </Button>
-        <Button disabled={busy || rooms.length === 0} onClick={save}>
+        <Button disabled={busy} onClick={save}>
           {t("sessionTypesAdmin.save")}
         </Button>
         {message ? <FormMessage tone={message.ok ? "ok" : "error"}>{message.text}</FormMessage> : null}

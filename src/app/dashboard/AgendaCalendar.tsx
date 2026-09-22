@@ -7,7 +7,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import frLocale from "@fullcalendar/core/locales/fr";
-import type { EventClickArg, EventSourceFunc } from "@fullcalendar/core";
+import type { EventClickArg, EventContentArg, EventSourceFunc } from "@fullcalendar/core";
 
 import "@/components/FullCalendarTheme.css";
 
@@ -35,6 +35,8 @@ interface Selected {
   paymentStatus: string;
   validationRequired: boolean;
   sessionName: string;
+  roomName: string;
+  roomColor: string | null;
   patientName: string;
   patientEmail: string;
   patientPhone: string | null;
@@ -49,15 +51,26 @@ interface Selected {
 export default function AgendaCalendar() {
   const ref = useRef<FullCalendar | null>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [rooms, setRooms] = useState<{ id: string; name: string; color: string | null }[]>([]);
 
   function onEventClick(info: EventClickArg) {
-    const p = info.event.extendedProps as Omit<Selected, "id" | "title" | "start" | "end">;
+    const p = info.event.extendedProps as Partial<Omit<Selected, "id" | "title" | "start" | "end">>;
     setSelected({
       id: info.event.id,
       title: info.event.title,
       start: info.event.start?.toISOString() ?? "",
       end: info.event.end?.toISOString() ?? "",
-      ...p,
+      status: p.status ?? "",
+      paymentStatus: p.paymentStatus ?? "none",
+      validationRequired: p.validationRequired ?? false,
+      sessionName: p.sessionName ?? info.event.title,
+      roomName: p.roomName ?? "",
+      roomColor: p.roomColor ?? null,
+      patientName: p.patientName ?? "",
+      patientEmail: p.patientEmail ?? "",
+      patientPhone: p.patientPhone ?? null,
+      notes: p.notes ?? null,
+      cancelToken: p.cancelToken ?? "",
     });
   }
 
@@ -65,12 +78,36 @@ export default function AgendaCalendar() {
     ref.current?.getApi().refetchEvents();
   }
 
+  function renderEvent(arg: EventContentArg) {
+    const p = arg.event.extendedProps as Partial<Selected>;
+    const inList = arg.view.type.startsWith("list");
+    return (
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="truncate">{arg.event.title}</span>
+        {p.roomColor ? (
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: p.roomColor }}
+            title={p.roomName ?? ""}
+          />
+        ) : null}
+        {inList && p.roomName ? <span className="shrink-0 opacity-80">· {p.roomName}</span> : null}
+      </span>
+    );
+  }
+
   // Identité stable : évite une recharge à chaque rendu (sélection…).
   const fetchEvents: EventSourceFunc = useCallback(
     (fetchInfo, successCallback, failureCallback) => {
       fetch(`/api/agenda/events?start=${encodeURIComponent(fetchInfo.startStr)}&end=${encodeURIComponent(fetchInfo.endStr)}`)
-        .then((r) => (r.ok ? r.json() : { events: [] }))
-        .then((j) => successCallback(j.events ?? []))
+        .then((r) => (r.ok ? r.json() : { events: [], rooms: [] }))
+        .then((j) => {
+          // Même référence si inchangé : évite un rendu (et donc une recharge).
+          setRooms((prev) =>
+            JSON.stringify(prev) === JSON.stringify(j.rooms ?? []) ? prev : (j.rooms ?? []),
+          );
+          successCallback(j.events ?? []);
+        })
         .catch(() => failureCallback(new Error("chargement impossible")));
     },
     [],
@@ -89,6 +126,19 @@ export default function AgendaCalendar() {
 
   return (
     <div className="flex flex-col gap-4">
+      {rooms.length > 0 ? (
+        <div className="flex flex-wrap gap-3 text-sm">
+          {rooms.map((r) => (
+            <span key={r.id} className="inline-flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: r.color ?? "var(--faint)" }}
+              />
+              {r.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <FullCalendar
         ref={ref}
         plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -105,6 +155,7 @@ export default function AgendaCalendar() {
         noEventsText={t("agenda.empty")}
         events={fetchEvents}
         eventClick={onEventClick}
+        eventContent={renderEvent}
       />
       <Modal
         open={selected !== null}
@@ -113,14 +164,25 @@ export default function AgendaCalendar() {
       >
         {selected ? (
           <div className="flex flex-col gap-2 text-sm">
-            <p className="text-zinc-500">
+            <p className="text-mist">
               {selected.start ? fullFmt.format(new Date(selected.start)) : ""}
             </p>
+            {selected.roomName ? (
+              <p>
+                {selected.roomColor ? (
+                  <span
+                    className="mr-1 inline-block h-2.5 w-2.5 rounded-full align-middle"
+                    style={{ backgroundColor: selected.roomColor }}
+                  />
+                ) : null}
+                <span className="font-medium">{selected.roomName}</span>
+              </p>
+            ) : null}
             <p>
               {selected.patientName} · {selected.patientEmail}
               {selected.patientPhone ? ` · ${selected.patientPhone}` : ""}
             </p>
-            {selected.notes ? <p className="text-zinc-500">{selected.notes}</p> : null}
+            {selected.notes ? <p className="text-mist">{selected.notes}</p> : null}
             <p>
               <Badge tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Badge>{" "}
               {selected.paymentStatus === "paid" ? (

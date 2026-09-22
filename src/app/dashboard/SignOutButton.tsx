@@ -13,7 +13,7 @@ export default function SignOutButton() {
       onClick={() => {
         void authClient.signOut().then(() => router.push("/login"));
       }}
-      className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700"
+      className="rounded-full border border-line bg-card px-3 py-1.5 text-sm transition-colors hover:bg-wash"
     >
       {t("dashboard.signOut")}
     </button>

@@ -55,6 +55,8 @@ export async function updateOffice(officeId: string,
     cancelDeadlineHours: number;
     reminderHoursBefore: number;
     defaultBufferAfterMin: number;
+    themePalette: string;
+    themeMode: string;
   }>) {
   const conn = getConnection();
   await conn.update(office).set(data).where(eq(office.id, officeId));

@@ -5,6 +5,8 @@ import * as availabilityDal from "@/dal/availability";
 import * as bookingsDal from "@/dal/bookings";
 import * as membersDal from "@/dal/members";
 import * as practitionersDal from "@/dal/practitioners";
+import * as roomsDal from "@/dal/rooms";
+import * as sessionTypesDal from "@/dal/session-types";
 import * as usersDal from "@/dal/users";
 import { env, isStripeConfigured } from "@/lib/env";
 import {
@@ -17,7 +19,7 @@ import {
   type ValidateInput,
 } from "@/lib/schemas/bookings";
 import { dateStrInTz, zonedTimeToUtc } from "@/lib/timezone";
-import { generateSlots, type Occupancy, type SlotRequest } from "@/lib/slots";
+import { generateSlots, type Occupancy, type Slot, type SlotRequest } from "@/lib/slots";
 import { bookingMutex } from "@/lib/mutex";
 import Stripe from "stripe";
 import {
@@ -162,13 +164,12 @@ function toOccupancy(b: {
 }
 
 function toWindows(
-  rules: { weekday: number; startTime: string; endTime: string; roomId: string }[],
+  rules: { weekday: number; startTime: string; endTime: string }[],
 ): SlotRequest["windows"] {
   return rules.map((r) => ({
     weekday: r.weekday,
     startTime: r.startTime,
     endTime: r.endTime,
-    roomId: r.roomId,
   }));
 }
 
@@ -193,35 +194,68 @@ function toExceptions(
 }
 
 /**
- * Charge tout ce qu'il faut pour générer une grille : règles, exceptions et
- * occupation (praticien + salles). Partagé par les disponibilités publiques et
- * le report, pour éviter que les deux vues divergent.
+ * Salles attribuables au praticien, par ordre de préférence (`sortOrder`
+ * puis nom) : la première libre au créneau est attribuée à la réservation.
+ * Allowlist vide = toutes les salles du cabinet.
+ */
+function allowedRoomIdsFor(
+  practitionerId: string,
+  rooms: Awaited<ReturnType<typeof roomsDal.listRoomsWithMembers>>,
+): string[] {
+  return rooms
+    .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(practitionerId))
+    .map((r) => r.room)
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.name.localeCompare(b.name) ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    )
+    .map((r) => r.id);
+}
+
+/**
+ * Charge tout ce qu'il faut pour générer une grille : règles (sans salle),
+ * exceptions et occupation (praticien + salles autorisées). Partagé par les
+ * disponibilités publiques et le report, pour éviter que les deux vues
+ * divergent. Chaque créneau généré porte déjà sa salle attribuée.
  */
 async function loadSlotContext(
   practitionerId: string,
+  officeId: string,
   from: Date,
   to: Date,
   timezone: string,
   excludeBookingId?: string,
+  sessionTypeId?: string,
 ): Promise<
-  Pick<SlotRequest, "windows" | "exceptions" | "practitionerBusy" | "roomBusy">
+  Pick<SlotRequest, "windows" | "exceptions" | "practitionerBusy" | "roomBusy" | "allowedRoomIds" | "sessionRoomIds">
 > {
-  const rules = await availabilityDal.listRules(practitionerId);
-  const exceptions = await availabilityDal.listExceptions(
-    practitionerId,
-    dateStrInTz(from, timezone),
-    dateStrInTz(to, timezone),
-  );
-  const bookings = await bookingsDal.listActiveBookings({
-    practitionerId,
-    from,
-    to,
-    excludeBookingId,
-  });
-  const roomIds = [...new Set(rules.map((r) => r.roomId))];
+  const [rules, exceptions, bookings, roomsWithMembers, sessionRoomIds] = await Promise.all([
+    availabilityDal.listRules(practitionerId),
+    availabilityDal.listExceptions(
+      practitionerId,
+      dateStrInTz(from, timezone),
+      dateStrInTz(to, timezone),
+    ),
+    bookingsDal.listActiveBookings({
+      practitionerId,
+      from,
+      to,
+      excludeBookingId,
+    }),
+    roomsDal.listRoomsWithMembers(officeId),
+    sessionTypeId ? sessionTypesDal.listCompatibleRoomIds(sessionTypeId) : Promise.resolve([] as string[]),
+  ]);
+  const allowedRoomIds = allowedRoomIdsFor(practitionerId, roomsWithMembers);
+  // Surveiller aussi les salles épinglées par les extras (hors autorisées).
+  const extraRoomIds = exceptions
+    .filter((e) => e.kind === "extra" && e.roomId)
+    .map((e) => e.roomId as string);
+  const watchIds = [...new Set([...allowedRoomIds, ...extraRoomIds])];
   const roomBookings =
-    roomIds.length > 0
-      ? await bookingsDal.listActiveBookings({ roomIds, from, to, excludeBookingId })
+    watchIds.length > 0
+      ? await bookingsDal.listActiveBookings({ roomIds: watchIds, from, to, excludeBookingId })
       : [];
   const roomBusy: Record<string, Occupancy[]> = {};
   for (const b of roomBookings) {
@@ -232,10 +266,13 @@ async function loadSlotContext(
     exceptions: toExceptions(exceptions),
     practitionerBusy: bookings.map(toOccupancy),
     roomBusy,
+    allowedRoomIds,
+    sessionRoomIds,
   };
 }
 
-export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<PublicSlot[]> {
+/** Grille interne : chaque créneau porte sa salle attribuée. */
+async function getSlotsWithRoom(deps: Deps, input: SlotsInput): Promise<Slot[]> {
   const now = deps.now ?? new Date();
 
   const page = await practitionersDal.getPractitionerPage(input.practitionerSlug);
@@ -250,11 +287,14 @@ export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<
 
   const context = await loadSlotContext(
     page.practitioner.id,
+    page.office.id,
     engineFrom,
     horizonEnd,
     tz,
+    undefined,
+    st.id,
   );
-  const slots = generateSlots({
+  return generateSlots({
     timezone: tz,
     ...context,
     sessionDurationMin: st.durationMin,
@@ -263,7 +303,10 @@ export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<
     from: engineFrom,
     days: input.days,
   });
+}
 
+export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<PublicSlot[]> {
+  const slots = await getSlotsWithRoom(deps, input);
   return slots.map((s) => ({
     startAt: s.start.toISOString(),
     endAt: s.end.toISOString(),
@@ -335,27 +378,28 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
 
   const booked = await bookingMutex.run(async () => {
     const dateStr = dateStrInTz(start, page.office.timezone);
-    const daySlots = (
-      await getAvailableSlots(deps, {
+    const slot = (
+      await getSlotsWithRoom(deps, {
         practitionerSlug: input.practitionerSlug,
         sessionTypeId: input.sessionTypeId,
         fromDate: dateStr,
         days: 1,
       })
-    ).filter((s) => s.startAt === start.toISOString());
-    if (daySlots.length === 0) {
-      await resolveSlotRoom(
+    ).find((s) => s.start.toISOString() === start.toISOString());
+    if (!slot) {
+      // Distingue hors-grille (400) de pris (409) via la grille sans occupation.
+      const onGrid = await slotOnGrid(
         page.practitioner.id,
+        page.office.id,
+        st.id,
         st.durationMin,
         st.bufferAfterMin,
         start,
         page.office.timezone,
-      ).catch(() => {
-        throw new ValidationError("Créneau invalide");
-      });
+      );
+      if (!onGrid) throw new ValidationError("Créneau invalide");
       throw new ConflictError("Créneau déjà réservé");
     }
-    const slot = daySlots[0];
 
     const futureCount = await bookingsDal.countFutureConfirmedByEmail(page.practitioner.id,
       email,
@@ -364,24 +408,17 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
       throw new ValidationError("Trop de réservations à venir avec cet email");
     }
 
-    const roomId = await resolveSlotRoom(
-      page.practitioner.id,
-      st.durationMin,
-      st.bufferAfterMin,
-      start,
-      page.office.timezone,
-    );
     const inserted = await bookingsDal.tryInsertBooking({
       id: bookingId,
       officeId: page.office.id,
       practitionerId: page.practitioner.id,
-      roomId,
+      roomId: slot.roomId,
       sessionTypeId: st.id,
       sessionNameSnapshot: st.name,
       durationMinSnapshot: st.durationMin,
       bufferAfterMinSnapshot: st.bufferAfterMin,
       startAt: start,
-      endAt: new Date(slot.endAt),
+      endAt: slot.end,
       patientFirstName: input.patientFirstName,
       patientLastName: input.patientLastName,
       patientEmail: email,
@@ -396,7 +433,7 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
       pendingExpiresAt: needsPayment ? new Date(now.getTime() + PENDING_TTL_MS) : null,
     });
     if (inserted.conflict) throw new ConflictError("Créneau déjà réservé");
-    return { id: inserted.id, endAt: slot.endAt };
+    return { id: inserted.id, endAt: slot.end.toISOString() };
   });
   const end = new Date(booked.endAt);
   const status = needsPayment || needsValidation ? "pending" : "confirmed";
@@ -643,7 +680,7 @@ export async function rescheduleBooking(
     const dateStr = dateStrInTz(newStart, tz);
     const engineFrom = now;
     const horizonEnd = new Date(newStart.getTime() + 86_400_000);
-    const context = await loadSlotContext(prac.id, engineFrom, horizonEnd, tz, b.id);
+    const context = await loadSlotContext(prac.id, office.id, engineFrom, horizonEnd, tz, b.id, b.sessionTypeId);
     const allSlots = generateSlots({
       timezone: tz,
       ...context,
@@ -711,31 +748,37 @@ export async function getBookingStatusByStripeSession(stripeSessionId: string) {
 // --- Helpers internes --------------------------------------------------------
 
 /**
- * Retrouve la salle du créneau validé : on régénère la grille du jour (sans
- * occupation) et on reprend le roomId du créneau aligné. Le créneau a déjà
- * été validé libre juste avant ; la garde atomique du store couvre la course.
+ * Le créneau existe-t-il dans la grille théorique (sans occupation) ?
+ * Sert à distinguer un horaire hors-grille (400) d'un créneau pris (409).
+ * La salle attribuée ici n'est qu'indicative : seule compte l'existence.
  */
-async function resolveSlotRoom(
+async function slotOnGrid(
   practitionerId: string,
+  officeId: string,
+  sessionTypeId: string,
   durationMin: number,
   bufferAfterMin: number,
   start: Date,
   timezone: string,
-): Promise<string> {
-  const rules = await availabilityDal.listRules(practitionerId);
+): Promise<boolean> {
+  const [rules, roomsWithMembers, sessionRoomIds] = await Promise.all([
+    availabilityDal.listRules(practitionerId),
+    roomsDal.listRoomsWithMembers(officeId),
+    sessionTypesDal.listCompatibleRoomIds(sessionTypeId),
+  ]);
   const slots = generateSlots({
     timezone,
     windows: toWindows(rules),
     exceptions: [],
     practitionerBusy: [],
     roomBusy: {},
+    allowedRoomIds: allowedRoomIdsFor(practitionerId, roomsWithMembers),
+    sessionRoomIds,
     sessionDurationMin: durationMin,
     bufferAfterMin,
     leadTimeMin: 0,
     from: new Date(start.getTime() - 86_400_000),
     days: 3,
-  }).filter((s) => s.start.getTime() === start.getTime());
-  const found = slots[0];
-  if (!found) throw new ConflictError("Créneau déjà réservé");
-  return found.roomId;
+  });
+  return slots.some((s) => s.start.getTime() === start.getTime());
 }

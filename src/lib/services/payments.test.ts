@@ -52,7 +52,7 @@ async function seed() {
     { id: "stBroken", practitionerId: "p1", name: "Mal configuré", durationMin: 60, bufferAfterMin: 0, requiresPayment: true },
   ]);
   await db.insert(s.availabilityRule).values([
-    { id: "r1", practitionerId: "p1", weekday: 1, startTime: "09:00", endTime: "13:00", roomId: "room-a" },
+    { id: "r1", practitionerId: "p1", weekday: 1, startTime: "09:00", endTime: "13:00" },
   ]);
 }
 

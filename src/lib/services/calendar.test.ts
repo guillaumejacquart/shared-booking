@@ -25,7 +25,12 @@ async function seed() {
     { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice" },
     { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "bob" },
   ]);
-  await db.insert(s.room).values([{ id: "room-a", officeId: "o1", name: "Salle A" }]);
+  await db.insert(s.room).values([
+    { id: "room-a", officeId: "o1", name: "Salle A" },
+    { id: "room-x", officeId: "o1", name: "Exclusive" },
+  ]);
+  // Salle A ouverte à tous ; Exclusive réservée à Alice.
+  await db.insert(s.roomMember).values([{ id: "rm1", roomId: "room-x", practitionerId: "p1" }]);
   await db.insert(s.sessionType).values([
     { id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0 },
   ]);
@@ -81,6 +86,18 @@ describe("getAgendaEvents", () => {
     const { events } = await getAgendaEvents({ userId: "u1", start: START, end: END });
     expect(events).toHaveLength(1);
     expect(events[0].title).toContain("Jean Dupont");
+  });
+
+  it("expose les salles (légende) et la salle de chaque RDV", async () => {
+    const { events, rooms } = await getAgendaEvents({ userId: "u1", start: START, end: END });
+    expect(rooms.map((r) => r.id).sort()).toEqual(["room-a", "room-x"]);
+    expect(events[0].extendedProps.roomName).toBe("Salle A");
+  });
+
+  it("la légende ne contient que les salles utilisables par le praticien", async () => {
+    // room-x est réservée à Alice : Bob ne voit que room-a.
+    const { rooms } = await getAgendaEvents({ userId: "u2", start: START, end: END });
+    expect(rooms.map((r) => r.id)).toEqual(["room-a"]);
   });
 
   it("404 si pas de praticien", async () => {
