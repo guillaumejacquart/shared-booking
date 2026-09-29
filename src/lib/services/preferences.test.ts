@@ -27,7 +27,7 @@ describe("saveUserPreferences", () => {
   });
 
   it("refuse palette et mode inconnus", async () => {
-    const { savePreferencesSchema } = await import("@/lib/services/preferences");
+    const { savePreferencesSchema } = await import("@/lib/schemas/preferences");
     expect(
       savePreferencesSchema.safeParse({ requesterUserId: "u1", palette: "zinc", mode: "dark" }).success,
     ).toBe(false);

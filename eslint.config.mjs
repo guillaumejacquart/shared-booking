@@ -67,7 +67,7 @@ const eslintConfig = defineConfig([
 
   // Couche : pas d'accès runtime à la DAL/DB hors des services.
   // (Pages RSC : lecture seule tolérée ; `auth.ts`, `dashboard.ts` et
-  // `google-sync.ts` sont des points d'accès documentés, voir AGENTS.md.)
+  // `google-calendar.ts` sont des points d'accès documentés, voir AGENTS.md.)
   {
     files: [
       "src/components/**/*.{ts,tsx}",
@@ -81,7 +81,7 @@ const eslintConfig = defineConfig([
       "src/lib/services/**",
       "src/lib/auth.ts",
       "src/lib/dashboard.ts",
-      "src/lib/google-sync.ts",
+      "src/lib/google-calendar.ts",
     ],
     rules: {
       "@typescript-eslint/no-restricted-imports": [

@@ -1,5 +1,5 @@
 import type { SendEmail } from "@/lib/email";
-import type { CalendarClient } from "@/lib/google-sync";
+import type { CalendarClient } from "@/lib/google-calendar";
 
 /**
  * Ports de l'application : tout ce que les services empruntent au monde

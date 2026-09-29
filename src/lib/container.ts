@@ -1,6 +1,6 @@
 import { env, isStripeConfigured } from "@/lib/env";
 import { createMailer } from "@/lib/email";
-import { createCalendarClient, getGoogleAccessToken } from "@/lib/google-sync";
+import { createCalendarClient, getGoogleAccessToken } from "@/lib/google-calendar";
 import {
   systemClock,
   type GoogleCalendarPort,
@@ -8,7 +8,9 @@ import {
   type StripeLike,
 } from "@/lib/ports";
 import { createBookingsService, type BookingsService } from "@/lib/services/bookings";
+import { createCalendarService, type CalendarService } from "@/lib/services/calendar";
 import { createGoogleService, type GoogleService } from "@/lib/services/google";
+import { createPreferencesService, type PreferencesService } from "@/lib/services/preferences";
 import { createRemindersService, type RemindersService } from "@/lib/services/reminders";
 import { createScheduleService, type ScheduleService } from "@/lib/services/schedule";
 import { createTeamService, type TeamService } from "@/lib/services/team";
@@ -41,6 +43,8 @@ export interface Services {
   reminders: RemindersService;
   schedule: ScheduleService;
   google: GoogleService;
+  calendar: CalendarService;
+  preferences: PreferencesService;
 }
 
 export function makeServices(overrides: Partial<Ports> = {}): Services {
@@ -57,6 +61,8 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
     reminders: createRemindersService(ports),
     schedule: createScheduleService(ports),
     google: createGoogleService(ports),
+    calendar: createCalendarService(),
+    preferences: createPreferencesService(),
   };
 }
 

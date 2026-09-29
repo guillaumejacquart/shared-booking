@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getSharedCalendar } from "@/lib/services/calendar";
+import { services } from "@/lib/container";
 import { withAuth } from "@/app/api/_auth";
 
 /** Événements FullCalendar du calendrier partagé (`?start=ISO&end=ISO`). */
@@ -11,5 +11,5 @@ export const GET = withAuth(async (user, req: NextRequest) => {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  return NextResponse.json(await getSharedCalendar({ userId: user.id, start, end }));
+  return NextResponse.json(await services.calendar.shared({ userId: user.id, start, end }));
 });

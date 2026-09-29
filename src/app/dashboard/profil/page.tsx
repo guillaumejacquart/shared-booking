@@ -2,12 +2,15 @@ import * as availabilityDal from "@/dal/availability";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
+import { services } from "@/lib/container";
 import { getDashboardContext } from "@/lib/dashboard";
 import { dateStrInTz } from "@/lib/timezone";
 import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
 import ProfileForm from "@/components/ProfileForm";
-import GoogleAgendaSettings from "@/components/GoogleAgendaSettings";
+import GoogleAgendaSettings, {
+  type GoogleCalendar,
+} from "@/components/GoogleAgendaSettings";
 import SessionTypesManager from "../seances/SessionTypesManager";
 import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
 import ExceptionsManager from "../disponibilites/ExceptionsManager";
@@ -31,7 +34,7 @@ export default async function ProfilPage({
       : "profil";
 
   const now = new Date();
-  const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms] = await Promise.all([
+  const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus] = await Promise.all([
     practitionersDal.getPractitionerById(ctx.practitionerId),
     sessionTypesDal.listSessionTypes(ctx.practitionerId),
     availabilityDal.listRules(ctx.practitionerId),
@@ -40,7 +43,13 @@ export default async function ProfilPage({
       dateStrInTz(new Date(now.getTime() - 30 * 86_400_000), tz),
       dateStrInTz(new Date(now.getTime() + 365 * 86_400_000), tz),),
     sessionTypesDal.listCompatibleRoomsByPractitioner(ctx.practitionerId),
+    services.google.getGoogleStatus(ctx.userId),
   ]);
+  // La liste des agendas exige un appel Google : échec silencieux (le
+  // sélecteur retombe sur l'agenda principal, rechargeable côté client).
+  const googleCalendars: GoogleCalendar[] = await services.google
+    .listGoogleCalendars(ctx.userId)
+    .catch(() => []);
   const rooms = roomsWithMembers
     .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(ctx.practitionerId))
     .sort((a, b) =>
@@ -143,7 +152,10 @@ export default async function ProfilPage({
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("profile.tabGoogle")}</h2>
                 <p className="mb-3 text-sm text-mist">{t("google.connectHint")}</p>
-                <GoogleAgendaSettings />
+                <GoogleAgendaSettings
+                  initialStatus={googleStatus}
+                  initialCalendars={googleCalendars}
+                />
               </section>
             </div>
           ),

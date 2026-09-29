@@ -4,12 +4,10 @@ import { setConnection } from "@/dal/connection";
 import * as bookingsDal from "@/dal/bookings";
 import type { Db } from "@/dal/types";
 import { createMemoryDb } from "@/test/memory-db";
+import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
-import {
-  buildGoogleEvent,
-  syncBookingToGoogle,
-  type CalendarClient,
-} from "./google-sync";
+import type { CalendarClient } from "@/lib/google-calendar";
+import { buildGoogleEvent, syncBookingToGoogle, syncMany } from "./google-sync";
 
 let db: Db;
 
@@ -202,9 +200,25 @@ describe("syncBookingToGoogle", () => {
     expect(row?.googleSyncError).toContain("quota");
   });
 
-  it("marquage pending persisté (hook après commit)", async () => {
-    await bookingsDal.setGoogleSync("b1", { status: "pending" });
-    const row = await bookingsDal.getBookingRowById("b1");
-    expect(row?.googleSyncStatus).toBe("pending");
+  it("syncMany compte succès et échecs", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
+    const ports = testPorts({ googleCalendar: { forUser: async () => fakeClient() } });
+    expect(await syncMany(ports, ["b1"])).toEqual({ ok: 1, failed: 0 });
+    const offline = testPorts({ googleCalendar: { forUser: async () => null } });
+    expect(await syncMany(offline, ["b1"])).toEqual({ ok: 0, failed: 1 });
+  });
+
+  it("lastSyncAt suit l'horloge injectée", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
+    const at = new Date("2026-09-01T10:00:00.000Z");
+    const client = fakeClient();
+    await syncBookingToGoogle(
+      testPorts({ clock: fixedClock(at), googleCalendar: { forUser: async () => client } }),
+      "b1",
+    );
+    const { getGooglePrefs } = await import("@/dal/practitioner-google");
+    expect((await getGooglePrefs("p1"))?.lastSyncAt?.getTime()).toBe(at.getTime());
   });
 });

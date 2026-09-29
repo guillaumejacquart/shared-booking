@@ -54,6 +54,29 @@ pas : remboursement manuel via le dashboard Stripe.
 Limite MVP : un seul compte Stripe pour tout le SaaS (pas de reversement
 par praticien — Stripe Connect plus tard).
 
+## Google Agenda (push outbound, optionnel)
+
+Chaque praticien peut recopier ses réservations confirmées dans son agenda
+Google (création / report / annulation). Sans configuration, tout reste
+local et l'onglet « Google Agenda » du profil l'indique.
+
+1. Créer un projet sur https://console.cloud.google.com, activer **Calendar API**,
+   créer des identifiants OAuth (application Web) avec le scope
+   `.../auth/calendar.events`. Origine + redirection autorisées =
+   `BETTER_AUTH_URL` (ex. `https://shared-booking.guillaumejacquart.com`
+   et `/api/auth/callback/google`).
+2. Renseigner `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (voir `.env.example` ;
+   en prod : fichier `shared-booking.env` du VPS, jamais dans git).
+3. Côté praticien : onglet **Profil → Google Agenda** → « Connecter Google »,
+   choisir l'agenda de destination, activer la recopie.
+
+Confidentialité : événements anonymisés (« Réservé », ni nom ni contact) par
+défaut ; l'affichage du nom patient est un opt-in explicite. Échec de push =
+statut `error` sur la réservation + retry auto toutes les 15 min (bouton
+« Resynchroniser » en plus). Les patients ont de toute façon le lien
+« Ajouter à Google Agenda » (sans compte) dans l'email et sur la page de
+confirmation.
+
 ## Backups (SQLite → Cloudflare R2)
 
 Le process Next sauvegarde la base chaque jour, sans cron hôte :

@@ -1,10 +1,5 @@
 import * as preferencesDal from "@/dal/preferences";
-import {
-  savePreferencesSchema,
-  type SavePreferencesInput,
-} from "@/lib/schemas/preferences";
-
-export { savePreferencesSchema, type SavePreferencesInput };
+import type { SavePreferencesInput } from "@/lib/schemas/preferences";
 
 /**
  * Préférences d'apparence personnelles : validées (palettes/modes connus),
@@ -22,4 +17,13 @@ export async function saveUserPreferences(
 
 export async function getUserPreferences(userId: string) {
   return preferencesDal.getPreferences(userId);
+}
+
+export interface PreferencesService {
+  save: typeof saveUserPreferences;
+  get: typeof getUserPreferences;
+}
+
+export function createPreferencesService(): PreferencesService {
+  return { save: saveUserPreferences, get: getUserPreferences };
 }

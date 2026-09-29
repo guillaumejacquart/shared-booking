@@ -1,13 +1,12 @@
-import { z } from "zod";
-
 import * as bookingsDal from "@/dal/bookings";
 import * as googleAccountsDal from "@/dal/google-accounts";
 import * as practitionerGoogleDal from "@/dal/practitioner-google";
 import * as practitionersDal from "@/dal/practitioners";
 import { isGoogleConfigured } from "@/lib/env";
-import { syncBookingToGoogle } from "@/lib/google-sync";
 import type { Ports } from "@/lib/ports";
+import type { SaveGooglePrefsInput } from "@/lib/schemas/google";
 import { NotFoundError, ValidationError } from "./errors";
+import { retryGoogleSyncDue, syncMany } from "./google-sync";
 
 /**
  * Service Google Agenda (préférences + état de connexion par praticien).
@@ -55,16 +54,6 @@ export async function getGoogleStatus(
   };
 }
 
-export const saveGooglePrefsSchema = z.object({
-  syncEnabled: z.boolean().optional(),
-  calendarId: z.string().min(1).max(256).optional(),
-  showPatientName: z.boolean().optional(),
-});
-
-export type SaveGooglePrefsInput = z.infer<typeof saveGooglePrefsSchema> & {
-  requesterUserId: string;
-};
-
 export async function saveGooglePrefs(
   input: SaveGooglePrefsInput,
 ): Promise<GoogleStatus> {
@@ -111,22 +100,14 @@ export async function disconnectGoogle(
   });
 }
 
-/** Resynchronise les push en échec du praticien. Retourne le nb de succès. */
+/** Resynchronise les push en échec du praticien. */
 export async function resyncGoogle(
   ports: Ports,
   requesterUserId: string,
 ): Promise<{ ok: number; failed: number }> {
   const prac = await requirePractitioner(requesterUserId);
   const due = await bookingsDal.listGoogleSyncDueForPractitioner(prac.id);
-  let ok = 0;
-  let failed = 0;
-  for (const dueBooking of due) {
-    await syncBookingToGoogle(ports, dueBooking.id);
-    const row = await bookingsDal.getBookingRowById(dueBooking.id);
-    if (row?.googleSyncStatus === "ok") ok++;
-    else failed++;
-  }
-  return { ok, failed };
+  return syncMany(ports, due.map((dueBooking) => dueBooking.id));
 }
 
 /** Surface du service Google (utilisée par les routes via le container). */
@@ -136,6 +117,7 @@ export interface GoogleService {
   listGoogleCalendars(requesterUserId: string): ReturnType<typeof listGoogleCalendars>;
   disconnectGoogle: typeof disconnectGoogle;
   resyncGoogle(requesterUserId: string): ReturnType<typeof resyncGoogle>;
+  retryDue(): ReturnType<typeof retryGoogleSyncDue>;
 }
 
 export function createGoogleService(ports: Ports): GoogleService {
@@ -145,5 +127,6 @@ export function createGoogleService(ports: Ports): GoogleService {
     listGoogleCalendars: (requesterUserId) => listGoogleCalendars(ports, requesterUserId),
     disconnectGoogle,
     resyncGoogle: (requesterUserId) => resyncGoogle(ports, requesterUserId),
+    retryDue: () => retryGoogleSyncDue(ports),
   };
 }

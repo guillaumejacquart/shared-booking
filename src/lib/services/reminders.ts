@@ -36,7 +36,7 @@ export async function processReminders(ports: Ports): Promise<{ sent: number; co
     try {
       await send(
         reminderEmail(booking.patientEmail, {
-          ...mailModel(booking, { practitioner: prac, office }),
+          ...mailModel(booking, { practitioner: prac, office }, { now }),
           manageUrl: "",
         }),
       );

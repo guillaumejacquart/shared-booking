@@ -179,6 +179,37 @@ describe("createBooking", () => {
     expect(googleUrl.searchParams.get("details")).toContain(res.cancelToken);
   });
 
+  it("pousse la réservation vers Google quand le push est activé", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
+    const calls: string[] = [];
+    const withGoogle = {
+      ...ports(),
+      googleCalendar: {
+        forUser: async () => ({
+          insertEvent: async () => {
+            calls.push("insert");
+            return { id: "evt-1" };
+          },
+          patchEvent: async () => void calls.push("patch"),
+          deleteEvent: async () => void calls.push("delete"),
+          listCalendars: async () => [],
+        }),
+      },
+    };
+    const res = await createBooking(withGoogle, {
+      practitionerSlug: "alice",
+      sessionTypeId: "st1",
+      startAt: SLOT_A,
+      ...patient,
+    });
+    expect(calls).toEqual(["insert"]);
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
+    expect(rows[0].googleEventId).toBe("evt-1");
+    expect(rows[0].googleSyncStatus).toBe("ok");
+  });
+
   it("attribue la première salle libre (ordre sortOrder puis nom)", async () => {
     const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
@@ -330,6 +361,32 @@ describe("cancelBooking", () => {
     await cancelBooking(early, { token: res.cancelToken, by: "patient" });
     const again = await cancelBooking(early, { token: res.cancelToken, by: "patient" });
     expect(again.status).toBe("cancelled");
+  });
+
+  it("l'annulation supprime l'événement miroir Google", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
+    const calls: string[] = [];
+    const withGoogle = {
+      ...ports(),
+      clock: fixedClock(new Date("2026-09-12T06:00:00Z")),
+      googleCalendar: {
+        forUser: async () => ({
+          insertEvent: async () => {
+            calls.push("insert");
+            return { id: "evt-1" };
+          },
+          patchEvent: async () => void calls.push("patch"),
+          deleteEvent: async () => void calls.push("delete"),
+          listCalendars: async () => [],
+        }),
+      },
+    };
+    const res = await createBooking(withGoogle, {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
+    });
+    await cancelBooking(withGoogle, { token: res.cancelToken, by: "patient" });
+    expect(calls).toEqual(["insert", "delete"]);
   });
 });
 

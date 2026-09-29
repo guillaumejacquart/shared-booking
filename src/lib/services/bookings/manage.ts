@@ -29,6 +29,7 @@ import {
   deadline,
   mailModel,
 } from "./shared";
+import { syncBookingToGoogle } from "../google-sync";
 import { loadSlotContext } from "./slots";
 import { finalizeBookingIfReady } from "./payment";
 
@@ -69,7 +70,7 @@ export async function validateBooking(
     throw new ConflictError("Paiement en attente");
   }
 
-  const model = mailModel(booking, detail);
+  const model = mailModel(booking, detail, { now });
   if (input.accept) {
     await bookingsDal.markBookingValidated(booking.id, now);
     await finalizeBookingIfReady(ports, booking.id);
@@ -78,6 +79,9 @@ export async function validateBooking(
   if (!input.reason) throw new ValidationError("Un motif de refus est requis");
   await bookingsDal.markBookingCancelled(booking.id, input.reason, now);
   await send(practitionerCancelledEmail(booking.patientEmail, { ...model, reason: input.reason }));
+  // Jamais confirmé donc jamais poussé ; synchro défensive (supprime le
+  // miroir Google s'il existe).
+  await syncBookingToGoogle(ports, booking.id);
   return { id: booking.id, status: "cancelled" };
 }
 
@@ -108,7 +112,7 @@ export async function cancelBooking(
   await bookingsDal.markBookingCancelled(booking.id, input.reason ?? null, now);
 
   // Pas de lien de gestion dans un email d'annulation : `manageUrl` vide.
-  const model = { ...mailModel(booking, detail), manageUrl: "" };
+  const model = { ...mailModel(booking, detail, { now }), manageUrl: "" };
   if (input.by === "patient") {
     const pracEmail = await usersDal.getUserEmail(prac.userId);
     if (pracEmail) {
@@ -124,6 +128,7 @@ export async function cancelBooking(
       practitionerCancelledEmail(booking.patientEmail, { ...model, reason: input.reason! }),
     );
   }
+  await syncBookingToGoogle(ports, booking.id);
   return { id: booking.id, status: "cancelled" };
 }
 
@@ -201,8 +206,9 @@ export async function rescheduleBooking(
   // grille du jour cible avec durée/buffer d'origine et vérifie l'alignement.
   const target = await moveBookingToNewSlot({ booking, prac, office, newStart, now });
 
-  const model = mailModel(booking, detail, target);
+  const model = mailModel(booking, detail, { now, ...target });
   await send(rescheduledEmail(booking.patientEmail, model));
+  await syncBookingToGoogle(ports, booking.id);
 
   return {
     id: booking.id,

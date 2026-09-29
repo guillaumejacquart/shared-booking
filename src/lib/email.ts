@@ -66,6 +66,7 @@ export function buildIcs(args: {
   location?: string;
   start: Date;
   end: Date;
+  stamp: Date;
   organizerEmail?: string;
   attendeeEmail?: string;
 }): IcsAttachment {
@@ -75,7 +76,7 @@ export function buildIcs(args: {
     "PRODID:-//shared-booking//FR",
     "BEGIN:VEVENT",
     `UID:${args.uid}@shared-booking`,
-    `DTSTAMP:${icsDate(new Date())}`,
+    `DTSTAMP:${icsDate(args.stamp)}`,
     `DTSTART:${icsDate(args.start)}`,
     `DTEND:${icsDate(args.end)}`,
     `SUMMARY:${escapeIcs(args.summary)}`,

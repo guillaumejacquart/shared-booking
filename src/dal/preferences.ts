@@ -1,6 +1,6 @@
 import { getConnection } from "./connection";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { userPreferences } from "@/db/schema";
 import type { UserPreferences } from "./types";
@@ -29,6 +29,6 @@ export async function savePreferences(
     .values({ userId, ...data })
     .onConflictDoUpdate({
       target: userPreferences.userId,
-      set: { ...data, updatedAt: new Date() },
+      set: { ...data, updatedAt: sql`(unixepoch())` },
     });
 }

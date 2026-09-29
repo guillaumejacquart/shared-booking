@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
-import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/i18n";
+import type { GoogleStatus } from "@/lib/services/google";
 import {
   Button,
   ConfirmButton,
@@ -13,81 +13,89 @@ import {
   Toggle,
 } from "@/components/ui";
 
-interface GooglePrefs {
-  syncEnabled: boolean;
-  calendarId: string;
-  showPatientName: boolean;
-  lastSyncAt: string | null;
-  lastError: string | null;
-}
-
-interface GoogleStatus {
-  configured: boolean;
-  connected: boolean;
-  prefs: GooglePrefs | null;
+export interface GoogleCalendar {
+  id: string;
+  summary: string;
+  primary?: boolean;
 }
 
 /**
  * Push des réservations vers Google Agenda (outbound, par praticien).
- * Connexion via Better Auth (`/link-social`), préférences via
- * `/api/google/status`, resynchro manuelle via `/api/google/connection`.
+ * État initial chargé côté serveur (page profil) ; connexion via
+ * `POST /api/auth/link-social`, préférences via `/api/google/status`,
+ * resynchro manuelle via `/api/google/connection`.
  */
-export default function GoogleAgendaSettings() {
-  const [status, setStatus] = useState<GoogleStatus | null>(null);
-  const [calendars, setCalendars] = useState<
-    { id: string; summary: string; primary?: boolean }[]
-  >([]);
-  const [syncEnabled, setSyncEnabled] = useState(false);
-  const [calendarId, setCalendarId] = useState("primary");
-  const [showPatientName, setShowPatientName] = useState(false);
+export default function GoogleAgendaSettings({
+  initialStatus,
+  initialCalendars,
+}: {
+  initialStatus: GoogleStatus;
+  initialCalendars: GoogleCalendar[];
+}) {
+  const [status, setStatus] = useState<GoogleStatus>(initialStatus);
+  const [calendars, setCalendars] = useState<GoogleCalendar[]>(initialCalendars);
+  const [syncEnabled, setSyncEnabled] = useState(
+    initialStatus.prefs?.syncEnabled ?? false,
+  );
+  const [calendarId, setCalendarId] = useState(
+    initialStatus.prefs?.calendarId ?? "primary",
+  );
+  const [showPatientName, setShowPatientName] = useState(
+    initialStatus.prefs?.showPatientName ?? false,
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null,
   );
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/google/status");
-      if (!res.ok) throw new Error(t("booking.errorGeneric"));
-      const s = (await res.json()) as GoogleStatus;
-      setStatus(s);
-      setSyncEnabled(s.prefs?.syncEnabled ?? false);
-      setCalendarId(s.prefs?.calendarId ?? "primary");
-      setShowPatientName(s.prefs?.showPatientName ?? false);
-      if (s.connected) {
-        const cal = await fetch("/api/google/calendars");
-        if (cal.ok) {
-          const j = (await cal.json()) as {
-            calendars: { id: string; summary: string; primary?: boolean }[];
-          };
-          setCalendars(j.calendars);
-        }
-      }
-    } catch (err) {
-      setMessage({
-        ok: false,
-        text: err instanceof Error ? err.message : t("booking.errorGeneric"),
-      });
-    }
-  }, []);
+  function showError(error: unknown) {
+    setMessage({
+      ok: false,
+      text: error instanceof Error ? error.message : t("booking.errorGeneric"),
+    });
+  }
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  function applyStatus(next: GoogleStatus) {
+    setStatus(next);
+    setSyncEnabled(next.prefs?.syncEnabled ?? false);
+    setCalendarId(next.prefs?.calendarId ?? "primary");
+    setShowPatientName(next.prefs?.showPatientName ?? false);
+  }
+
+  async function refresh() {
+    const res = await fetch("/api/google/status");
+    if (!res.ok) throw new Error(t("booking.errorGeneric"));
+    applyStatus((await res.json()) as GoogleStatus);
+    const calRes = await fetch("/api/google/calendars");
+    if (calRes.ok) {
+      const body = (await calRes.json()) as { calendars: GoogleCalendar[] };
+      setCalendars(body.calendars);
+    }
+  }
 
   async function connect() {
     setBusy(true);
     setMessage(null);
     try {
-      await authClient.linkSocialAccount({
-        provider: "google",
-        callbackURL: "/dashboard/profil?tab=google",
+      const res = await fetch("/api/auth/link-social", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "google",
+          callbackURL: "/dashboard/profil?tab=google",
+          disableRedirect: true,
+        }),
       });
-    } catch (err) {
-      setMessage({
-        ok: false,
-        text: err instanceof Error ? err.message : t("booking.errorGeneric"),
-      });
+      const body = (await res.json().catch(() => null)) as { url?: string } | null;
+      if (!res.ok || !body?.url) {
+        throw new Error(
+          ((body as { error?: string } | null)?.error as string) ||
+            t("booking.errorGeneric"),
+        );
+      }
+      window.location.href = body.url;
+    } catch (error) {
+      showError(error);
       setBusy(false);
     }
   }
@@ -101,15 +109,13 @@ export default function GoogleAgendaSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ syncEnabled, calendarId, showPatientName }),
       });
-      const j = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      setStatus(j as GoogleStatus);
+      const body = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error((body?.error as string) || t("booking.errorGeneric"));
+      applyStatus(body as GoogleStatus);
       setMessage({ ok: true, text: t("dashboard.saved") });
-    } catch (err) {
-      setMessage({
-        ok: false,
-        text: err instanceof Error ? err.message : t("booking.errorGeneric"),
-      });
+    } catch (error) {
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -121,13 +127,10 @@ export default function GoogleAgendaSettings() {
     try {
       const res = await fetch("/api/google/connection", { method: "DELETE" });
       if (!res.ok) throw new Error(t("booking.errorGeneric"));
-      await load();
+      await refresh();
       setMessage({ ok: true, text: t("dashboard.saved") });
-    } catch (err) {
-      setMessage({
-        ok: false,
-        text: err instanceof Error ? err.message : t("booking.errorGeneric"),
-      });
+    } catch (error) {
+      showError(error);
     } finally {
       setBusy(false);
     }
@@ -138,28 +141,22 @@ export default function GoogleAgendaSettings() {
     setMessage(null);
     try {
       const res = await fetch("/api/google/connection", { method: "POST" });
-      const j = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      await load();
+      const body = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error((body?.error as string) || t("booking.errorGeneric"));
+      await refresh();
       setMessage({
-        ok: (j?.failed as number) === 0,
+        ok: (body?.failed as number) === 0,
         text: t("google.resyncDone", {
-          ok: (j?.ok as number) ?? 0,
-          failed: (j?.failed as number) ?? 0,
+          ok: (body?.ok as number) ?? 0,
+          failed: (body?.failed as number) ?? 0,
         }),
       });
-    } catch (err) {
-      setMessage({
-        ok: false,
-        text: err instanceof Error ? err.message : t("booking.errorGeneric"),
-      });
+    } catch (error) {
+      showError(error);
     } finally {
       setBusy(false);
     }
-  }
-
-  if (!status) {
-    return <p className="text-sm text-mist">{t("booking.loading")}</p>;
   }
 
   if (!status.configured) {
@@ -171,7 +168,9 @@ export default function GoogleAgendaSettings() {
       <div className="flex max-w-xl flex-col gap-4">
         <p className="text-sm text-mist">{t("google.connectHint")}</p>
         {message ? (
-          <FormMessage tone={message.ok ? "ok" : "error"}>{message.text}</FormMessage>
+          <FormMessage tone={message.ok ? "ok" : "error"}>
+            {message.text}
+          </FormMessage>
         ) : null}
         <Button onClick={connect} disabled={busy} className="w-fit">
           {t("google.connect")}
@@ -183,19 +182,26 @@ export default function GoogleAgendaSettings() {
   return (
     <div className="flex max-w-xl flex-col gap-4">
       <Field label={t("google.calendar")}>
-        <Select value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
+        <Select
+          value={calendarId}
+          onChange={(event) => setCalendarId(event.target.value)}
+        >
           {calendars.length === 0 ? (
             <option value="primary">Agenda principal</option>
           ) : (
-            calendars.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.summary}
+            calendars.map((cal) => (
+              <option key={cal.id} value={cal.id}>
+                {cal.summary}
               </option>
             ))
           )}
         </Select>
       </Field>
-      <Toggle checked={syncEnabled} onChange={setSyncEnabled} label={t("google.syncEnabled")} />
+      <Toggle
+        checked={syncEnabled}
+        onChange={setSyncEnabled}
+        label={t("google.syncEnabled")}
+      />
       <Toggle
         checked={showPatientName}
         onChange={setShowPatientName}
@@ -204,20 +210,29 @@ export default function GoogleAgendaSettings() {
       <p className="text-sm text-mist">{t("google.privacyHint")}</p>
       {status.prefs?.lastSyncAt ? (
         <p className="text-sm text-mist">
-          {t("google.lastSync", { when: new Date(status.prefs.lastSyncAt).toLocaleString("fr-FR") })}
+          {t("google.lastSync", {
+            when: new Date(status.prefs.lastSyncAt).toLocaleString("fr-FR"),
+          })}
         </p>
       ) : null}
       {status.prefs?.lastError ? (
         <FormMessage tone="error">{status.prefs.lastError}</FormMessage>
       ) : null}
       {message ? (
-        <FormMessage tone={message.ok ? "ok" : "error"}>{message.text}</FormMessage>
+        <FormMessage tone={message.ok ? "ok" : "error"}>
+          {message.text}
+        </FormMessage>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button onClick={save} disabled={busy} className="w-fit">
           {t("sessionTypesAdmin.save")}
         </Button>
-        <Button variant="secondary" onClick={resync} disabled={busy} className="w-fit">
+        <Button
+          variant="secondary"
+          onClick={resync}
+          disabled={busy}
+          className="w-fit"
+        >
           {t("google.resync")}
         </Button>
         <ConfirmButton

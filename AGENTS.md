@@ -63,6 +63,6 @@ La plupart sont vérifiées par ESLint (`npm run lint`) : garder lint + `npm run
 - Seuls `src/lib/services/**` accèdent en runtime à `@/dal` / `@/db` ;
   `import type` est accepté partout.
 - Tolérances documentées : pages RSC (`app/**/page.tsx`) en **lecture seule**,
-  `src/lib/auth.ts` et `src/lib/google-sync.ts` (infra/adaptateurs),
+  `src/lib/auth.ts` et `src/lib/google-calendar.ts` (infra/adaptateurs),
   `src/lib/dashboard.ts` (agrégat de lecture des pages).
 - Écrire en base ou porter une règle métier depuis une page → déplacer dans un service.

@@ -11,6 +11,7 @@ import {
   type SendEmail,
 } from "@/lib/email";
 import { googleCalendarTemplateUrl } from "@/lib/google-template";
+import type { Ports } from "@/lib/ports";
 
 /**
  * Service réservation (logique métier). Appelé par les routes HTTP et le cron.
@@ -55,16 +56,16 @@ export type MailBooking = Pick<
  * à la pièce ICS et au lien Google Agenda. Les call sites n'assemblent jamais
  * les pièces à la main.
  *
- * `times` permet de décrire le créneau cible (report) sans toucher à la
- * réservation.
+ * `start`/`end` décrivent le créneau cible (report) sans toucher à la
+ * réservation ; `now` date la pièce ICS.
  */
 export function mailModel(
   booking: MailBooking,
   detail: Pick<BookingDetail, "practitioner" | "office">,
-  times?: { start: Date; end: Date },
+  options: { now: Date; start?: Date; end?: Date },
 ): BookingMailPayload {
-  const start = times?.start ?? booking.startAt;
-  const end = times?.end ?? booking.endAt;
+  const start = options.start ?? booking.startAt;
+  const end = options.end ?? booking.endAt;
   const title = `${booking.sessionNameSnapshot} — ${detail.practitioner.displayName}`;
   const location = detail.office.address
     ? `${detail.office.name}, ${detail.office.address}`
@@ -84,6 +85,7 @@ export function mailModel(
       location,
       start,
       end,
+      stamp: options.now,
       attendeeEmail: booking.patientEmail,
     }),
     googleUrl: googleCalendarTemplateUrl({
@@ -98,16 +100,16 @@ export function mailModel(
 
 /** Notifie le praticien qu'une demande attend sa validation (sinon il ne le sait jamais). */
 export async function notifyValidationRequest(
-  send: SendEmail,
+  ports: Ports,
   detail: Pick<BookingDetail, "practitioner" | "office">,
   booking: MailBooking & Pick<Booking, "patientFirstName" | "patientLastName">,
 ): Promise<void> {
   const pracEmail = await usersDal.getUserEmail(detail.practitioner.userId);
   if (!pracEmail) return;
   await safeSend(
-    send,
+    ports.sendEmail,
     validationRequestEmail(pracEmail, {
-      ...mailModel(booking, detail),
+      ...mailModel(booking, detail, { now: ports.clock.now() }),
       patientName: `${booking.patientFirstName} ${booking.patientLastName}`,
     }),
   );

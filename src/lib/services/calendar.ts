@@ -173,3 +173,13 @@ export async function getSharedCalendar(input: SharedCalendarInput) {
     }),
   };
 }
+
+/** Surface du service calendrier (utilisée par les routes via le container). */
+export interface CalendarService {
+  agenda: typeof getAgendaEvents;
+  shared: typeof getSharedCalendar;
+}
+
+export function createCalendarService(): CalendarService {
+  return { agenda: getAgendaEvents, shared: getSharedCalendar };
+}

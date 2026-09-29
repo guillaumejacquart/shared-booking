@@ -3,7 +3,8 @@ import cron from "node-cron";
 import { services } from "@/lib/container";
 
 /**
- * Tâches planifiées (rappels email 24h avant + clôture des RDV passés).
+ * Tâches planifiées : rappels, clôture des RDV passés, pendings expirés,
+ * retry du push Google.
  * Garde anti-double-démarrage : `register()` peut être appelé par plusieurs
  * workers en dev (HMR).
  */
@@ -31,5 +32,13 @@ export function startScheduler(): void {
       console.error("[scheduler] échec libération pendings", error);
     }
   });
-  console.log('[scheduler] rappels planifiés ("5 * * * *"), pendings ("*/10 * * * *")');
+  cron.schedule("*/15 * * * *", async () => {
+    try {
+      const { ok, failed } = await services.google.retryDue();
+      if (ok > 0 || failed > 0) console.log(`[scheduler] google resync: ${ok} ok, ${failed} en échec`);
+    } catch (error) {
+      console.error("[scheduler] échec resync google", error);
+    }
+  });
+  console.log('[scheduler] rappels ("5 * * * *"), pendings ("*/10 * * * *"), google ("*/15 * * * *")');
 }

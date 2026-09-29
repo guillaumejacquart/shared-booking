@@ -208,7 +208,7 @@ Overlap checks must be done in a transaction (SQLite: `BEGIN IMMEDIATE`) checkin
 
 ## 10. Explicitly out of MVP
 
-Payments, SMS, patient accounts, recurring bookings (abonnements), group sessions (>1 patient/slot), waiting list, video links, iCal feed in/out (except ICS attachment on confirmation), multi-office, billing UI, analytics, SEO directory, photo uploads (URL only or skip).
+Payments, SMS, patient accounts, recurring bookings (abonnements), group sessions (>1 patient/slot), waiting list, video links, CalDAV/inbound sync (Google → créneaux), multi-office, billing UI, analytics, SEO directory, photo uploads (URL only or skip).
 
 ## 11. Next steps
 
@@ -224,8 +224,21 @@ Payments, SMS, patient accounts, recurring bookings (abonnements), group session
 - Annuler un RDV payé ne rembourse pas (manuel via dashboard Stripe).
 - MVP : un seul compte Stripe plateforme (Connect plus tard).
 
+### Google Agenda outbound (implémenté)
+
+- Par praticien (OAuth Google, scope `calendar.events`, refresh token stocké
+  par Better Auth) : push création / report / suppression à la confirmation,
+  au report et à l'annulation. Best-effort (échec → statut `error` + retry
+  cron `*/15 * * * *` + bouton « Resynchroniser »).
+- Titre anonymisé (« Réservé ») par défaut ; nom + contacts + notes uniquement
+  si opt-in `showPatientName`. Agenda de destination au choix (`calendarId`).
+- Sans configuration (`GOOGLE_CLIENT_*` absents), tout reste local.
+- Côté patient (sans compte) : lien « Ajouter à Google Agenda » dans les
+  emails de confirmation / report et sur la page de confirmation.
+
 ### Reste à faire
 
 1. Validation praticien (UI agenda : valider/refuser les pendings).
 2. RDV créés par le praticien (téléphone) depuis l'agenda.
-3. Déployer sur le VPS et tester avec le cabinet pilote.
+3. Google Agenda inbound (bloquer les créneaux sur les indisponibilités Google).
+4. Déployer sur le VPS et tester avec le cabinet pilote.

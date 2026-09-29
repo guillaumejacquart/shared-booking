@@ -1,11 +1,7 @@
 import * as bookingsDal from "@/dal/bookings";
 import * as practitionersDal from "@/dal/practitioners";
 import type { NewBooking } from "@/dal/types";
-import {
-  confirmationEmail,
-  validationPendingEmail,
-  type SendEmail,
-} from "@/lib/email";
+import { confirmationEmail, validationPendingEmail } from "@/lib/email";
 import { env } from "@/lib/env";
 import type { Ports, StripeLike } from "@/lib/ports";
 import type { BookingResult, CreateBookingInput } from "@/lib/schemas/bookings";
@@ -24,6 +20,7 @@ import {
   type MailBooking,
 } from "./shared";
 import { getSlotsWithRoom, slotOnGrid } from "./slots";
+import { syncBookingToGoogle } from "../google-sync";
 
 type PractitionerPage = NonNullable<
   Awaited<ReturnType<typeof practitionersDal.getPractitionerPage>>
@@ -153,16 +150,19 @@ async function insertBookingGuarded(data: NewBooking): Promise<string> {
 
 /** Emails post-insertion selon le statut (confirmé / à valider / à payer). */
 async function sendCreationEmails(
-  send: SendEmail,
+  ports: Ports,
   page: PractitionerPage,
   booking: MailBooking & { patientFirstName: string; patientLastName: string },
   opts: { confirmed: boolean; needsPayment: boolean },
 ): Promise<void> {
-  const model = mailModel(booking, page);
+  const send = ports.sendEmail;
+  const model = mailModel(booking, page, { now: ports.clock.now() });
   if (opts.confirmed) {
     // Flux classique : confirmation immédiate (best-effort : la réservation
-    // reste confirmée même si l'email échoue).
+    // reste confirmée même si l'email échoue), puis push Google Agenda
+    // (best-effort aussi : échec persisté, retry par le cron).
     await safeSend(send, confirmationEmail(booking.patientEmail, model));
+    await syncBookingToGoogle(ports, booking.id);
     return;
   }
   // Cas payant : aucun email avant le paiement (le webhook confirme).
@@ -170,7 +170,7 @@ async function sendCreationEmails(
   // Validation praticien sans paiement : accusé de réception patient...
   await safeSend(send, validationPendingEmail(booking.patientEmail, model));
   // ...et notification au praticien (sinon il ne sait pas qu'il doit agir).
-  await notifyValidationRequest(send, page, booking);
+  await notifyValidationRequest(ports, page, booking);
 }
 
 /**
@@ -223,7 +223,6 @@ async function resolveBookingPlan(
 export async function createBooking(ports: Ports, input: CreateBookingInput): Promise<BookingResult> {
   const { page, st, start, now, email, needsPayment, needsValidation, stripe } =
     await resolveBookingPlan(ports, input);
-  const send = ports.sendEmail;
   const { cancelToken, rescheduleToken } = tokens();
   const bookingId = crypto.randomUUID();
   const status = needsPayment || needsValidation ? "pending" : "confirmed";
@@ -258,7 +257,7 @@ export async function createBooking(ports: Ports, input: CreateBookingInput): Pr
     pendingExpiresAt: needsPayment ? new Date(now.getTime() + PENDING_TTL_MS) : null,
   };
   const bookedId = await insertBookingGuarded(row);
-  await sendCreationEmails(send, page, row, {
+  await sendCreationEmails(ports, page, row, {
     confirmed: status === "confirmed",
     needsPayment,
   });

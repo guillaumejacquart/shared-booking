@@ -1,6 +1,6 @@
 import { getConnection } from "./connection";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { practitionerGoogle } from "@/db/schema";
 import type { PractitionerGoogle } from "./types";
@@ -32,7 +32,7 @@ export async function saveGooglePrefs(
   data: GooglePrefsInput,
 ): Promise<PractitionerGoogle> {
   const conn = getConnection();
-  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  const patch: Record<string, unknown> = { updatedAt: sql`(unixepoch())` };
   if (data.syncEnabled !== undefined)
     patch.syncEnabled = data.syncEnabled;
   if (data.calendarId !== undefined) patch.calendarId = data.calendarId;

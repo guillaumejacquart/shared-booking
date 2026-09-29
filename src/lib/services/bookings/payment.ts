@@ -10,6 +10,7 @@ import {
   mailModel,
   notifyValidationRequest,
 } from "./shared";
+import { syncBookingToGoogle } from "../google-sync";
 
 // --- Paiement ----------------------------------------------------------------
 
@@ -51,13 +52,14 @@ export async function finalizeBookingIfReady(
   if (booking.validationRequired && !booking.validatedAt) {
     // Payé mais en attente de validation : on prévient le patient.
     if (booking.paymentStatus === "paid") {
-      await send(paymentReceivedEmail(booking.patientEmail, mailModel(booking, detail)));
-      await notifyValidationRequest(send, detail, booking);
+      await send(paymentReceivedEmail(booking.patientEmail, mailModel(booking, detail, { now: ports.clock.now() })));
+      await notifyValidationRequest(ports, detail, booking);
     }
     return false;
   }
   await bookingsDal.markBookingConfirmed(booking.id);
-  await send(confirmationEmail(booking.patientEmail, mailModel(booking, detail)));
+  await send(confirmationEmail(booking.patientEmail, mailModel(booking, detail, { now: ports.clock.now() })));
+  await syncBookingToGoogle(ports, booking.id);
   return true;
 }
 
