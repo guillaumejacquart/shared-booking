@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { rescheduleBooking } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 import { rescheduleBookingSchema } from "@/lib/schemas/bookings";
 import { readJsonBody, route } from "@/app/api/errors";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
@@ -14,6 +14,6 @@ export const POST = route(async (req: NextRequest) => {
     );
   }
   const body = await readJsonBody(req);
-  const result = await rescheduleBooking({}, rescheduleBookingSchema.parse(body));
+  const result = await services.bookings.reschedule(rescheduleBookingSchema.parse(body));
   return NextResponse.json(result);
 });

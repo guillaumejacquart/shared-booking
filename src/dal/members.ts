@@ -40,9 +40,9 @@ export async function listMembersWithUsers(officeId: string) {
     .from(member)
     .where(and(eq(member.officeId, officeId), eq(member.active, true)));
   const result = [];
-  for (const m of members) {
-    const users = await conn.select().from(user).where(eq(user.id, m.userId)).limit(1);
-    result.push({ member: m, user: users[0] ?? null });
+  for (const membership of members) {
+    const users = await conn.select().from(user).where(eq(user.id, membership.userId)).limit(1);
+    result.push({ member: membership, user: users[0] ?? null });
   }
   return result;
 }
@@ -58,21 +58,21 @@ export async function deactivateMember(memberId: string): Promise<void> {
     .from(member)
     .where(eq(member.id, memberId))
     .limit(1);
-  const m = rows[0];
-  if (!m) return;
+  const membership = rows[0];
+  if (!membership) return;
   await conn.update(member).set({ active: false }).where(eq(member.id, memberId));
 
   const pracRows = await conn
     .select()
     .from(practitioner)
     .where(
-      and(eq(practitioner.userId, m.userId), eq(practitioner.officeId, m.officeId)),
+      and(eq(practitioner.userId, membership.userId), eq(practitioner.officeId, membership.officeId)),
     )
     .limit(1);
-  const p = pracRows[0];
-  if (!p) return;
-  await conn.update(practitioner).set({ active: false }).where(eq(practitioner.id, p.id));
+  const prac = pracRows[0];
+  if (!prac) return;
+  await conn.update(practitioner).set({ active: false }).where(eq(practitioner.id, prac.id));
   // Quitte les allowlists de salles : sinon l'éditeur de salles renvoie un id
   // inactif et la sauvegarde est refusée.
-  await conn.delete(roomMember).where(eq(roomMember.practitionerId, p.id));
+  await conn.delete(roomMember).where(eq(roomMember.practitionerId, prac.id));
 }

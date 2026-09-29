@@ -65,7 +65,7 @@ export async function listCompatibleRoomIds(sessionTypeId: string): Promise<stri
     .select({ roomId: sessionTypeRoom.roomId })
     .from(sessionTypeRoom)
     .where(eq(sessionTypeRoom.sessionTypeId, sessionTypeId));
-  return rows.map((r) => r.roomId);
+  return rows.map((row) => row.roomId);
 }
 
 /** Salles compatibles de tous les types d'un praticien. */
@@ -81,8 +81,8 @@ export async function listCompatibleRoomsByPractitioner(
   const rows = await conn
     .select({ sessionTypeId: sessionTypeRoom.sessionTypeId, roomId: sessionTypeRoom.roomId })
     .from(sessionTypeRoom);
-  const ids = new Set(types.map((t) => t.id));
-  return rows.filter((r) => ids.has(r.sessionTypeId));
+  const ids = new Set(types.map((sessionType) => sessionType.id));
+  return rows.filter((row) => ids.has(row.sessionTypeId));
 }
 
 /** Remplace les salles compatibles d'un type de séance (vide = toutes). */

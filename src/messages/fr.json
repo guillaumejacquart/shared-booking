@@ -32,6 +32,7 @@
     "selectDay": "Sélectionnez un jour avec des disponibilités (pointillés).",
     "successTitle": "Réservation confirmée !",
     "successDetail": "Un email de confirmation, avec un lien pour annuler ou reporter, vient de vous être envoyé.",
+    "addToGoogle": "Ajouter à Google Agenda",
     "noSessionTypes": "Ce praticien ne propose pas de réservation en ligne pour le moment.",
     "full": "Aucun créneau disponible sur les 8 prochaines semaines.",
     "back": "Retour",
@@ -89,8 +90,7 @@
     "resetButton": "Enregistrer",
     "resetDone": "Mot de passe mis à jour, vous pouvez vous connecter.",
     "resetFailed": "Lien invalide ou expiré, recommencez la demande.",
-    "resetInvalid": "Lien invalide : recommencez depuis la page « Mot de passe oublié ».",
-    "passwordHint": "8 caractères minimum."
+    "resetInvalid": "Lien invalide : recommencez depuis la page « Mot de passe oublié »."
   },
   "onboarding": {
     "title": "Bienvenue",
@@ -123,6 +123,7 @@
     "tabProfile": "Mon profil",
     "tabSessionTypes": "Mes séances",
     "tabAvailability": "Mes disponibilités",
+    "tabGoogle": "Google Agenda",
     "publicTitle": "Votre page publique",
     "publicHint": "C'est ce lien que vous partagez à vos patients.",
     "visit": "Voir la page",
@@ -234,6 +235,20 @@
     "tabRooms": "Salles",
     "ambiance": "Ambiance des pages publiques",
     "ambianceHint": "Couleurs et mode d'affichage vus par vos patients sur vos pages de réservation (« Système » suit leur appareil)."
+  },
+  "google": {
+    "notConfigured": "Google Agenda n'est pas configuré sur ce serveur (clés GOOGLE_CLIENT_* manquantes).",
+    "connectHint": "Connectez votre compte Google pour recopier automatiquement vos réservations confirmées dans votre agenda.",
+    "connect": "Connecter Google",
+    "disconnect": "Déconnecter",
+    "disconnectConfirm": "Couper le push vers Google Agenda ? Les événements déjà créés restent dans votre agenda.",
+    "calendar": "Agenda de destination",
+    "syncEnabled": "Recopier mes réservations dans Google Agenda",
+    "showPatientName": "Afficher le nom des patients dans Google Agenda",
+    "privacyHint": "Par défaut, les événements sont anonymisés (« Réservé ») : ni nom, ni contact, ni notes. N'activez l'affichage des noms que si votre agenda Google est strictement privé.",
+    "lastSync": "Dernière synchronisation : {when}.",
+    "resync": "Resynchroniser",
+    "resyncDone": "{ok} synchronisée(s), {failed} en échec."
   },
   "theme": {
     "appearance": "Apparence",

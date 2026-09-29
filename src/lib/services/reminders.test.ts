@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { fixedClock } from "@/lib/ports";
+import { testPorts } from "@/test/ports";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { processReminders } from "@/lib/services/reminders";
@@ -49,8 +51,7 @@ beforeEach(async () => {
 
 describe("processReminders", () => {
   it("envoie les rappels dus une seule fois et clôture le passé", async () => {
-    const first = await processReminders({ now: NOW, sendEmail: async (e) => void sent.push(e),
-    });
+    const first = await processReminders(testPorts({ clock: fixedClock(NOW), sendEmail: async (email) => void sent.push(email) }));
     expect(first).toEqual({ sent: 1, completed: 1 });
     expect(sent[0].to).toBe("jean@example.com");
     expect(sent[0].subject).toContain("Rappel");
@@ -63,8 +64,7 @@ describe("processReminders", () => {
     expect(b3[0].status).toBe("completed");
 
     // Second passage : rien à faire (idempotent).
-    const second = await processReminders({ now: NOW, sendEmail: async (e) => void sent.push(e),
-    });
+    const second = await processReminders(testPorts({ clock: fixedClock(NOW), sendEmail: async (email) => void sent.push(email) }));
     expect(second).toEqual({ sent: 0, completed: 0 });
   });
 });

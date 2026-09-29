@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { updateOfficeSettings } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { updateOfficeSettingsSchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -16,6 +16,6 @@ export const PATCH = withAuth(async (user, req: NextRequest,
     officeId: id,
     requesterUserId: user.id,
   });
-  await updateOfficeSettings(input);
+  await services.schedule.updateOfficeSettings(input);
   return NextResponse.json({ ok: true });
 });

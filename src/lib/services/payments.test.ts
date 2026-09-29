@@ -10,6 +10,8 @@ import {
 } from "@/lib/services/bookings";
 import { ValidationError } from "@/lib/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
+import { fixedClock, type Ports } from "@/lib/ports";
+import { testPorts } from "@/test/ports";
 
 let db: Db;
 let sent: OutgoingEmail[];
@@ -29,12 +31,13 @@ const fakeStripe = {
   },
 };
 
-function deps(extra = {}) {
-  return { now: NOW,
-    sendEmail: async (e: OutgoingEmail) => void sent.push(e),
+function ports(extra: Partial<Ports> = {}) {
+  return testPorts({
+    clock: fixedClock(NOW),
+    sendEmail: async (email: OutgoingEmail) => void sent.push(email),
     stripeClient: fakeStripe,
     ...extra,
-  };
+  });
 }
 
 async function seed() {
@@ -72,7 +75,7 @@ beforeEach(async () => {
 
 describe("paid booking", () => {
   it("crée un pending + session Stripe, sans email", async () => {
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
     });
     expect(res.status).toBe("pending");
@@ -87,12 +90,12 @@ describe("paid booking", () => {
   });
 
   it("un pending bloque le créneau comme un confirmé", async () => {
-    await createBooking(deps(), {
+    await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
     });
     const { ConflictError } = await import("@/lib/services/errors");
     await expect(
-      createBooking(deps(), {
+      createBooking(ports(), {
         practitionerSlug: "alice", sessionTypeId: "stFree", startAt: SLOT,
         ...patient, patientEmail: "autre@example.com",
       }),
@@ -101,7 +104,7 @@ describe("paid booking", () => {
 
   it("refuse si Stripe n'est pas configuré", async () => {
     await expect(
-      createBooking({ now: NOW, sendEmail: async () => {} }, {
+      createBooking(testPorts({ clock: fixedClock(NOW) }), {
         practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -109,7 +112,7 @@ describe("paid booking", () => {
 
   it("refuse un type payant sans prix", async () => {
     await expect(
-      createBooking(deps(), {
+      createBooking(ports(), {
         practitionerSlug: "alice", sessionTypeId: "stBroken", startAt: SLOT, ...patient,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -118,17 +121,17 @@ describe("paid booking", () => {
 
 describe("applyPaymentCompleted", () => {
   it("confirme + envoie la confirmation (idempotent)", async () => {
-    await createBooking(deps(), {
+    await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
     });
-    const first = await applyPaymentCompleted(deps(), {
+    const first = await applyPaymentCompleted(ports(), {
       stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
     });
     expect(first).toEqual({ applied: true, confirmed: true });
     expect(sent).toHaveLength(1);
     expect(sent[0].subject).toContain("Confirmation");
 
-    const second = await applyPaymentCompleted(deps(), {
+    const second = await applyPaymentCompleted(ports(), {
       stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
     });
     expect(second).toEqual({ applied: false, confirmed: false });
@@ -137,16 +140,16 @@ describe("applyPaymentCompleted", () => {
 
   it("session inconnue → ignoré (pas d'erreur, pas de retry auto)", async () => {
     await expect(
-      applyPaymentCompleted(deps(), { stripeSessionId: "cs_nope", paymentIntentId: null }),
+      applyPaymentCompleted(ports(), { stripeSessionId: "cs_nope", paymentIntentId: null }),
     ).resolves.toEqual({ applied: false, confirmed: false });
   });
 
   it("payé + validation requise → reste pending + email de réception", async () => {
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "stPaidVal", startAt: SLOT, ...patient,
     });
     expect(res.status).toBe("pending");
-    const out = await applyPaymentCompleted(deps(), {
+    const out = await applyPaymentCompleted(ports(), {
       stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
     });
     expect(out).toEqual({ applied: true, confirmed: false });
@@ -179,7 +182,7 @@ describe("releaseExpiredPendings", () => {
         cancelToken: "c2", rescheduleToken: "r2",
       },
     ]);
-    const n = await releaseExpiredPendings(deps());
+    const n = await releaseExpiredPendings(ports());
     expect(n).toBe(1);
     const { eq } = await import("drizzle-orm");
     const rows = await db.select().from(s.booking).where(eq(s.booking.id, "exp1"));

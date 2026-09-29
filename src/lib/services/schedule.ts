@@ -5,6 +5,7 @@ import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
+import type { Ports } from "@/lib/ports";
 import { sortRooms } from "@/lib/rooms";
 import { dateStrInTz } from "@/lib/timezone";
 
@@ -48,18 +49,18 @@ async function checkAccess(
   const prac = await practitionersDal.getPractitionerById(practitionerId);
   if (!prac) throw new NotFoundError("Praticien introuvable");
   if (prac.userId === requesterUserId && prac.active) return { officeId: prac.officeId };
-  const m = await membersDal.getMembership(prac.officeId, requesterUserId);
-  if (!m || m.role !== "owner" || !m.active) {
+  const membership = await membersDal.getMembership(prac.officeId, requesterUserId);
+  if (!membership || membership.role !== "owner" || !membership.active) {
     throw new ForbiddenError("Action non autorisée");
   }
   return { officeId: prac.officeId };
 }
 
-function toMinutes(t: string): number {
-  if (!/^\d{2}:\d{2}$/.test(t)) throw new ValidationError("Heure invalide (HH:MM attendu)");
-  const [h, m] = t.split(":").map(Number);
-  if (h > 23 || m > 59) throw new ValidationError("Heure invalide (HH:MM attendu)");
-  return h * 60 + m;
+function toMinutes(hhmm: string): number {
+  if (!/^\d{2}:\d{2}$/.test(hhmm)) throw new ValidationError("Heure invalide (HH:MM attendu)");
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  if (hours > 23 || minutes > 59) throw new ValidationError("Heure invalide (HH:MM attendu)");
+  return hours * 60 + minutes;
 }
 
 /** Salles utilisables par le praticien : allowlist vide = toutes. */
@@ -68,7 +69,7 @@ async function assertRoomAllowed(
   practitionerId: string,
   roomId: string,
 ): Promise<void> {
-  const entry = rooms.find((r) => r.room.id === roomId);
+  const entry = rooms.find((entry) => entry.room.id === roomId);
   if (!entry) throw new ValidationError("Salle inconnue");
   if (entry.practitionerIds.length > 0 && !entry.practitionerIds.includes(practitionerId)) {
     throw new ValidationError("Salle non autorisée pour ce praticien");
@@ -94,25 +95,25 @@ function buildSessionTypePayload(input: SaveSessionTypeInput) {
 export async function replaceAvailability(input: ReplaceAvailabilityInput): Promise<void> {
   await checkAccess(input.practitionerId, input.requesterUserId);
 
-  for (const r of input.rules) {
-    if (toMinutes(r.startTime) >= toMinutes(r.endTime)) {
+  for (const rule of input.rules) {
+    if (toMinutes(rule.startTime) >= toMinutes(rule.endTime)) {
       throw new ValidationError("L'heure de fin doit être après le début");
     }
   }
   // Chevauchements sur un même jour (bornes qui se touchent = OK).
   const byDay = new Map<number, { start: number; end: number }[]>();
-  for (const r of input.rules) {
-    const list = byDay.get(r.weekday) ?? [];
-    const cur = { start: toMinutes(r.startTime), end: toMinutes(r.endTime) };
-    if (list.some((o) => cur.start < o.end && o.start < cur.end)) {
+  for (const rule of input.rules) {
+    const list = byDay.get(rule.weekday) ?? [];
+    const cur = { start: toMinutes(rule.startTime), end: toMinutes(rule.endTime) };
+    if (list.some((other) => cur.start < other.end && other.start < cur.end)) {
       throw new ValidationError("Deux plages se chevauchent le même jour");
     }
     list.push(cur);
-    byDay.set(r.weekday, list);
+    byDay.set(rule.weekday, list);
   }
 
   await availabilityDal.replaceAvailabilityRules(input.practitionerId,
-    input.rules.map((r) => ({ id: crypto.randomUUID(), ...r })));
+    input.rules.map((rule) => ({ id: crypto.randomUUID(), ...rule })));
 }
 
 // --- Types de séances --------------------------------------------------------
@@ -134,7 +135,7 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
 
   if (input.id) {
     const existing = (await sessionTypesDal.listSessionTypes(practitionerId)).find(
-      (t) => t.id === input.id,
+      (sessionType) => sessionType.id === input.id,
     );
     if (!existing) throw new NotFoundError("Type de séance introuvable");
     await sessionTypesDal.updateSessionType(input.id, {
@@ -154,10 +155,11 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
   return id;
 }
 
-export async function deleteSessionType(input: DeleteSessionTypeInput, now: Date = new Date()): Promise<void> {
+export async function deleteSessionType(ports: Ports, input: DeleteSessionTypeInput): Promise<void> {
+  const now = ports.clock.now();
   await checkAccess(input.practitionerId, input.requesterUserId);
   const existing = (await sessionTypesDal.listSessionTypes(input.practitionerId)).find(
-    (t) => t.id === input.id,
+    (sessionType) => sessionType.id === input.id,
   );
   if (!existing) throw new NotFoundError("Type de séance introuvable");
   const future = await sessionTypesDal.countFutureBookingsBySessionType(input.id, now);
@@ -171,10 +173,12 @@ export async function deleteSessionType(input: DeleteSessionTypeInput, now: Date
 
 // --- Exceptions --------------------------------------------------------------
 
-export async function createException(input: CreateExceptionInput): Promise<string> {
-  const { practitionerId } = input;
-  const { officeId } = await checkAccess(practitionerId, input.requesterUserId);
-
+/** Contraintes de saisie d'une exception (horaires cohérents, salle si ouverture). */
+async function assertValidException(
+  input: CreateExceptionInput,
+  officeId: string,
+  practitionerId: string,
+): Promise<void> {
   if (!input.fullDay) {
     if (!input.startTime || !input.endTime) {
       throw new ValidationError("Heures de début et fin requises");
@@ -188,6 +192,12 @@ export async function createException(input: CreateExceptionInput): Promise<stri
     const rooms = await roomsDal.listRoomsWithMembers(officeId);
     await assertRoomAllowed(rooms, practitionerId, input.roomId);
   }
+}
+
+export async function createException(input: CreateExceptionInput): Promise<string> {
+  const { practitionerId } = input;
+  const { officeId } = await checkAccess(practitionerId, input.requesterUserId);
+  await assertValidException(input, officeId, practitionerId);
 
   return availabilityDal.createException({
     id: crypto.randomUUID(),
@@ -230,8 +240,8 @@ export async function updateProfile(input: UpdateProfileInput): Promise<void> {
 // --- Salles (owner) ----------------------------------------------------------
 
 async function requireOwner(officeId: string, userId: string): Promise<void> {
-  const m = await membersDal.getMembership(officeId, userId);
-  if (!m || m.role !== "owner" || !m.active) {
+  const membership = await membersDal.getMembership(officeId, userId);
+  if (!membership || membership.role !== "owner" || !membership.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut gérer les salles");
   }
 }
@@ -240,14 +250,14 @@ export async function saveRoom(input: SaveRoomInput): Promise<string> {
   await requireOwner(input.officeId, input.requesterUserId);
 
   const pracs = await practitionersDal.listPractitionersByOffice(input.officeId);
-  const ids = new Set(pracs.map((p) => p.id));
+  const ids = new Set(pracs.map((prac) => prac.id));
   if (!input.practitionerIds.every((id) => ids.has(id))) {
     throw new ValidationError("Praticien inconnu dans ce cabinet");
   }
 
   if (input.id) {
     const rooms = await roomsDal.listRooms(input.officeId);
-    if (!rooms.some((r) => r.id === input.id)) throw new NotFoundError("Salle introuvable");
+    if (!rooms.some((room) => room.id === input.id)) throw new NotFoundError("Salle introuvable");
     await roomsDal.updateRoom(input.id, { name: input.name, color: input.color });
     await roomsDal.replaceRoomMembers(input.id, input.practitionerIds);
     return input.id;
@@ -258,10 +268,11 @@ export async function saveRoom(input: SaveRoomInput): Promise<string> {
   return id;
 }
 
-export async function deleteRoom(input: DeleteRoomInput, now: Date = new Date()): Promise<void> {
+export async function deleteRoom(ports: Ports, input: DeleteRoomInput): Promise<void> {
+  const now = ports.clock.now();
   await requireOwner(input.officeId, input.requesterUserId);
   const rooms = await roomsDal.listRooms(input.officeId);
-  if (!rooms.some((r) => r.id === input.id)) throw new NotFoundError("Salle introuvable");
+  if (!rooms.some((room) => room.id === input.id)) throw new NotFoundError("Salle introuvable");
   const future = await roomsDal.countFutureBookingsByRoom(input.id, now);
   if (future > 0) {
     throw new ValidationError("Salle utilisée par des réservations à venir");
@@ -275,13 +286,13 @@ export async function deleteRoom(input: DeleteRoomInput, now: Date = new Date())
 
 // --- Paramètres cabinet (owner) ----------------------------------------------
 
-export async function updateOfficeSettings(input: UpdateOfficeSettingsInput): Promise<void> {
-  await requireOwner(input.officeId, input.requesterUserId);
-  const office = await officesDal.getOfficeById(input.officeId);
-  if (!office) throw new NotFoundError("Cabinet introuvable");
-
-  // Patch explicite : seuls les champs fournis sont écrits (le schéma Zod a
-  // déjà supprimé les clés inconnues et validé chaque type).
+/**
+ * Patch cabinet : seuls les champs fournis sont écrits (le schéma Zod a déjà
+ * supprimé les clés inconnues et validé chaque type).
+ */
+function buildOfficePatch(
+  input: UpdateOfficeSettingsInput,
+): Parameters<typeof officesDal.updateOffice>[1] {
   const patch: Parameters<typeof officesDal.updateOffice>[1] = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.address !== undefined) patch.address = input.address || null;
@@ -297,6 +308,14 @@ export async function updateOfficeSettings(input: UpdateOfficeSettingsInput): Pr
   }
   if (input.themePalette !== undefined) patch.themePalette = input.themePalette;
   if (input.themeMode !== undefined) patch.themeMode = input.themeMode;
+  return patch;
+}
+
+export async function updateOfficeSettings(input: UpdateOfficeSettingsInput): Promise<void> {
+  await requireOwner(input.officeId, input.requesterUserId);
+  const office = await officesDal.getOfficeById(input.officeId);
+  if (!office) throw new NotFoundError("Cabinet introuvable");
+  const patch = buildOfficePatch(input);
   if (Object.keys(patch).length === 0) return;
   await officesDal.updateOffice(input.officeId, patch);
 }
@@ -334,36 +353,65 @@ export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
     roomsDal.listRoomsWithMembers(prac.officeId),
   ]);
   return {
-    rules: rules.map((r) => ({
-      weekday: r.weekday,
-      startTime: r.startTime,
-      endTime: r.endTime,
+    rules: rules.map((rule) => ({
+      weekday: rule.weekday,
+      startTime: rule.startTime,
+      endTime: rule.endTime,
     })),
-    exceptions: exceptions.map((x) => ({
-      id: x.id,
-      date: x.date,
-      kind: x.kind,
-      startTime: x.startTime,
-      endTime: x.endTime,
-      fullDay: x.fullDay,
-      roomId: x.roomId,
-      reason: x.reason,
+    exceptions: exceptions.map((exception) => ({
+      id: exception.id,
+      date: exception.date,
+      kind: exception.kind,
+      startTime: exception.startTime,
+      endTime: exception.endTime,
+      fullDay: exception.fullDay,
+      roomId: exception.roomId,
+      reason: exception.reason,
     })),
     bookings: bookings
-      .filter((b) => b.status !== "cancelled")
-      .map((b) => ({
-        id: b.id,
-        startAt: b.startAt.toISOString(),
-        endAt: b.endAt.toISOString(),
-        status: b.status,
+      .filter((booking) => booking.status !== "cancelled")
+      .map((booking) => ({
+        id: booking.id,
+        startAt: booking.startAt.toISOString(),
+        endAt: booking.endAt.toISOString(),
+        status: booking.status,
       })),
     // Salles utilisables par le praticien uniquement (allowlist vide = toutes),
     // comme sur la page profil : le formulaire d'ouverture exceptionnelle ne
     // doit pas proposer de salle interdite (l'API la refuserait de toute façon).
     rooms: sortRooms(
       roomsWithMembers.filter(
-        (r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(prac.id),
+        (entry) => entry.practitionerIds.length === 0 || entry.practitionerIds.includes(prac.id),
       ),
-    ).map((r) => ({ id: r.room.id, name: r.room.name, color: r.room.color })),
+    ).map((entry) => ({ id: entry.room.id, name: entry.room.name, color: entry.room.color })),
+  };
+}
+
+/** Surface du service paramétrage (utilisée par les routes via le container). */
+export interface ScheduleService {
+  replaceAvailability: typeof replaceAvailability;
+  saveSessionType: typeof saveSessionType;
+  deleteSessionType(input: DeleteSessionTypeInput): ReturnType<typeof deleteSessionType>;
+  createException: typeof createException;
+  deleteException: typeof deleteException;
+  updateProfile: typeof updateProfile;
+  saveRoom: typeof saveRoom;
+  deleteRoom(input: DeleteRoomInput): ReturnType<typeof deleteRoom>;
+  updateOfficeSettings: typeof updateOfficeSettings;
+  getAvailabilityMonth: typeof getAvailabilityMonth;
+}
+
+export function createScheduleService(ports: Ports): ScheduleService {
+  return {
+    replaceAvailability,
+    saveSessionType,
+    deleteSessionType: (input) => deleteSessionType(ports, input),
+    createException,
+    deleteException,
+    updateProfile,
+    saveRoom,
+    deleteRoom: (input) => deleteRoom(ports, input),
+    updateOfficeSettings,
+    getAvailabilityMonth,
   };
 }

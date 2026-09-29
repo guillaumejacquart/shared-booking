@@ -11,6 +11,8 @@ import {
   ValidationError,
 } from "@/lib/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
+import { fixedClock } from "@/lib/ports";
+import { testPorts } from "@/test/ports";
 
 let db: Db;
 let sent: OutgoingEmail[];
@@ -36,13 +38,13 @@ beforeEach(async () => {
   await seed();
 });
 
-function deps() {
-  return { now: NOW, sendEmail: async (e: OutgoingEmail) => void sent.push(e) };
+function ports() {
+  return testPorts({ clock: fixedClock(NOW), sendEmail: async (email: OutgoingEmail) => void sent.push(email) });
 }
 
 describe("createInvite", () => {
   it("le owner invite par email et l'invitation est envoyée", async () => {
-    const inv = await createInvite(deps(), {
+    const inv = await createInvite(ports(), {
       officeId: "o1",
       email: "nouveau@example.com",
       role: "practitioner",
@@ -57,7 +59,7 @@ describe("createInvite", () => {
 
   it("un non-owner ne peut pas inviter", async () => {
     await expect(
-      createInvite(deps(), {
+      createInvite(ports(), {
         officeId: "o1",
         email: "x@example.com",
         role: "practitioner",
@@ -100,11 +102,11 @@ describe("acceptInvite", () => {
   it("crée membre + praticien quand l'email correspond", async () => {
     const s = await import("@/db/schema");
     await db.insert(s.user).values([{ id: "new1", name: "Nadia", email: "nadia@example.com" }]);
-    const inv = await createInvite(deps(), {
+    const inv = await createInvite(ports(), {
       officeId: "o1", email: "nadia@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });
-    const res = await acceptInvite(deps(), {
+    const res = await acceptInvite(ports(), {
       token: inv.token, userId: "new1", userEmail: "nadia@example.com", userName: "Nadia",
     });
     expect(res.officeSlug).toBe("cabinet");
@@ -121,21 +123,21 @@ describe("acceptInvite", () => {
     const s = await import("@/db/schema");
     const { eq } = await import("drizzle-orm");
     await db.insert(s.user).values([{ id: "new2", name: "Zoe", email: "zoe@example.com" }]);
-    const inv = await createInvite(deps(), {
+    const inv = await createInvite(ports(), {
       officeId: "o1", email: "nadia@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });
     await expect(
-      acceptInvite(deps(), { token: inv.token, userId: "new2", userEmail: "zoe@example.com", userName: "Zoe" }),
+      acceptInvite(ports(), { token: inv.token, userId: "new2", userEmail: "zoe@example.com", userName: "Zoe" }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      acceptInvite(deps(), { token: "nope", userId: "new2", userEmail: "zoe@example.com", userName: "Zoe" }),
+      acceptInvite(ports(), { token: "nope", userId: "new2", userEmail: "zoe@example.com", userName: "Zoe" }),
     ).rejects.toBeInstanceOf(NotFoundError);
 
     // Expirée.
     await db.update(s.invite).set({ expiresAt: new Date("2026-09-01T00:00:00Z") }).where(eq(s.invite.id, inv.id));
     await expect(
-      acceptInvite({ ...deps(), }, { token: inv.token, userId: "new2", userEmail: "nadia@example.com", userName: "Nadia" }),
+      acceptInvite({ ...ports(), }, { token: inv.token, userId: "new2", userEmail: "nadia@example.com", userName: "Nadia" }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -145,16 +147,16 @@ describe("acceptInvite", () => {
       { id: "n1", name: "Nadia", email: "nadia@example.com" },
       { id: "n2", name: "Nadia", email: "nadia2@example.com" },
     ]);
-    const i1 = await createInvite(deps(), {
+    const i1 = await createInvite(ports(), {
       officeId: "o1", email: "nadia@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });
-    const i2 = await createInvite(deps(), {
+    const i2 = await createInvite(ports(), {
       officeId: "o1", email: "nadia2@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });
-    const r1 = await acceptInvite(deps(), { token: i1.token, userId: "n1", userEmail: "nadia@example.com", userName: "Nadia" });
-    const r2 = await acceptInvite(deps(), { token: i2.token, userId: "n2", userEmail: "nadia2@example.com", userName: "Nadia" });
+    const r1 = await acceptInvite(ports(), { token: i1.token, userId: "n1", userEmail: "nadia@example.com", userName: "Nadia" });
+    const r2 = await acceptInvite(ports(), { token: i2.token, userId: "n2", userEmail: "nadia2@example.com", userName: "Nadia" });
     expect(r1.practitionerSlug).toBe("nadia");
     expect(r2.practitionerSlug).toBe("nadia-2");
   });
@@ -162,20 +164,20 @@ describe("acceptInvite", () => {
   it("accepter deux fois est un conflit", async () => {
     const s = await import("@/db/schema");
     await db.insert(s.user).values([{ id: "n3", name: "Noa", email: "noa@example.com" }]);
-    const inv = await createInvite(deps(), {
+    const inv = await createInvite(ports(), {
       officeId: "o1", email: "noa@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });
-    await acceptInvite(deps(), { token: inv.token, userId: "n3", userEmail: "noa@example.com", userName: "Noa" });
+    await acceptInvite(ports(), { token: inv.token, userId: "n3", userEmail: "noa@example.com", userName: "Noa" });
     await expect(
-      acceptInvite(deps(), { token: inv.token, userId: "n3", userEmail: "noa@example.com", userName: "Noa" }),
+      acceptInvite(ports(), { token: inv.token, userId: "n3", userEmail: "noa@example.com", userName: "Noa" }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
 
 describe("listPendingInvites", () => {
   it("le owner voit les invitations en attente", async () => {
-    await createInvite(deps(), {
+    await createInvite(ports(), {
       officeId: "o1", email: "nouveau@example.com", role: "practitioner",
       requesterUserId: "owner1", origin: "http://localhost:3000",
     });

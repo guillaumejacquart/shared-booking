@@ -17,13 +17,13 @@ export async function listRoomsWithMembers(officeId: string) {
   const rooms = await conn.select().from(room).where(eq(room.officeId, officeId));
   const allMembers = await conn.select().from(roomMember);
   const byRoom = new Map<string, string[]>();
-  for (const m of allMembers) {
-    if (!rooms.some((r) => r.id === m.roomId)) continue;
-    const list = byRoom.get(m.roomId) ?? [];
-    list.push(m.practitionerId);
-    byRoom.set(m.roomId, list);
+  for (const member of allMembers) {
+    if (!rooms.some((room) => room.id === member.roomId)) continue;
+    const list = byRoom.get(member.roomId) ?? [];
+    list.push(member.practitionerId);
+    byRoom.set(member.roomId, list);
   }
-  return rooms.map((r) => ({ room: r, practitionerIds: byRoom.get(r.id) ?? [] }));
+  return rooms.map((room) => ({ room: room, practitionerIds: byRoom.get(room.id) ?? [] }));
 }
 
 export async function createRoom(data: { id: string; officeId: string; name: string; color: string }) {

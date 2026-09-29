@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { saveRoom } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { saveRoomSchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -16,6 +16,6 @@ export const POST = withAuth(async (user, req: NextRequest,
     officeId: id,
     requesterUserId: user.id,
   });
-  const roomId = await saveRoom(input);
+  const roomId = await services.schedule.saveRoom(input);
   return NextResponse.json({ id: roomId }, { status: 201 });
 });

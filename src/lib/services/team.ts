@@ -5,10 +5,7 @@ import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as usersDal from "@/dal/users";
-import {
-  createMailer,
-  type SendEmail,
-} from "@/lib/email";
+import type { Ports } from "@/lib/ports";
 import type {
   AcceptInviteInput,
   CreateInviteInput,
@@ -28,11 +25,6 @@ import {
  *
  * Formes d'entrée depuis `@/lib/schemas/team` (source unique).
  */
-
-export interface TeamDeps {
-  now?: Date;
-  sendEmail?: SendEmail;
-}
 
 const INVITE_TTL_MS = 7 * 24 * 3_600_000;
 
@@ -83,18 +75,18 @@ export async function uniquePractitionerSlug(
   exists: (slug: string) => Promise<boolean>,
 ): Promise<string> {
   let slug = base;
-  for (let n = 2; ; n++) {
+  for (let suffix = 2; ; suffix++) {
     if (!(await exists(slug))) return slug;
-    slug = `${base}-${n}`;
+    slug = `${base}-${suffix}`;
   }
 }
 
 export async function createInvite(
-  deps: TeamDeps,
+  ports: Ports,
   input: CreateInviteInput,
 ): Promise<{ id: string; token: string }> {
-  const now = deps.now ?? new Date();
-  const send = deps.sendEmail ?? createMailer();
+  const now = ports.clock.now();
+  const send = ports.sendEmail;
 
   const requester = await membersDal.getMembership(input.officeId, input.requesterUserId);
   if (!requester || requester.role !== "owner" || !requester.active) {
@@ -132,10 +124,10 @@ export async function createInvite(
 }
 
 export async function acceptInvite(
-  deps: TeamDeps,
+  ports: Ports,
   input: AcceptInviteInput,
 ): Promise<{ officeSlug: string; practitionerSlug: string }> {
-  const now = deps.now ?? new Date();
+  const now = ports.clock.now();
 
   const inv = await invitesDal.getInviteByToken(input.token);
   if (!inv) throw new NotFoundError("Invitation introuvable");
@@ -153,8 +145,8 @@ export async function acceptInvite(
   if (already) throw new ConflictError("Vous êtes déjà membre de ce cabinet");
 
   const base = slugify(input.userName);
-  const slug = await uniquePractitionerSlug(base, async (s) =>
-    Boolean(await practitionersDal.getPractitionerBySlug(s)),
+  const slug = await uniquePractitionerSlug(base, async (candidate) =>
+    Boolean(await practitionersDal.getPractitionerBySlug(candidate)),
   );
 
   await invitesDal.acceptInvite({
@@ -178,8 +170,8 @@ export async function acceptInvite(
 }
 
 /** Infos publiques d'une invitation (le token fait office de secret). Null si inconnue. */
-export async function getInvitePublicInfo(deps: TeamDeps, token: string) {
-  const now = deps.now ?? new Date();
+export async function getInvitePublicInfo(ports: Ports, token: string) {
+  const now = ports.clock.now();
   const inv = await invitesDal.getInviteByToken(token);
   if (!inv) return null;
   const office = await officesDal.getOfficeById(inv.officeId);
@@ -199,11 +191,11 @@ export async function listPendingInvites(input: { officeId: string; requesterUse
   }
   const invites = await invitesDal.listPendingInvites(input.officeId);
   return {
-    invites: invites.map((i) => ({
-      id: i.id,
-      email: i.email,
-      role: i.role,
-      expiresAt: i.expiresAt.toISOString(),
+    invites: invites.map((invite) => ({
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      expiresAt: invite.expiresAt.toISOString(),
     })),
   };
 }
@@ -211,8 +203,8 @@ export async function listPendingInvites(input: { officeId: string; requesterUse
 // --- Retrait de membre -------------------------------------------------------
 
 async function assertOwner(officeId: string, requesterUserId: string): Promise<void> {
-  const m = await membersDal.getMembership(officeId, requesterUserId);
-  if (!m || m.role !== "owner" || !m.active) {
+  const membership = await membersDal.getMembership(officeId, requesterUserId);
+  if (!membership || membership.role !== "owner" || !membership.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut retirer un membre");
   }
 }
@@ -234,4 +226,25 @@ export async function removeMember(input: RemoveMemberInput): Promise<void> {
     throw new ValidationError("Vous ne pouvez pas vous retirer vous-même");
   }
   await membersDal.deactivateMember(target.id);
+}
+
+/** Surface du service équipe (utilisée par les routes via le container). */
+export interface TeamService {
+  createOffice: typeof createOffice;
+  createInvite(input: CreateInviteInput): ReturnType<typeof createInvite>;
+  acceptInvite(input: AcceptInviteInput): ReturnType<typeof acceptInvite>;
+  getInvitePublicInfo(token: string): ReturnType<typeof getInvitePublicInfo>;
+  listPendingInvites: typeof listPendingInvites;
+  removeMember: typeof removeMember;
+}
+
+export function createTeamService(ports: Ports): TeamService {
+  return {
+    createOffice,
+    createInvite: (input) => createInvite(ports, input),
+    acceptInvite: (input) => acceptInvite(ports, input),
+    getInvitePublicInfo: (token) => getInvitePublicInfo(ports, token),
+    listPendingInvites,
+    removeMember,
+  };
 }

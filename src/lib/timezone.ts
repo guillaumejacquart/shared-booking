@@ -6,9 +6,9 @@
 const dtfCache = new Map<string, Intl.DateTimeFormat>();
 
 function dtf(timeZone: string): Intl.DateTimeFormat {
-  let f = dtfCache.get(timeZone);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", {
+  let format = dtfCache.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
       timeZone,
       hour12: false,
       year: "numeric",
@@ -19,9 +19,9 @@ function dtf(timeZone: string): Intl.DateTimeFormat {
       second: "2-digit",
       weekday: "short",
     });
-    dtfCache.set(timeZone, f);
+    dtfCache.set(timeZone, format);
   }
-  return f;
+  return format;
 }
 
 interface TzParts {
@@ -36,8 +36,8 @@ interface TzParts {
 
 export function partsInTz(date: Date, timeZone: string): TzParts {
   const parts: Record<string, string> = {};
-  for (const p of dtf(timeZone).formatToParts(date)) {
-    if (p.type !== "literal") parts[p.type] = p.value;
+  for (const part of dtf(timeZone).formatToParts(date)) {
+    if (part.type !== "literal") parts[part.type] = part.value;
   }
   return parts as unknown as TzParts;
 }
@@ -51,20 +51,20 @@ export function weekdayInTz(date: Date, timeZone: string): number {
 
 /** "YYYY-MM-DD" vu dans le fuseau donné. */
 export function dateStrInTz(date: Date, timeZone: string): string {
-  const p = partsInTz(date, timeZone);
-  return `${p.year}-${p.month}-${p.day}`;
+  const parts = partsInTz(date, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 /** Décalage (ms) tel que heureMurale = UTC + offset, à l'instant donné. */
 export function tzOffsetMs(timeZone: string, instant: Date): number {
-  const p = partsInTz(instant, timeZone);
+  const parts = partsInTz(instant, timeZone);
   const asUtc = Date.UTC(
-    +p.year,
-    +p.month - 1,
-    +p.day,
-    +p.hour % 24,
-    +p.minute,
-    +p.second,
+    +parts.year,
+    +parts.month - 1,
+    +parts.day,
+    +parts.hour % 24,
+    +parts.minute,
+    +parts.second,
   );
   return asUtc - instant.getTime();
 }
@@ -78,9 +78,9 @@ export function zonedTimeToUtc(
   timeStr: string,
   timeZone: string,
 ): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
+  const [year, month, day] = dateStr.split("-").map(Number);
   const [hh, mm] = timeStr.split(":").map(Number);
-  const guess = new Date(Date.UTC(y, m - 1, d, hh, mm));
+  const guess = new Date(Date.UTC(year, month - 1, day, hh, mm));
   const off1 = tzOffsetMs(timeZone, guess);
   const off2 = tzOffsetMs(timeZone, new Date(guess.getTime() - off1));
   return new Date(guess.getTime() - (off2 === off1 ? off1 : off2));

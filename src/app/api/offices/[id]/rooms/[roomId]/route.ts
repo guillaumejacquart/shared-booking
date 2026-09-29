@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { deleteRoom, saveRoom } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { deleteRoomSchema, saveRoomSchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -17,7 +17,7 @@ export const PATCH = withAuth(async (user, req: NextRequest,
     officeId: id,
     requesterUserId: user.id,
   });
-  await saveRoom(input);
+  await services.schedule.saveRoom(input);
   return NextResponse.json({ ok: true });
 });
 
@@ -31,6 +31,6 @@ export const DELETE = withAuth(async (user, _req: NextRequest,
     requesterUserId: user.id,
     id: roomId,
   });
-  await deleteRoom(input);
+  await services.schedule.deleteRoom(input);
   return NextResponse.json({ ok: true });
 });

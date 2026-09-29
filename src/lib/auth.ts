@@ -2,13 +2,18 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
 import { db } from "@/db/client";
-import { env } from "@/lib/env";
+import { env, isGoogleConfigured } from "@/lib/env";
 import { createMailer, passwordResetEmail } from "@/lib/email";
 import * as schema from "@/db/schema";
 
 /**
  * Configuration better-auth (email + mot de passe, SQLite via Drizzle).
  * MVP : pas de vérification d'email pour simplifier l'onboarding.
+ *
+ * Google (optionnel, push agenda praticien) : activé uniquement si
+ * GOOGLE_CLIENT_ID/SECRET sont configurés. Scope minimal `calendar.events`
+ * (créer/modifier/supprimer ses propres événements) + offline pour le
+ * refresh token (push en arrière-plan, sans session navigateur).
  */
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -31,6 +36,34 @@ export const auth = betterAuth({
       await createMailer()(passwordResetEmail(user.email, url));
     },
   },
+  ...(isGoogleConfigured
+    ? {
+        socialProviders: {
+          google: {
+            clientId: env.GOOGLE_CLIENT_ID!,
+            clientSecret: env.GOOGLE_CLIENT_SECRET!,
+            accessType: "offline" as const,
+            prompt: "select_account consent",
+            scope: [
+              "openid",
+              "email",
+              "profile",
+              "https://www.googleapis.com/auth/calendar.events",
+            ],
+          },
+        },
+        // Liaison du compte Google au praticien déjà connecté (bouton
+        // « Connecter » du profil). Google est un IdP de confiance : on
+        // autorise les emails différents (pro vs perso).
+        account: {
+          accountLinking: {
+            enabled: true,
+            trustedProviders: ["google"],
+            allowDifferentEmails: true,
+          },
+        },
+      }
+    : {}),
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 jours
   },

@@ -26,48 +26,48 @@ export interface BusyQuery {
  * Marge d'1 jour côté SQL (buffers < 24h, cf. validation service),
  * filtrage précis laissé à l'appelant via les snapshots durée/buffer.
  */
-export async function listActiveBookings(q: BusyQuery) {
+export async function listActiveBookings(query: BusyQuery) {
   const conn = getConnection();
-  const margin = new Date(q.from.getTime() - 24 * 3_600_000);
+  const margin = new Date(query.from.getTime() - 24 * 3_600_000);
   const conditions = [
     or(eq(booking.status, "confirmed"), eq(booking.status, "pending")),
     gte(booking.startAt, margin),
-    lt(booking.startAt, q.to),
+    lt(booking.startAt, query.to),
   ];
-  if (q.practitionerId) conditions.push(eq(booking.practitionerId, q.practitionerId));
-  if (q.practitionerIds) {
+  if (query.practitionerId) conditions.push(eq(booking.practitionerId, query.practitionerId));
+  if (query.practitionerIds) {
     conditions.push(
-      or(...q.practitionerIds.map((id) => eq(booking.practitionerId, id)))!,
+      or(...query.practitionerIds.map((id) => eq(booking.practitionerId, id)))!,
     );
   }
-  if (q.roomIds) {
-    conditions.push(or(...q.roomIds.map((id) => eq(booking.roomId, id)))!);
+  if (query.roomIds) {
+    conditions.push(or(...query.roomIds.map((id) => eq(booking.roomId, id)))!);
   }
   const rows = await conn
     .select()
     .from(booking)
     .where(and(...conditions));
-  return q.excludeBookingId
-    ? rows.filter((b) => b.id !== q.excludeBookingId)
+  return query.excludeBookingId
+    ? rows.filter((booking) => booking.id !== query.excludeBookingId)
     : rows;
 }
 
 async function bookingDetail(
   db: DbOrTx,
-  b: Booking,
+  booking: Booking,
 ): Promise<BookingDetail | null> {
   const pracRows = await db
     .select()
     .from(practitioner)
-    .where(eq(practitioner.id, b.practitionerId))
+    .where(eq(practitioner.id, booking.practitionerId))
     .limit(1);
   const offRows = await db
     .select()
     .from(office)
-    .where(eq(office.id, b.officeId))
+    .where(eq(office.id, booking.officeId))
     .limit(1);
   if (!pracRows[0] || !offRows[0]) return null;
-  return { booking: b, practitioner: pracRows[0], office: offRows[0] };
+  return { booking: booking, practitioner: pracRows[0], office: offRows[0] };
 }
 
 export async function findBookingByCancelToken(token: string): Promise<BookingDetail | null> {
@@ -172,8 +172,8 @@ export async function listExpiredPendings(now: Date) {
     );
 }
 
-function occupancyEnd(b: { startAt: Date; endAt: Date; bufferAfterMinSnapshot: number }): number {
-  return b.endAt.getTime() + b.bufferAfterMinSnapshot * 60_000;
+function occupancyEnd(booking: { startAt: Date; endAt: Date; bufferAfterMinSnapshot: number }): number {
+  return booking.endAt.getTime() + booking.bufferAfterMinSnapshot * 60_000;
 }
 
 function collides(
@@ -210,9 +210,9 @@ export async function tryInsertBooking(data: NewBooking): Promise<{ conflict: tr
     from: data.startAt,
     to: data.endAt,
   });
-  const seen = new Map(byPrac.map((b) => [b.id, b]));
-  for (const b of byRoom) seen.set(b.id, b);
-  if ([...seen.values()].some((b) => collides(start, end, b))) {
+  const seen = new Map(byPrac.map((booking) => [booking.id, booking]));
+  for (const booking of byRoom) seen.set(booking.id, booking);
+  if ([...seen.values()].some((booking) => collides(start, end, booking))) {
     return { conflict: true as const };
   }
   const ids = await conn
@@ -275,9 +275,9 @@ export async function tryMoveBooking(bookingId: string,
     from: move.startAt,
     to: move.endAt,
   });
-  const seen = new Map(byPrac.map((b) => [b.id, b]));
-  for (const b of byRoom) seen.set(b.id, b);
-  if ([...seen.values()].some((b) => collides(start, end, b))) return false;
+  const seen = new Map(byPrac.map((booking) => [booking.id, booking]));
+  for (const booking of byRoom) seen.set(booking.id, booking);
+  if ([...seen.values()].some((booking) => collides(start, end, booking))) return false;
 
   await conn
     .update(booking)
@@ -331,7 +331,7 @@ export async function listRemindersDue(now: Date) {
         lte(booking.startAt, horizon),
       ),
     );
-  return rows.filter((b) => b.startAt.getTime() > now.getTime());
+  return rows.filter((booking) => booking.startAt.getTime() > now.getTime());
 }
 
 export async function markReminderSent(bookingId: string, now: Date) {
@@ -387,5 +387,64 @@ export async function listOfficeBookings(officeId: string,
         lt(booking.startAt, to),
       ),
     );
-  return rows.filter((b) => b.status !== "cancelled");
+  return rows.filter((booking) => booking.status !== "cancelled");
+}
+
+// --- Push Google Agenda (outbound) ---
+
+export type GoogleSyncStatus = "none" | "pending" | "ok" | "error";
+
+export async function setGoogleSync(
+  bookingId: string,
+  sync: {
+    status: GoogleSyncStatus;
+    eventId?: string | null;
+    error?: string | null;
+  },
+): Promise<void> {
+  const conn = getConnection();
+  await conn
+    .update(booking)
+    .set({
+      googleSyncStatus: sync.status,
+      ...(sync.eventId !== undefined ? { googleEventId: sync.eventId } : {}),
+      ...(sync.error !== undefined ? { googleSyncError: sync.error } : {}),
+    })
+    .where(eq(booking.id, bookingId));
+}
+
+/** Réservations confirmées/annulées dont le push Google est en attente ou en erreur (retry cron). */
+export async function listGoogleSyncDue(limit = 50) {
+  const conn = getConnection();
+  return conn
+    .select()
+    .from(booking)
+    .where(
+      or(
+        eq(booking.googleSyncStatus, "pending"),
+        eq(booking.googleSyncStatus, "error"),
+      ),
+    )
+    .limit(limit);
+}
+
+/** Sous-ensemble « à resynchroniser » pour un praticien (bouton dashboard). */
+export async function listGoogleSyncDueForPractitioner(
+  practitionerId: string,
+  limit = 50,
+) {
+  const conn = getConnection();
+  return conn
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        or(
+          eq(booking.googleSyncStatus, "pending"),
+          eq(booking.googleSyncStatus, "error"),
+        ),
+      ),
+    )
+    .limit(limit);
 }

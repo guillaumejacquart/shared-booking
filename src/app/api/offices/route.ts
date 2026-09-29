@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { createOffice } from "@/lib/services/team";
+import { services } from "@/lib/container";
 import { createOfficeSchema } from "@/lib/schemas/team";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -13,6 +13,6 @@ export const POST = withAuth(async (user, req: NextRequest) => {
     userId: user.id,
     userName: user.name,
   });
-  const result = await createOffice(input);
+  const result = await services.team.createOffice(input);
   return NextResponse.json(result, { status: 201 });
 });

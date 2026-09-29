@@ -12,7 +12,7 @@ export function checkRateLimit(
   windowMs: number,
   nowMs = Date.now(),
 ): boolean {
-  const recent = (hits.get(key) ?? []).filter((t) => t > nowMs - windowMs);
+  const recent = (hits.get(key) ?? []).filter((hit) => hit > nowMs - windowMs);
   if (recent.length >= limit) {
     hits.set(key, recent);
     return false;

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { deleteException } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { deleteExceptionSchema } from "@/lib/schemas/schedule";
 import { withAuth } from "@/app/api/_auth";
 
@@ -14,6 +14,6 @@ export const DELETE = withAuth(async (user, req: NextRequest,
     practitionerId: new URL(req.url).searchParams.get("practitionerId"),
     requesterUserId: user.id,
   });
-  await deleteException(input);
+  await services.schedule.deleteException(input);
   return NextResponse.json({ ok: true });
 });

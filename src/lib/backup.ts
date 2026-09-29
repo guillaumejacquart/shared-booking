@@ -52,17 +52,17 @@ export function loadBackupConfig(): BackupConfig {
 
 // UTC stamp keeps names sortable regardless of container timezone.
 export function backupFileName(now: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
+  const pad2 = (value: number) => String(value).padStart(2, "0");
   return (
-    `${FILE_PREFIX}${now.getUTCFullYear()}-${p(now.getUTCMonth() + 1)}-${p(now.getUTCDate())}` +
-    `-${p(now.getUTCHours())}${p(now.getUTCMinutes())}.db.gz`
+    `${FILE_PREFIX}${now.getUTCFullYear()}-${pad2(now.getUTCMonth() + 1)}-${pad2(now.getUTCDate())}` +
+    `-${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}.db.gz`
   );
 }
 
 // Newest first by name (fixed-width stamp), extras past `keep` get deleted.
 export function filesToPrune(files: string[], keep: number): string[] {
   return files
-    .filter((f) => f.startsWith(FILE_PREFIX) && f.endsWith(".db.gz"))
+    .filter((file) => file.startsWith(FILE_PREFIX) && file.endsWith(".db.gz"))
     .sort()
     .reverse()
     .slice(keep);

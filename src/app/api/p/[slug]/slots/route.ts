@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { getAvailableSlots } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 import { slotsQuerySchema } from "@/lib/schemas/bookings";
 import { route } from "@/app/api/errors";
 
@@ -17,6 +17,6 @@ export const GET = route(async (
     fromDate: url.searchParams.get("from") ?? new Date().toISOString().slice(0, 10),
     days: url.searchParams.get("days") ?? undefined,
   });
-  const slots = await getAvailableSlots({}, input);
+  const slots = await services.bookings.availableSlots(input);
   return NextResponse.json({ slots });
 });

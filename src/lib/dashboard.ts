@@ -38,7 +38,7 @@ export const getDashboardContext = cache(async (): Promise<DashboardContext> => 
   const session = await getSession();
   if (!session) redirect("/login");
   const memberships = await membersDal.listMemberships(session.user.id);
-  const membership = memberships.find((m) => m.active);
+  const membership = memberships.find((membership) => membership.active);
   if (!membership) redirect("/onboarding");
   const office = await officesDal.getOfficeById(membership.officeId);
   const prac = await practitionersDal.getPractitionerByUserId(session.user.id);

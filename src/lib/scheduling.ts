@@ -1,7 +1,6 @@
 import cron from "node-cron";
 
-import { processReminders } from "@/lib/services/reminders";
-import { releaseExpiredPendings } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 
 /**
  * Tâches planifiées (rappels email 24h avant + clôture des RDV passés).
@@ -15,21 +14,21 @@ export function startScheduler(): void {
   started = true;
   cron.schedule("5 * * * *", async () => {
     try {
-      const { sent, completed } = await processReminders({});
+      const { sent, completed } = await services.reminders.process();
       if (sent > 0 || completed > 0) {
         console.log(`[scheduler] rappels envoyés: ${sent}, clôturés: ${completed}`);
       }
-    } catch (e) {
-      console.error("[scheduler] échec", e);
+    } catch (error) {
+      console.error("[scheduler] échec", error);
     }
   });
   // Libération des créneaux impayés (toutes les 10 minutes).
   cron.schedule("*/10 * * * *", async () => {
     try {
-      const released = await releaseExpiredPendings({});
+      const released = await services.bookings.releaseExpired();
       if (released > 0) console.log(`[scheduler] pendings expirés libérés: ${released}`);
-    } catch (e) {
-      console.error("[scheduler] échec libération pendings", e);
+    } catch (error) {
+      console.error("[scheduler] échec libération pendings", error);
     }
   });
   console.log('[scheduler] rappels planifiés ("5 * * * *"), pendings ("*/10 * * * *")');

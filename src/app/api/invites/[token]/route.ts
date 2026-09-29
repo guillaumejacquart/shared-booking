@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { acceptInvite, getInvitePublicInfo } from "@/lib/services/team";
+import { services } from "@/lib/container";
 import { acceptInviteSchema } from "@/lib/schemas/team";
 import { withAuth } from "@/app/api/_auth";
 
@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const info = await getInvitePublicInfo({}, token);
+  const info = await services.team.getInvitePublicInfo(token);
   if (!info) return NextResponse.json({ error: "Invitation introuvable" }, { status: 404 });
   return NextResponse.json(info);
 }
@@ -28,6 +28,6 @@ export const POST = withAuth(async (
     userEmail: user.email,
     userName: user.name,
   });
-  const result = await acceptInvite({}, input);
+  const result = await services.team.acceptInvite(input);
   return NextResponse.json(result);
 });

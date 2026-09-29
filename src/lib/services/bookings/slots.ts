@@ -3,12 +3,12 @@ import * as bookingsDal from "@/dal/bookings";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
+import type { Ports } from "@/lib/ports";
 import { allowedRoomIdsFor } from "@/lib/rooms";
 import type { SlotsInput } from "@/lib/schemas/bookings";
 import { dateStrInTz, zonedTimeToUtc } from "@/lib/timezone";
 import { generateSlots, type Occupancy, type Slot, type SlotRequest } from "@/lib/slots";
 import { NotFoundError } from "../errors";
-import type { Deps } from "./shared";
 
 export { allowedRoomIdsFor };
 
@@ -20,24 +20,24 @@ export interface PublicSlot {
 }
 
 /** Occupation d'un RDV, buffer de fin inclus. */
-export function toOccupancy(b: {
+export function toOccupancy(booking: {
   startAt: Date;
   endAt: Date;
   bufferAfterMinSnapshot: number;
 }): Occupancy {
   return {
-    start: b.startAt,
-    end: new Date(b.endAt.getTime() + b.bufferAfterMinSnapshot * 60_000),
+    start: booking.startAt,
+    end: new Date(booking.endAt.getTime() + booking.bufferAfterMinSnapshot * 60_000),
   };
 }
 
 export function toWindows(
   rules: { weekday: number; startTime: string; endTime: string }[],
 ): SlotRequest["windows"] {
-  return rules.map((r) => ({
-    weekday: r.weekday,
-    startTime: r.startTime,
-    endTime: r.endTime,
+  return rules.map((rule) => ({
+    weekday: rule.weekday,
+    startTime: rule.startTime,
+    endTime: rule.endTime,
   }));
 }
 
@@ -51,13 +51,13 @@ export function toExceptions(
     roomId: string | null;
   }[],
 ): SlotRequest["exceptions"] {
-  return rows.map((e) => ({
-    date: e.date,
-    kind: e.kind as "off" | "extra",
-    startTime: e.startTime ?? undefined,
-    endTime: e.endTime ?? undefined,
-    fullDay: e.fullDay,
-    roomId: e.roomId ?? undefined,
+  return rows.map((row) => ({
+    date: row.date,
+    kind: row.kind as "off" | "extra",
+    startTime: row.startTime ?? undefined,
+    endTime: row.endTime ?? undefined,
+    fullDay: row.fullDay,
+    roomId: row.roomId ?? undefined,
   }));
 }
 
@@ -97,16 +97,16 @@ export async function loadSlotContext(
   const allowedRoomIds = allowedRoomIdsFor(practitionerId, roomsWithMembers);
   // Surveiller aussi les salles épinglées par les extras (hors autorisées).
   const extraRoomIds = exceptions
-    .filter((e) => e.kind === "extra" && e.roomId)
-    .map((e) => e.roomId as string);
+    .filter((exception) => exception.kind === "extra" && exception.roomId)
+    .map((exception) => exception.roomId as string);
   const watchIds = [...new Set([...allowedRoomIds, ...extraRoomIds])];
   const roomBookings =
     watchIds.length > 0
       ? await bookingsDal.listActiveBookings({ roomIds: watchIds, from, to, excludeBookingId })
       : [];
   const roomBusy: Record<string, Occupancy[]> = {};
-  for (const b of roomBookings) {
-    (roomBusy[b.roomId] ??= []).push(toOccupancy(b));
+  for (const booking of roomBookings) {
+    (roomBusy[booking.roomId] ??= []).push(toOccupancy(booking));
   }
   return {
     windows: toWindows(rules),
@@ -119,13 +119,13 @@ export async function loadSlotContext(
 }
 
 /** Grille interne : chaque créneau porte sa salle attribuée. */
-export async function getSlotsWithRoom(deps: Deps, input: SlotsInput): Promise<Slot[]> {
-  const now = deps.now ?? new Date();
+export async function getSlotsWithRoom(ports: Ports, input: SlotsInput): Promise<Slot[]> {
+  const now = ports.clock.now();
 
   const page = await practitionersDal.getPractitionerPage(input.practitionerSlug);
   if (!page) throw new NotFoundError("Praticien introuvable");
-  const st = page.sessionTypes.find((t) => t.id === input.sessionTypeId);
-  if (!st) throw new NotFoundError("Type de séance introuvable");
+  const sessionType = page.sessionTypes.find((st) => st.id === input.sessionTypeId);
+  if (!sessionType) throw new NotFoundError("Type de séance introuvable");
 
   const tz = page.office.timezone;
   const dayStart = zonedTimeToUtc(input.fromDate, "00:00", tz);
@@ -139,24 +139,24 @@ export async function getSlotsWithRoom(deps: Deps, input: SlotsInput): Promise<S
     horizonEnd,
     tz,
     undefined,
-    st.id,
+    sessionType.id,
   );
   return generateSlots({
     timezone: tz,
     ...context,
-    sessionDurationMin: st.durationMin,
-    bufferAfterMin: st.bufferAfterMin,
+    sessionDurationMin: sessionType.durationMin,
+    bufferAfterMin: sessionType.bufferAfterMin,
     leadTimeMin: page.office.bookingLeadTimeMin,
     from: engineFrom,
     days: input.days,
   });
 }
 
-export async function getAvailableSlots(deps: Deps, input: SlotsInput): Promise<PublicSlot[]> {
-  const slots = await getSlotsWithRoom(deps, input);
-  return slots.map((s) => ({
-    startAt: s.start.toISOString(),
-    endAt: s.end.toISOString(),
+export async function getAvailableSlots(ports: Ports, input: SlotsInput): Promise<PublicSlot[]> {
+  const slots = await getSlotsWithRoom(ports, input);
+  return slots.map((slot) => ({
+    startAt: slot.start.toISOString(),
+    endAt: slot.end.toISOString(),
   }));
 }
 
@@ -193,5 +193,5 @@ export async function slotOnGrid(
     from: new Date(start.getTime() - 86_400_000),
     days: 3,
   });
-  return slots.some((s) => s.start.getTime() === start.getTime());
+  return slots.some((slot) => slot.start.getTime() === start.getTime());
 }

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { validateBooking } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 import { validateBookingSchema } from "@/lib/schemas/bookings";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -16,6 +16,6 @@ export const POST = withAuth(async (user, req: NextRequest,
     bookingId: id,
     requesterUserId: user.id,
   });
-  const result = await validateBooking({}, input);
+  const result = await services.bookings.validate(input);
   return NextResponse.json(result);
 });

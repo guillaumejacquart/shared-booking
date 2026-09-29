@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { getSharedCalendar } from "@/lib/services/calendar";
 import { withAuth } from "@/app/api/_auth";

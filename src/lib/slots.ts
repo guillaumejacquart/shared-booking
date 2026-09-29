@@ -94,24 +94,24 @@ export function generateSlots(req: SlotRequest): Slot[] {
   const offByDate = new Map<string, Interval[]>();
   /** Fenêtre du jour : les extras imposent leur salle, les règles hebdo non. */
   const extraByDate = new Map<string, { startTime: string; endTime: string; roomId?: string }[]>();
-  for (const e of req.exceptions) {
-    if (e.kind === "off") {
-      const list = offByDate.get(e.date) ?? [];
+  for (const exception of req.exceptions) {
+    if (exception.kind === "off") {
+      const list = offByDate.get(exception.date) ?? [];
       list.push(
-        e.fullDay || !e.startTime || !e.endTime
+        exception.fullDay || !exception.startTime || !exception.endTime
           ? { start: -Infinity, end: Infinity }
           : {
-              start: zonedTimeToUtc(e.date, e.startTime, tz).getTime(),
-              end: zonedTimeToUtc(e.date, e.endTime, tz).getTime(),
+              start: zonedTimeToUtc(exception.date, exception.startTime, tz).getTime(),
+              end: zonedTimeToUtc(exception.date, exception.endTime, tz).getTime(),
             },
       );
-      offByDate.set(e.date, list);
-    } else if (e.startTime && e.endTime) {
-      const list = extraByDate.get(e.date) ?? [];
+      offByDate.set(exception.date, list);
+    } else if (exception.startTime && exception.endTime) {
+      const list = extraByDate.get(exception.date) ?? [];
       // Le jour de semaine sera recalculé au traitement du jour ; on stocke
       // la fenêtre brute et on l'applique directement à cette date.
-      list.push({ startTime: e.startTime, endTime: e.endTime, roomId: e.roomId });
-      extraByDate.set(e.date, list);
+      list.push({ startTime: exception.startTime, endTime: exception.endTime, roomId: exception.roomId });
+      extraByDate.set(exception.date, list);
     }
   }
 
@@ -123,10 +123,10 @@ export function generateSlots(req: SlotRequest): Slot[] {
   }
 
   const byWeekday = new Map<number, DayWindow[]>();
-  for (const w of req.windows) {
-    const list = byWeekday.get(w.weekday) ?? [];
-    list.push({ startTime: w.startTime, endTime: w.endTime });
-    byWeekday.set(w.weekday, list);
+  for (const window of req.windows) {
+    const list = byWeekday.get(window.weekday) ?? [];
+    list.push({ startTime: window.startTime, endTime: window.endTime });
+    byWeekday.set(window.weekday, list);
   }
 
   const slots: Slot[] = [];
@@ -140,34 +140,34 @@ export function generateSlots(req: SlotRequest): Slot[] {
     const dayWindows = [...(byWeekday.get(weekday) ?? []), ...(extraByDate.get(dateStr) ?? [])];
     const offs = offByDate.get(dateStr) ?? [];
 
-    for (const w of dayWindows) {
-      const ws = zonedTimeToUtc(dateStr, w.startTime, tz).getTime();
-      const we = zonedTimeToUtc(dateStr, w.endTime, tz).getTime();
+    for (const window of dayWindows) {
+      const ws = zonedTimeToUtc(dateStr, window.startTime, tz).getTime();
+      const we = zonedTimeToUtc(dateStr, window.endTime, tz).getTime();
       if (!(ws < we)) continue;
       // Salle imposée (extra) ou salles autorisées (hebdo), intersectées
       // avec la restriction éventuelle du type de séance.
-      const base = w.roomId ? [w.roomId] : req.allowedRoomIds;
+      const base = window.roomId ? [window.roomId] : req.allowedRoomIds;
       const candidates =
         req.sessionRoomIds && req.sessionRoomIds.length > 0
           ? base.filter((id) => req.sessionRoomIds!.includes(id))
           : base;
 
-      for (let t = ws; t + durationMs <= we; t += stepMs) {
-        if (t < earliest) continue;
-        const candidate: Interval = { start: t, end: t + stepMs };
-        if (offs.some((o) => candidate.start < o.end && o.start < candidate.end)) continue;
-        if (req.practitionerBusy.some((b) => overlaps(candidate, b))) continue;
+      for (let cursor = ws; cursor + durationMs <= we; cursor += stepMs) {
+        if (cursor < earliest) continue;
+        const candidate: Interval = { start: cursor, end: cursor + stepMs };
+        if (offs.some((off) => candidate.start < off.end && off.start < candidate.end)) continue;
+        if (req.practitionerBusy.some((busy) => overlaps(candidate, busy))) continue;
         const roomId = candidates.find(
-          (id) => !(req.roomBusy[id] ?? []).some((b) => overlaps(candidate, b)),
+          (id) => !(req.roomBusy[id] ?? []).some((busy) => overlaps(candidate, busy)),
         );
         if (!roomId) continue;
-        slots.push({ start: new Date(t), end: new Date(t + durationMs), roomId });
+        slots.push({ start: new Date(cursor), end: new Date(cursor + durationMs), roomId });
       }
     }
 
     cursor = new Date(cursor.getTime() + 24 * 3_600_000);
   }
 
-  slots.sort((a, b) => a.start.getTime() - b.start.getTime());
+  slots.sort((left, right) => left.start.getTime() - right.start.getTime());
   return slots;
 }

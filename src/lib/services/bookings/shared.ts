@@ -1,45 +1,23 @@
 import { randomBytes } from "node:crypto";
 
-import type { Booking, BookingDetail, Office } from "@/dal/types";
+import type { Booking, BookingDetail } from "@/dal/types";
 import * as usersDal from "@/dal/users";
-import { env, isStripeConfigured } from "@/lib/env";
+import { env } from "@/lib/env";
 import {
   buildIcs,
-  createMailer,
   validationRequestEmail,
-  type BookingMailModel,
+  type BookingMailPayload,
   type OutgoingEmail,
   type SendEmail,
 } from "@/lib/email";
-import Stripe from "stripe";
+import { googleCalendarTemplateUrl } from "@/lib/google-template";
 
 /**
  * Service réservation (logique métier). Appelé par les routes HTTP et le cron.
- * - `now` injectable (tests) ; `sendEmail` injectable (tests capturent l'envoi).
+ * - Le temps, les emails, Stripe et Google viennent des ports (`@/lib/ports`),
+ *   câblés dans `@/lib/container`.
  * - La salle n'est jamais exposée au public (détail interne au cabinet).
  */
-
-export interface Deps {
-  now?: Date;
-  sendEmail?: SendEmail;
-  /** Client Stripe (injecté en tests ; défaut = compte plateforme). */
-  stripeClient?: StripeLike;
-}
-
-/** Sous-ensemble de l'API Stripe utilisée (checkout uniquement). */
-export interface StripeLike {
-  checkout: {
-    sessions: {
-      create(params: Record<string, unknown>): Promise<{ id: string; url: string | null }>;
-    };
-  };
-}
-
-export function realStripe(): StripeLike | null {
-  if (!isStripeConfigured) return null;
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY!);
-  return stripe as unknown as StripeLike;
-}
 
 /** Durée de tenue du créneau pendant le paiement (puis libération auto). */
 export const PENDING_TTL_MS = 30 * 60_000;
@@ -64,58 +42,75 @@ export function manageUrl(officeSlug: string, practitionerSlug: string, token: s
   return `${base}/p/${practitionerSlug}/gerer?token=${token}&cabinet=${officeSlug}`;
 }
 
-/** Modèle d'email commun à partir d'une réservation et de son détail. */
+/** Champs de réservation nécessaires au contenu d'un email. */
+export type MailBooking = Pick<
+  Booking,
+  "id" | "sessionNameSnapshot" | "startAt" | "endAt" | "patientEmail" | "cancelToken"
+>;
+
+/**
+ * Modèle d'email + dérivés calendrier à partir d'une réservation et de son
+ * détail. Source unique du contenu « rendez-vous » : le titre, le lieu et les
+ * horaires sont dérivés une seule fois ici, puis servent au modèle textuel,
+ * à la pièce ICS et au lien Google Agenda. Les call sites n'assemblent jamais
+ * les pièces à la main.
+ *
+ * `times` permet de décrire le créneau cible (report) sans toucher à la
+ * réservation.
+ */
 export function mailModel(
-  b: Pick<Booking, "sessionNameSnapshot" | "startAt" | "cancelToken">,
-  detail: BookingDetail,
-  start: Date = b.startAt,
-): BookingMailModel {
+  booking: MailBooking,
+  detail: Pick<BookingDetail, "practitioner" | "office">,
+  times?: { start: Date; end: Date },
+): BookingMailPayload {
+  const start = times?.start ?? booking.startAt;
+  const end = times?.end ?? booking.endAt;
+  const title = `${booking.sessionNameSnapshot} — ${detail.practitioner.displayName}`;
+  const location = detail.office.address
+    ? `${detail.office.name}, ${detail.office.address}`
+    : detail.office.name;
+  const url = manageUrl(detail.office.slug, detail.practitioner.slug, booking.cancelToken);
   return {
     practitionerName: detail.practitioner.displayName,
-    sessionName: b.sessionNameSnapshot,
+    sessionName: booking.sessionNameSnapshot,
     start,
     timeZone: detail.office.timezone,
     officeName: detail.office.name,
     officeAddress: detail.office.address,
-    manageUrl: manageUrl(detail.office.slug, detail.practitioner.slug, b.cancelToken),
+    manageUrl: url,
+    ics: buildIcs({
+      uid: booking.id,
+      summary: title,
+      location,
+      start,
+      end,
+      attendeeEmail: booking.patientEmail,
+    }),
+    googleUrl: googleCalendarTemplateUrl({
+      title,
+      start,
+      end,
+      location,
+      description: url,
+    }),
   };
-}
-
-/** Pièce calendrier d'une réservation (uid, libellé, lieu, créneau). */
-export function bookingIcs(
-  b: Pick<Booking, "id" | "sessionNameSnapshot" | "startAt" | "endAt" | "patientEmail">,
-  practitionerName: string,
-  office: Pick<Office, "name" | "address">,
-  times?: { start: Date; end: Date },
-) {
-  return buildIcs({
-    uid: b.id,
-    summary: `${b.sessionNameSnapshot} — ${practitionerName}`,
-    location: office.address ? `${office.name}, ${office.address}` : office.name,
-    start: times?.start ?? b.startAt,
-    end: times?.end ?? b.endAt,
-    attendeeEmail: b.patientEmail,
-  });
 }
 
 /** Notifie le praticien qu'une demande attend sa validation (sinon il ne le sait jamais). */
 export async function notifyValidationRequest(
   send: SendEmail,
-  detail: BookingDetail,
-  b: Booking,
+  detail: Pick<BookingDetail, "practitioner" | "office">,
+  booking: MailBooking & Pick<Booking, "patientFirstName" | "patientLastName">,
 ): Promise<void> {
   const pracEmail = await usersDal.getUserEmail(detail.practitioner.userId);
   if (!pracEmail) return;
-  await send(
+  await safeSend(
+    send,
     validationRequestEmail(pracEmail, {
-      ...mailModel(b, detail),
-      patientName: `${b.patientFirstName} ${b.patientLastName}`,
+      ...mailModel(booking, detail),
+      patientName: `${booking.patientFirstName} ${booking.patientLastName}`,
     }),
   );
-}
-
-export function defaultSend(): SendEmail {
-  return createMailer();
 }
 
 /**
@@ -125,7 +120,7 @@ export function defaultSend(): SendEmail {
 export async function safeSend(send: SendEmail, email: OutgoingEmail): Promise<void> {
   try {
     await send(email);
-  } catch (e) {
-    console.error("[bookings] envoi email impossible", { to: email.to, error: e });
+  } catch (error) {
+    console.error("[bookings] envoi email impossible", { to: email.to, error });
   }
 }

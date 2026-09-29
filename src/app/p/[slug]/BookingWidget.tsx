@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { t } from "@/lib/i18n";
 import { toKey } from "@/lib/calendar";
+import { googleCalendarTemplateUrl } from "@/lib/google-template";
 import { fullFmt, timeFmt } from "@/lib/format";
 import { Button, Checkbox, Field, FormMessage, TextInput, Textarea } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
@@ -128,6 +129,11 @@ export default function BookingWidget({
   }
 
   if (confirmed) {
+    const googleUrl = googleCalendarTemplateUrl({
+      title: `${selectedType?.name ?? "Rendez-vous"}`,
+      start: new Date(confirmed.startAt),
+      end: new Date(confirmed.endAt),
+    });
     return (
       <section className="rounded-2xl border bg-ok-bg p-6 text-center text-ok">
         <h2 className="text-xl font-semibold">{t("booking.successTitle")}</h2>
@@ -136,6 +142,16 @@ export default function BookingWidget({
           {timeFmt.format(new Date(confirmed.startAt))}
         </p>
         <p className="mt-2 text-sm text-mist">{t("booking.successDetail")}</p>
+        <p className="mt-4">
+          <a
+            href={googleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded-full border border-line bg-card px-4 py-2 text-sm font-medium text-ink hover:bg-wash"
+          >
+            {t("booking.addToGoogle")}
+          </a>
+        </p>
       </section>
     );
   }

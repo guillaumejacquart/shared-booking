@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { createException } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { createExceptionSchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -12,6 +12,6 @@ export const POST = withAuth(async (user, req: NextRequest) => {
     ...body,
     requesterUserId: user.id,
   });
-  const id = await createException(input);
+  const id = await services.schedule.createException(input);
   return NextResponse.json({ id }, { status: 201 });
 });

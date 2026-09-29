@@ -35,8 +35,8 @@ export async function replaceAvailabilityRules(practitionerId: string,
   rules: { id: string; weekday: number; startTime: string; endTime: string }[]) {
   const conn = getConnection();
   await conn.delete(availabilityRule).where(eq(availabilityRule.practitionerId, practitionerId));
-  for (const r of rules) {
-    await conn.insert(availabilityRule).values({ ...r, practitionerId });
+  for (const rule of rules) {
+    await conn.insert(availabilityRule).values({ ...rule, practitionerId });
   }
 }
 

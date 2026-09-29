@@ -55,6 +55,6 @@ export type ServiceError =
   | ForbiddenError;
 
 /** Convertit une erreur métier en statut HTTP + code stable. */
-export function errorToHttp(e: ServiceError): { status: number; code: string } {
-  return { status: e.statusCode, code: e.code };
+export function errorToHttp(error: ServiceError): { status: number; code: string } {
+  return { status: error.statusCode, code: error.code };
 }

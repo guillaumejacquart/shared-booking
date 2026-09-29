@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { deleteSessionType, saveSessionType } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { deleteSessionTypeSchema, saveSessionTypeSchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -16,7 +16,7 @@ export const PATCH = withAuth(async (user, req: NextRequest,
     id,
     requesterUserId: user.id,
   });
-  await saveSessionType(input);
+  await services.schedule.saveSessionType(input);
   return NextResponse.json({ ok: true });
 });
 
@@ -30,6 +30,6 @@ export const DELETE = withAuth(async (user, req: NextRequest,
     practitionerId: new URL(req.url).searchParams.get("practitionerId"),
     requesterUserId: user.id,
   });
-  await deleteSessionType(input);
+  await services.schedule.deleteSessionType(input);
   return NextResponse.json({ ok: true });
 });

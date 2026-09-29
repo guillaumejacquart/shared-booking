@@ -7,12 +7,13 @@ import { dateStrInTz } from "@/lib/timezone";
 import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
 import ProfileForm from "@/components/ProfileForm";
+import GoogleAgendaSettings from "@/components/GoogleAgendaSettings";
 import SessionTypesManager from "../seances/SessionTypesManager";
 import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
 import ExceptionsManager from "../disponibilites/ExceptionsManager";
 import AvailabilityMonthLoader from "../disponibilites/AvailabilityMonthLoader";
 
-export type ProfilTab = "profil" | "seances" | "disponibilites";
+export type ProfilTab = "profil" | "seances" | "disponibilites" | "google";
 
 /** Hub praticien : profil public, séances, disponibilités. */
 export default async function ProfilPage({
@@ -25,7 +26,9 @@ export default async function ProfilPage({
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "profil";
   const initial: ProfilTab =
-    rawTab === "seances" || rawTab === "disponibilites" ? rawTab : "profil";
+    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google"
+      ? rawTab
+      : "profil";
 
   const now = new Date();
   const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms] = await Promise.all([
@@ -62,6 +65,7 @@ export default async function ProfilPage({
           { key: "profil", label: t("profile.tabProfile") },
           { key: "seances", label: t("profile.tabSessionTypes") },
           { key: "disponibilites", label: t("profile.tabAvailability") },
+          { key: "google", label: t("profile.tabGoogle") },
         ]}
       >
         {{
@@ -131,6 +135,15 @@ export default async function ProfilPage({
                   }))}
                   rooms={rooms}
                 />
+              </section>
+            </div>
+          ),
+          google: (
+            <div className="flex flex-col gap-4">
+              <section>
+                <h2 className="mb-1 text-lg font-semibold">{t("profile.tabGoogle")}</h2>
+                <p className="mb-3 text-sm text-mist">{t("google.connectHint")}</p>
+                <GoogleAgendaSettings />
               </section>
             </div>
           ),

@@ -5,23 +5,23 @@
 export const TIMEZONE = "Europe/Paris";
 
 /** "YYYY-MM-DD" vu à Paris. */
-export function toKey(d: Date): string {
+export function toKey(at: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(d);
+  }).format(at);
 }
 
 /** "YYYY-MM-DD" → Date à midi Paris (curseur stable, insensible DST). */
 export function fromKey(key: string): Date {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 10, 0, 0)); // 10h UTC = après-midi Paris toute l'année
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 10, 0, 0)); // 10h UTC = après-midi Paris toute l'année
 }
 
-export function addDays(d: Date, n: number): Date {
-  return new Date(d.getTime() + n * 86_400_000);
+export function addDays(at: Date, days: number): Date {
+  return new Date(at.getTime() + days * 86_400_000);
 }
 
 /** "2026-09" → libellé "septembre 2026". */
@@ -40,8 +40,8 @@ export function monthCells(year: number, monthIndex: number): { date: Date; key:
   // 0 = dimanche … 6 = samedi → décalage depuis lundi.
   const lead = (first.getUTCDay() + 6) % 7;
   const start = addDays(first, -lead);
-  return Array.from({ length: 42 }, (_, i) => {
-    const date = addDays(start, i);
+  return Array.from({ length: 42 }, (unused, index) => {
+    const date = addDays(start, index);
     return {
       date,
       key: toKey(date),

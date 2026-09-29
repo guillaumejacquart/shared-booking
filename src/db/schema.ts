@@ -358,6 +358,11 @@ export const booking = sqliteTable(
     reminderSentAt: integer("reminder_sent_at", { mode: "timestamp" }),
     cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
     cancelReason: text("cancel_reason"),
+    // Push Google Agenda (outbound, par praticien) : identifiant de
+    // l'événement chez Google + état de la synchro (retry best-effort).
+    googleEventId: text("google_event_id").unique(),
+    googleSyncStatus: text("google_sync_status").notNull().default("none"), // 'none' | 'pending' | 'ok' | 'error'
+    googleSyncError: text("google_sync_error"),
     ...timestamps,
   },
   (t) => [
@@ -365,3 +370,24 @@ export const booking = sqliteTable(
     index("booking_room_start_idx").on(t.roomId, t.startAt),
   ],
 );
+
+/**
+ * Préférences de push Google Agenda par praticien (outbound uniquement).
+ * `showPatientName` = opt-in explicite : par défaut les événements Google
+ * sont anonymisés ("Réservé"), sans nom ni contact patient.
+ */
+export const practitionerGoogle = sqliteTable("practitioner_google", {
+  practitionerId: text("practitioner_id")
+    .primaryKey()
+    .references(() => practitioner.id, { onDelete: "cascade" }),
+  syncEnabled: integer("sync_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  calendarId: text("calendar_id").notNull().default("primary"),
+  showPatientName: integer("show_patient_name", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  lastSyncAt: integer("last_sync_at", { mode: "timestamp" }),
+  lastError: text("last_error"),
+  ...timestamps,
+});

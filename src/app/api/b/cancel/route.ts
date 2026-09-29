@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { cancelBooking } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 import { cancelBookingSchema } from "@/lib/schemas/bookings";
 import { readJsonBody, route } from "@/app/api/errors";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
@@ -14,6 +14,6 @@ export const POST = route(async (req: NextRequest) => {
     );
   }
   const body = await readJsonBody(req);
-  const result = await cancelBooking({}, cancelBookingSchema.parse(body));
+  const result = await services.bookings.cancel(cancelBookingSchema.parse(body));
   return NextResponse.json(result);
 });

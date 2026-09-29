@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { fixedClock } from "@/lib/ports";
+import { testPorts } from "@/test/ports";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import {
@@ -154,7 +156,7 @@ describe("saveSessionType / deleteSessionType", () => {
       patientFirstName: "J", patientLastName: "D", patientEmail: "j@example.com",
       status: "confirmed", cancelToken: "c1", rescheduleToken: "r1",
     });
-    await expect(deleteSessionType({ id: "st1", ...alice, practitionerId: "p1" }, NOW)).rejects.toBeInstanceOf(
+    await expect(deleteSessionType(testPorts({ clock: fixedClock(NOW) }), { id: "st1", ...alice, practitionerId: "p1" })).rejects.toBeInstanceOf(
       ValidationError,
     );
   });
@@ -243,11 +245,11 @@ describe("saveRoom / deleteRoom", () => {
       patientFirstName: "J", patientLastName: "D", patientEmail: "j@example.com",
       status: "confirmed", cancelToken: "c1", rescheduleToken: "r1",
     });
-    await expect(deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-a" }, NOW)).rejects.toBeInstanceOf(
+    await expect(deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-a" })).rejects.toBeInstanceOf(
       ValidationError,
     );
     // Salle sans réservation : suppression OK.
-    await deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-x" }, NOW);
+    await deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-x" });
   });
 
   it("refuse de supprimer une salle requise par un type de séance", async () => {
@@ -258,7 +260,7 @@ describe("saveRoom / deleteRoom", () => {
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
     });
     await expect(
-      deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-x" }, NOW),
+      deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-x" }),
     ).rejects.toBeInstanceOf(ValidationError);
     // Après retrait de la restriction, suppression OK.
     await saveSessionType({
@@ -266,7 +268,7 @@ describe("saveRoom / deleteRoom", () => {
       name: "Massage", durationMin: 60, bufferAfterMin: 0,
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
-    await deleteRoom({ officeId: "o1", requesterUserId: "u1", id: "room-x" }, NOW);
+    await deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-x" });
   });
 });
 

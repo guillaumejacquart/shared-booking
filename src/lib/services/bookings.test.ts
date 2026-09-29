@@ -14,9 +14,11 @@ import {
   createBooking,
   getAvailableSlots,
   rescheduleBooking,
-  type Deps,
+  type Ports,
 } from "@/lib/services/bookings";
 import type { OutgoingEmail } from "@/lib/email";
+import { fixedClock } from "@/lib/ports";
+import { testPorts } from "@/test/ports";
 
 // Lundi 14 sept. 2026, 08:00 Paris = 06:00 UTC (heure d'été).
 // Fenêtre lun. 09:00–13:00, séances 60min + buffer 10 → grille : 09:00, 10:10, 11:20.
@@ -29,8 +31,8 @@ const BOB_10H = "2026-09-14T08:00:00.000Z"; // 10:00 Paris (grille de Bob, 60+0)
 let db: Db;
 let sent: OutgoingEmail[];
 
-function deps(): Deps {
-  return { now: NOW, sendEmail: async (e) => void sent.push(e) };
+function ports(): Ports {
+  return testPorts({ clock: fixedClock(NOW), sendEmail: async (email) => void sent.push(email) });
 }
 
 async function seed() {
@@ -100,7 +102,7 @@ beforeEach(async () => {
 
 describe("getAvailableSlots", () => {
   it("retourne les créneaux futurs d'un type de séance", async () => {
-    const slots = await getAvailableSlots(deps(), {
+    const slots = await getAvailableSlots(ports(), {
       practitionerSlug: "alice",
       sessionTypeId: "st1",
       fromDate: "2026-09-14",
@@ -116,29 +118,29 @@ describe("getAvailableSlots", () => {
     const s = await import("@/db/schema");
     const { eq } = await import("drizzle-orm");
     await expect(
-      getAvailableSlots(deps(), { practitionerSlug: "nope", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 }),
+      getAvailableSlots(ports(), { practitionerSlug: "nope", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 }),
     ).rejects.toBeInstanceOf(NotFoundError);
     await db.update(s.practitioner).set({ active: false }).where(eq(s.practitioner.id, "p1"));
     await expect(
-      getAvailableSlots(deps(), { practitionerSlug: "alice", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 }),
+      getAvailableSlots(ports(), { practitionerSlug: "alice", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 }),
     ).rejects.toBeInstanceOf(NotFoundError);
     await db.update(s.practitioner).set({ active: true }).where(eq(s.practitioner.id, "p1"));
     await db.update(s.office).set({ enablePractitionerPages: false }).where(eq(s.office.id, "o1"));
     await expect(
-      getAvailableSlots(deps(), { practitionerSlug: "alice", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 }),
+      getAvailableSlots(ports(), { practitionerSlug: "alice", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("404 sur type de séance inconnu ou d'un autre praticien", async () => {
     await expect(
-      getAvailableSlots(deps(), { practitionerSlug: "alice", sessionTypeId: "st2", fromDate: "2026-09-14", days: 1 }),
+      getAvailableSlots(ports(), { practitionerSlug: "alice", sessionTypeId: "st2", fromDate: "2026-09-14", days: 1 }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 
 describe("createBooking", () => {
   it("réserve un créneau et envoie la confirmation", async () => {
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice",
       sessionTypeId: "st1",
       startAt: SLOT_A,
@@ -154,8 +156,31 @@ describe("createBooking", () => {
     expect(sent[0].ics).toBeDefined();
   });
 
+  it("l'email de confirmation porte ICS + lien Google issus de la même description", async () => {
+    const res = await createBooking(ports(), {
+      practitionerSlug: "alice",
+      sessionTypeId: "st1",
+      startAt: SLOT_A,
+      ...patient,
+    });
+    const email = sent[0];
+    const title = "Séance 60min — Alice";
+    const location = "Cabinet Test"; // sans adresse dans le seed
+    // Même titre et même lieu dans l'ICS et dans le lien Google.
+    expect(email.ics?.content).toContain(`SUMMARY:${title}`);
+    expect(email.ics?.content).toContain(`LOCATION:${location}`);
+    const googleUrl = new URL(
+      email.text.split("Ajouter à Google Agenda : ")[1].split("\n")[0],
+    );
+    expect(googleUrl.searchParams.get("text")).toBe(title);
+    expect(googleUrl.searchParams.get("location")).toBe(location);
+    expect(googleUrl.searchParams.get("dates")).toBe("20260914T081000Z/20260914T091000Z");
+    // Le lien de gestion voyage aussi dans la description Google.
+    expect(googleUrl.searchParams.get("details")).toContain(res.cancelToken);
+  });
+
   it("attribue la première salle libre (ordre sortOrder puis nom)", async () => {
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });
     const s = await import("@/db/schema");
@@ -166,11 +191,11 @@ describe("createBooking", () => {
 
   it("bascule sur une autre salle libre quand la première est occupée", async () => {
     // Bob (salle A uniquement) occupe 10h00–11h00 en A → Alice bascule en B.
-    await createBooking(deps(), {
+    await createBooking(ports(), {
       practitionerSlug: "bob", sessionTypeId: "st2", startAt: BOB_10H, ...patient,
       patientEmail: "bob-patient@example.com",
     });
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });
     const s = await import("@/db/schema");
@@ -180,11 +205,11 @@ describe("createBooking", () => {
   });
 
   it("refuse un créneau déjà pris (même praticien)", async () => {
-    await createBooking(deps(), {
+    await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });
     await expect(
-      createBooking(deps(), {
+      createBooking(ports(), {
         practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A,
         ...patient, patientEmail: "autre@example.com",
       }),
@@ -192,7 +217,7 @@ describe("createBooking", () => {
   });
 
   it("une séance restreinte réserve dans ses salles compatibles", async () => {
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st6", startAt: SLOT_A, ...patient,
     });
     expect(res.status).toBe("confirmed");
@@ -205,17 +230,17 @@ describe("createBooking", () => {
   it("refuse si la seule salle compatible est occupée (autre salle libre)", async () => {
     // Carol (salle B uniquement) occupe 10h00–11h00 en B → le massage d'Alice
     // (restreint à B) n'a plus de salle, bien que A soit libre.
-    await createBooking(deps(), {
+    await createBooking(ports(), {
       practitionerSlug: "carol", sessionTypeId: "st5", startAt: "2026-09-14T08:00:00.000Z",
       ...patient, patientEmail: "carol-patient@example.com",
     });
     await expect(
-      createBooking(deps(), {
+      createBooking(ports(), {
         practitionerSlug: "alice", sessionTypeId: "st6", startAt: SLOT_A, ...patient,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
     // …alors que la séance non restreinte reste réservable (en A).
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A,
       ...patient, patientEmail: "autre@example.com",
     });
@@ -224,11 +249,11 @@ describe("createBooking", () => {
 
   it("refuse un créneau en conflit de salle (Bob en salle A à la même heure)", async () => {
     // Alice 10:10–11:10 + 10min buffer en salle A → Bob ne peut plus prendre 10:00 en A.
-    await createBooking(deps(), {
+    await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });
     await expect(
-      createBooking(deps(), {
+      createBooking(ports(), {
         practitionerSlug: "bob", sessionTypeId: "st2", startAt: BOB_10H, ...patient,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -238,14 +263,14 @@ describe("createBooking", () => {
     // 09:00 Paris = 07:00Z, soit 1h après NOW → sous le lead time de 2h.
     // (consentement et format d'email : validés par le schéma, voir schemas.test.ts)
     await expect(
-      createBooking(deps(), {
+      createBooking(ports(), {
         practitionerSlug: "alice", sessionTypeId: "st1", startAt: "2026-09-14T07:00:00.000Z", ...patient,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("limite à 3 réservations futures par email et par praticien", async () => {
-    const early = { ...deps(), now: new Date("2026-09-01T06:00:00Z") };
+    const early = { ...ports(), clock: fixedClock(new Date("2026-09-01T06:00:00Z")) };
     for (const day of ["2026-09-14", "2026-09-21", "2026-09-28"]) {
       await createBooking(early, {
         practitionerSlug: "alice", sessionTypeId: "st1",
@@ -263,7 +288,7 @@ describe("createBooking", () => {
 
 describe("cancelBooking", () => {
   it("le patient annule dans les délais, le praticien est notifié", async () => {
-    const early = { ...deps(), now: new Date("2026-09-12T06:00:00Z") };
+    const early = { ...ports(), clock: fixedClock(new Date("2026-09-12T06:00:00Z")) };
     const toCancel = await createBooking(early, {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A,
       ...patient, patientEmail: "marie@example.com",
@@ -274,31 +299,31 @@ describe("cancelBooking", () => {
 
   it("le patient ne peut pas annuler après la deadline (24h)", async () => {
     const res = await createBooking(
-      { ...deps(), now: new Date("2026-09-12T06:00:00Z") },
+      { ...ports(), clock: fixedClock(new Date("2026-09-12T06:00:00Z")) },
       { practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient },
     );
     // NOW = RDV − ~2h → après la deadline.
-    await expect(cancelBooking(deps(), { token: res.cancelToken, by: "patient" })).rejects.toBeInstanceOf(
+    await expect(cancelBooking(ports(), { token: res.cancelToken, by: "patient" })).rejects.toBeInstanceOf(
       DeadlineError,
     );
   });
 
   it("le praticien annule toujours, avec motif obligatoire", async () => {
     const res = await createBooking(
-      { ...deps(), now: new Date("2026-09-12T06:00:00Z") },
+      { ...ports(), clock: fixedClock(new Date("2026-09-12T06:00:00Z")) },
       { practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient },
     );
     await expect(
-      cancelBooking(deps(), { token: res.cancelToken, by: "practitioner" }),
+      cancelBooking(ports(), { token: res.cancelToken, by: "practitioner" }),
     ).rejects.toBeInstanceOf(ValidationError);
-    await cancelBooking(deps(), {
+    await cancelBooking(ports(), {
       token: res.cancelToken, by: "practitioner", reason: "Imprévu",
     });
     expect(sent.at(-1)?.to).toBe("jean@example.com");
   });
 
   it("annuler deux fois est idempotent", async () => {
-    const early = { ...deps(), now: new Date("2026-09-12T06:00:00Z") };
+    const early = { ...ports(), clock: fixedClock(new Date("2026-09-12T06:00:00Z")) };
     const res = await createBooking(early, {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });
@@ -310,7 +335,7 @@ describe("cancelBooking", () => {
 
 describe("rescheduleBooking", () => {
   it("déplace la réservation et libère l'ancien créneau", async () => {
-    const early = { ...deps(), now: new Date("2026-09-12T06:00:00Z") };
+    const early = { ...ports(), clock: fixedClock(new Date("2026-09-12T06:00:00Z")) };
     const res = await createBooking(early, {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });
@@ -324,7 +349,7 @@ describe("rescheduleBooking", () => {
   });
 
   it("refuse vers un créneau occupé", async () => {
-    const early = { ...deps(), now: new Date("2026-09-12T06:00:00Z") };
+    const early = { ...ports(), clock: fixedClock(new Date("2026-09-12T06:00:00Z")) };
     await createBooking(early, {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_B,
       ...patient, patientEmail: "autre@example.com",
@@ -343,7 +368,7 @@ describe("validateBooking", () => {
     const { validateBooking } = await import("@/lib/services/bookings");
     const { ForbiddenError } = await import("@/lib/services/errors");
     void ForbiddenError;
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
     });
     expect(res.status).toBe("pending");
@@ -353,7 +378,7 @@ describe("validateBooking", () => {
     expect(sent[1].to).toBe("alice@example.com");
     expect(sent[1].subject).toContain("À valider");
 
-    const out = await validateBooking(deps(), {
+    const out = await validateBooking(ports(), {
       bookingId: res.id, requesterUserId: "u1", accept: true,
     });
     expect(out.status).toBe("confirmed");
@@ -363,13 +388,13 @@ describe("validateBooking", () => {
 
   it("le praticien refuse avec motif : annulé + patient notifié", async () => {
     const { validateBooking } = await import("@/lib/services/bookings");
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
     });
     await expect(
-      validateBooking(deps(), { bookingId: res.id, requesterUserId: "u1", accept: false }),
+      validateBooking(ports(), { bookingId: res.id, requesterUserId: "u1", accept: false }),
     ).rejects.toBeInstanceOf(ValidationError);
-    const out = await validateBooking(deps(), {
+    const out = await validateBooking(ports(), {
       bookingId: res.id, requesterUserId: "u1", accept: false, reason: "Complet",
     });
     expect(out.status).toBe("cancelled");
@@ -379,25 +404,25 @@ describe("validateBooking", () => {
   it("un tiers ne peut pas valider, ni valider deux fois", async () => {
     const { validateBooking } = await import("@/lib/services/bookings");
     const { ConflictError, ForbiddenError } = await import("@/lib/services/errors");
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
     });
     // Bob n'est ni le praticien ni owner.
     await expect(
-      validateBooking(deps(), { bookingId: res.id, requesterUserId: "u2", accept: true }),
+      validateBooking(ports(), { bookingId: res.id, requesterUserId: "u2", accept: true }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    await validateBooking(deps(), { bookingId: res.id, requesterUserId: "u1", accept: true });
+    await validateBooking(ports(), { bookingId: res.id, requesterUserId: "u1", accept: true });
     await expect(
-      validateBooking(deps(), { bookingId: res.id, requesterUserId: "u1", accept: true }),
+      validateBooking(ports(), { bookingId: res.id, requesterUserId: "u1", accept: true }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("le owner peut valider pour un autre praticien", async () => {
     const { validateBooking } = await import("@/lib/services/bookings");
-    const res = await createBooking(deps(), {
+    const res = await createBooking(ports(), {
       practitionerSlug: "bob", sessionTypeId: "st4", startAt: BOB_10H, ...patient,
     });
-    const out = await validateBooking(deps(), {
+    const out = await validateBooking(ports(), {
       bookingId: res.id, requesterUserId: "u1", accept: true,
     });
     expect(out.status).toBe("confirmed");

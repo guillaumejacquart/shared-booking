@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { env } from "@/lib/env";
-import { applyPaymentCompleted } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 
 /**
  * Webhook Stripe (paiements Checkout).
@@ -30,8 +30,7 @@ export async function POST(req: Request) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      await applyPaymentCompleted(
-        {},
+      await services.bookings.applyPayment(
         {
           stripeSessionId: session.id,
           paymentIntentId:

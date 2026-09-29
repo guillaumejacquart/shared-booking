@@ -25,6 +25,7 @@ export type Member = typeof schema.member.$inferSelect;
 export type Invite = typeof schema.invite.$inferSelect;
 export type User = typeof schema.user.$inferSelect;
 export type UserPreferences = typeof schema.userPreferences.$inferSelect;
+export type PractitionerGoogle = typeof schema.practitionerGoogle.$inferSelect;
 
 export interface BookingDetail {
   booking: Booking;

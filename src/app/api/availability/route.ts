@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { replaceAvailability } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { replaceAvailabilitySchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -12,6 +12,6 @@ export const PUT = withAuth(async (user, req: NextRequest) => {
     ...body,
     requesterUserId: user.id,
   });
-  await replaceAvailability(input);
+  await services.schedule.replaceAvailability(input);
   return NextResponse.json({ ok: true });
 });

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { createBooking } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 import { createBookingSchema } from "@/lib/schemas/bookings";
 import { readJsonBody, route } from "@/app/api/errors";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
@@ -23,6 +23,6 @@ export const POST = route(async (
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
   const input = createBookingSchema.parse({ ...body, practitionerSlug: slug });
-  const result = await createBooking({}, input);
+  const result = await services.bookings.create(input);
   return NextResponse.json(result, { status: 201 });
 });

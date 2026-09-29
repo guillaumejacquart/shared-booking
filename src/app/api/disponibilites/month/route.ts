@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { getAvailabilityMonth } from "@/lib/services/schedule";
+import { services } from "@/lib/container";
 import { withAuth } from "@/app/api/_auth";
 
 /**
@@ -14,5 +14,5 @@ export const GET = withAuth(async (user, req: NextRequest) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  return NextResponse.json(await getAvailabilityMonth({ userId: user.id, from, days }));
+  return NextResponse.json(await services.schedule.getAvailabilityMonth({ userId: user.id, from, days }));
 });

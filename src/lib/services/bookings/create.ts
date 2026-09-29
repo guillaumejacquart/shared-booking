@@ -1,28 +1,27 @@
 import * as bookingsDal from "@/dal/bookings";
 import * as practitionersDal from "@/dal/practitioners";
-import * as usersDal from "@/dal/users";
+import type { NewBooking } from "@/dal/types";
 import {
   confirmationEmail,
   validationPendingEmail,
-  validationRequestEmail,
+  type SendEmail,
 } from "@/lib/email";
 import { env } from "@/lib/env";
+import type { Ports, StripeLike } from "@/lib/ports";
 import type { BookingResult, CreateBookingInput } from "@/lib/schemas/bookings";
 import { dateStrInTz } from "@/lib/timezone";
 import { bookingMutex } from "@/lib/mutex";
 import type { Slot } from "@/lib/slots";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import {
-  bookingIcs,
-  defaultSend,
-  manageUrl,
+  mailModel,
   MAX_BUFFER_MIN,
   MAX_FUTURE_PER_EMAIL,
+  notifyValidationRequest,
   PENDING_TTL_MS,
-  realStripe,
   safeSend,
   tokens,
-  type Deps,
+  type MailBooking,
 } from "./shared";
 import { getSlotsWithRoom, slotOnGrid } from "./slots";
 
@@ -36,20 +35,20 @@ type PageSessionType = PractitionerPage["sessionTypes"][number];
  * Distingue hors-grille (400) de pris (409) via la grille sans occupation.
  */
 async function resolveSlot(
-  deps: Deps,
+  ports: Ports,
   page: PractitionerPage,
   st: PageSessionType,
   start: Date,
 ): Promise<Slot> {
   const dateStr = dateStrInTz(start, page.office.timezone);
   const slot = (
-    await getSlotsWithRoom(deps, {
+    await getSlotsWithRoom(ports, {
       practitionerSlug: page.practitioner.slug,
       sessionTypeId: st.id,
       fromDate: dateStr,
       days: 1,
     })
-  ).find((s) => s.start.toISOString() === start.toISOString());
+  ).find((candidate) => candidate.start.toISOString() === start.toISOString());
   if (!slot) {
     const onGrid = await slotOnGrid(
       page.practitioner.id,
@@ -68,42 +67,36 @@ async function resolveSlot(
 
 // --- Création ---------------------------------------------------------------
 
-export async function createBooking(deps: Deps, input: CreateBookingInput): Promise<BookingResult> {
-  const now = deps.now ?? new Date();
-  const send = deps.sendEmail ?? defaultSend();
-
-  const page = await practitionersDal.getPractitionerPage(input.practitionerSlug);
-  if (!page) throw new NotFoundError("Praticien introuvable");
-  const st = page.sessionTypes.find((t) => t.id === input.sessionTypeId);
-  if (!st) throw new NotFoundError("Type de séance introuvable");
+/** Refuse une demande mal configurée ou hors délai de réservation. */
+function assertBookable(
+  page: PractitionerPage,
+  st: PageSessionType,
+  start: Date,
+  now: Date,
+): void {
   if (st.bufferAfterMin > MAX_BUFFER_MIN) {
     throw new ValidationError("Configuration de séance invalide");
   }
-
-  const start = new Date(input.startAt);
   if (Number.isNaN(start.getTime())) throw new ValidationError("Horaire invalide");
   if (start.getTime() < now.getTime() + page.office.bookingLeadTimeMin * 60_000) {
     throw new ValidationError("Ce créneau n'est plus réservable");
   }
+}
 
-  const email = input.patientEmail.toLowerCase();
-  const { cancelToken, rescheduleToken } = tokens();
-  const needsPayment = st.requiresPayment;
-  const needsValidation = st.requiresValidation;
-  if (needsPayment && (!st.priceCents || st.priceCents <= 0)) {
-    throw new ValidationError("Séance mal configurée : prix manquant");
-  }
-  const stripe = needsPayment ? (deps.stripeClient ?? realStripe()) : null;
-  if (needsPayment && !stripe) {
-    throw new ValidationError("Paiement en ligne indisponible pour le moment");
-  }
-
-  const bookingId = crypto.randomUUID();
-
-  // Phase 1 (mutex) : créneau + quota vérifiés AVANT tout appel Stripe
-  // (pas de session orpheline si le créneau est pris ou le quota dépassé).
-  const checked = await bookingMutex.run(async () => {
-    const slot = await resolveSlot(deps, page, st, start);
+/**
+ * Phase 1 (mutex) : créneau + quota vérifiés AVANT tout appel Stripe
+ * (pas de session orpheline si le créneau est pris ou le quota dépassé).
+ */
+async function lockSlot(
+  ports: Ports,
+  page: PractitionerPage,
+  st: PageSessionType,
+  start: Date,
+  email: string,
+  now: Date,
+): Promise<{ roomId: string; end: Date }> {
+  return bookingMutex.run(async () => {
+    const slot = await resolveSlot(ports, page, st, start);
     const futureCount = await bookingsDal.countFutureConfirmedByEmail(
       page.practitioner.id,
       email,
@@ -114,116 +107,170 @@ export async function createBooking(deps: Deps, input: CreateBookingInput): Prom
     }
     return { roomId: slot.roomId, end: slot.end };
   });
+}
 
-  // Phase 2 (hors mutex) : session Stripe si nécessaire, sans écriture locale.
-  let stripeSessionId: string | null = null;
-  let checkoutUrl: string | undefined;
-  if (needsPayment) {
-    const origin = env.BETTER_AUTH_URL.replace(/\/$/, "");
-    const session = await stripe!.checkout.sessions.create({
-      mode: "payment",
-      customer_email: email,
-      line_items: [
-        {
-          price_data: {
-            currency: st.currency ?? "eur",
-            unit_amount: st.priceCents!,
-            product_data: { name: `${st.name} — ${page.practitioner.displayName}` },
-          },
-          quantity: 1,
+/** Phase 2 (hors mutex) : session Stripe, sans écriture locale. */
+async function createCheckoutSession(args: {
+  stripe: StripeLike;
+  st: PageSessionType;
+  page: PractitionerPage;
+  email: string;
+  bookingId: string;
+  now: Date;
+}): Promise<{ stripeSessionId: string; checkoutUrl: string }> {
+  const { stripe, st, page, email, bookingId, now } = args;
+  const origin = env.BETTER_AUTH_URL.replace(/\/$/, "");
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: email,
+    line_items: [
+      {
+        price_data: {
+          currency: st.currency ?? "eur",
+          unit_amount: st.priceCents!,
+          product_data: { name: `${st.name} — ${page.practitioner.displayName}` },
         },
-      ],
-      metadata: { bookingId },
-      expires_at: Math.floor((now.getTime() + PENDING_TTL_MS) / 1000),
-      success_url: `${origin}/p/${page.practitioner.slug}/merci?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/p/${page.practitioner.slug}?paiement=annule`,
-    });
-    if (!session.url) throw new ValidationError("Paiement en ligne indisponible pour le moment");
-    stripeSessionId = session.id;
-    checkoutUrl = session.url;
-  }
-
-  // Phase 3 (mutex) : insertion protégée (la garde DAL tranche les courses).
-  const booked = await bookingMutex.run(async () => {
-    const inserted = await bookingsDal.tryInsertBooking({
-      id: bookingId,
-      officeId: page.office.id,
-      practitionerId: page.practitioner.id,
-      roomId: checked.roomId,
-      sessionTypeId: st.id,
-      sessionNameSnapshot: st.name,
-      durationMinSnapshot: st.durationMin,
-      bufferAfterMinSnapshot: st.bufferAfterMin,
-      startAt: start,
-      endAt: checked.end,
-      patientFirstName: input.patientFirstName,
-      patientLastName: input.patientLastName,
-      patientEmail: email,
-      patientPhone: input.patientPhone,
-      notes: input.notes,
-      cancelToken,
-      rescheduleToken,
-      status: needsPayment || needsValidation ? "pending" : "confirmed",
-      paymentStatus: needsPayment ? "pending" : "none",
-      stripeSessionId,
-      validationRequired: needsValidation,
-      pendingExpiresAt: needsPayment ? new Date(now.getTime() + PENDING_TTL_MS) : null,
-    });
-    if (inserted.conflict) throw new ConflictError("Créneau déjà réservé");
-    return { id: inserted.id, endAt: checked.end.toISOString() };
+        quantity: 1,
+      },
+    ],
+    metadata: { bookingId },
+    expires_at: Math.floor((now.getTime() + PENDING_TTL_MS) / 1000),
+    success_url: `${origin}/p/${page.practitioner.slug}/merci?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}/p/${page.practitioner.slug}?paiement=annule`,
   });
-  const end = new Date(booked.endAt);
-  const status = needsPayment || needsValidation ? "pending" : "confirmed";
+  if (!session.url) throw new ValidationError("Paiement en ligne indisponible pour le moment");
+  return { stripeSessionId: session.id, checkoutUrl: session.url };
+}
 
-  const model = {
-    practitionerName: page.practitioner.displayName,
-    sessionName: st.name,
-    start,
-    timeZone: page.office.timezone,
-    officeName: page.office.name,
-    officeAddress: page.office.address,
-    manageUrl: manageUrl(page.office.slug, page.practitioner.slug, cancelToken),
-  };
-  const ics = bookingIcs(
-    {
-      id: booked.id,
-      sessionNameSnapshot: st.name,
-      startAt: start,
-      endAt: end,
-      patientEmail: email,
-    },
-    page.practitioner.displayName,
-    page.office,
-  );
-  if (status === "confirmed") {
+/** Phase 3 (mutex) : insertion protégée (la garde DAL tranche les courses). */
+async function insertBookingGuarded(data: NewBooking): Promise<string> {
+  return bookingMutex.run(async () => {
+    const inserted = await bookingsDal.tryInsertBooking(data);
+    if (inserted.conflict) throw new ConflictError("Créneau déjà réservé");
+    return inserted.id;
+  });
+}
+
+/** Emails post-insertion selon le statut (confirmé / à valider / à payer). */
+async function sendCreationEmails(
+  send: SendEmail,
+  page: PractitionerPage,
+  booking: MailBooking & { patientFirstName: string; patientLastName: string },
+  opts: { confirmed: boolean; needsPayment: boolean },
+): Promise<void> {
+  const model = mailModel(booking, page);
+  if (opts.confirmed) {
     // Flux classique : confirmation immédiate (best-effort : la réservation
     // reste confirmée même si l'email échoue).
-    await safeSend(send, confirmationEmail(email, model, ics));
-  } else if (!needsPayment) {
-    // Validation praticien sans paiement : accusé de réception patient...
-    // ...et notification au praticien (sinon il ne sait pas qu'il doit agir).
-    await safeSend(send, validationPendingEmail(email, model));
-    const pracEmail = await usersDal.getUserEmail(page.practitioner.userId);
-    if (pracEmail) {
-      await safeSend(
-        send,
-        validationRequestEmail(pracEmail, {
-          ...model,
-          patientName: `${input.patientFirstName} ${input.patientLastName}`,
-        }),
-      );
-    }
+    await safeSend(send, confirmationEmail(booking.patientEmail, model));
+    return;
   }
   // Cas payant : aucun email avant le paiement (le webhook confirme).
+  if (opts.needsPayment) return;
+  // Validation praticien sans paiement : accusé de réception patient...
+  await safeSend(send, validationPendingEmail(booking.patientEmail, model));
+  // ...et notification au praticien (sinon il ne sait pas qu'il doit agir).
+  await notifyValidationRequest(send, page, booking);
+}
+
+/**
+ * Résout et valide la demande : page praticien, type de séance, créneau,
+ * options paiement/validation. Lève les erreurs métier (404/400) avant toute
+ * écriture.
+ */
+async function resolveBookingPlan(
+  ports: Ports,
+  input: CreateBookingInput,
+): Promise<{
+  page: PractitionerPage;
+  st: PageSessionType;
+  start: Date;
+  now: Date;
+  email: string;
+  needsPayment: boolean;
+  needsValidation: boolean;
+  stripe: StripeLike | null;
+}> {
+  const now = ports.clock.now();
+  const page = await practitionersDal.getPractitionerPage(input.practitionerSlug);
+  if (!page) throw new NotFoundError("Praticien introuvable");
+  const st = page.sessionTypes.find((sessionType) => sessionType.id === input.sessionTypeId);
+  if (!st) throw new NotFoundError("Type de séance introuvable");
+
+  const start = new Date(input.startAt);
+  assertBookable(page, st, start, now);
+  const needsPayment = st.requiresPayment;
+  const needsValidation = st.requiresValidation;
+  if (needsPayment && (!st.priceCents || st.priceCents <= 0)) {
+    throw new ValidationError("Séance mal configurée : prix manquant");
+  }
+  const stripe = needsPayment ? ports.stripeClient : null;
+  if (needsPayment && !stripe) {
+    throw new ValidationError("Paiement en ligne indisponible pour le moment");
+  }
+  return {
+    page,
+    st,
+    start,
+    now,
+    email: input.patientEmail.toLowerCase(),
+    needsPayment,
+    needsValidation,
+    stripe,
+  };
+}
+
+export async function createBooking(ports: Ports, input: CreateBookingInput): Promise<BookingResult> {
+  const { page, st, start, now, email, needsPayment, needsValidation, stripe } =
+    await resolveBookingPlan(ports, input);
+  const send = ports.sendEmail;
+  const { cancelToken, rescheduleToken } = tokens();
+  const bookingId = crypto.randomUUID();
+  const status = needsPayment || needsValidation ? "pending" : "confirmed";
+
+  const checked = await lockSlot(ports, page, st, start, email, now);
+  const checkout = stripe
+    ? await createCheckoutSession({ stripe, st, page, email, bookingId, now })
+    : null;
+
+  const row: NewBooking = {
+    id: bookingId,
+    officeId: page.office.id,
+    practitionerId: page.practitioner.id,
+    roomId: checked.roomId,
+    sessionTypeId: st.id,
+    sessionNameSnapshot: st.name,
+    durationMinSnapshot: st.durationMin,
+    bufferAfterMinSnapshot: st.bufferAfterMin,
+    startAt: start,
+    endAt: checked.end,
+    patientFirstName: input.patientFirstName,
+    patientLastName: input.patientLastName,
+    patientEmail: email,
+    patientPhone: input.patientPhone,
+    notes: input.notes,
+    cancelToken,
+    rescheduleToken,
+    status,
+    paymentStatus: needsPayment ? "pending" : "none",
+    stripeSessionId: checkout?.stripeSessionId ?? null,
+    validationRequired: needsValidation,
+    pendingExpiresAt: needsPayment ? new Date(now.getTime() + PENDING_TTL_MS) : null,
+  };
+  const bookedId = await insertBookingGuarded(row);
+  await sendCreationEmails(send, page, row, {
+    confirmed: status === "confirmed",
+    needsPayment,
+  });
 
   return {
-    id: booked.id,
+    id: bookedId,
     status,
     startAt: start.toISOString(),
-    endAt: end.toISOString(),
+    endAt: checked.end.toISOString(),
     cancelToken,
     rescheduleToken,
     requiresPayment: needsPayment,
-    ...(checkoutUrl ? { checkoutUrl } : {}),
+    ...(checkout ? { checkoutUrl: checkout.checkoutUrl } : {}),
   };
 }

@@ -4,13 +4,11 @@ import {
   paymentReceivedEmail,
   type SendEmail,
 } from "@/lib/email";
+import type { Ports } from "@/lib/ports";
 import type { ApplyPaymentInput } from "@/lib/schemas/bookings";
 import {
-  bookingIcs,
-  defaultSend,
   mailModel,
   notifyValidationRequest,
-  type Deps,
 } from "./shared";
 
 // --- Paiement ----------------------------------------------------------------
@@ -20,19 +18,17 @@ import {
  * si aucune validation praticien n'est requise. Idempotent (retries Stripe).
  */
 export async function applyPaymentCompleted(
-  deps: Deps,
+  ports: Ports,
   input: ApplyPaymentInput,
 ): Promise<{ applied: boolean; confirmed: boolean }> {
-  const send = deps.sendEmail ?? defaultSend();
-
   const detail = await bookingsDal.findBookingByStripeSession(input.stripeSessionId);
   if (!detail) return { applied: false, confirmed: false };
-  const { booking: b } = detail;
-  if (b.paymentStatus === "paid") return { applied: false, confirmed: false };
-  if (b.status !== "pending") return { applied: false, confirmed: false };
+  const { booking } = detail;
+  if (booking.paymentStatus === "paid") return { applied: false, confirmed: false };
+  if (booking.status !== "pending") return { applied: false, confirmed: false };
 
-  await bookingsDal.markBookingPaid(b.id, input.paymentIntentId);
-  const confirmed = await finalizeBookingIfReady({ ...deps, sendEmail: send }, b.id);
+  await bookingsDal.markBookingPaid(booking.id, input.paymentIntentId);
+  const confirmed = await finalizeBookingIfReady(ports, booking.id);
   return { applied: true, confirmed };
 }
 
@@ -42,41 +38,35 @@ export async function applyPaymentCompleted(
  * plus tard, par la validation praticien.
  */
 export async function finalizeBookingIfReady(
-  deps: Deps,
+  ports: Ports,
   bookingId: string,
 ): Promise<boolean> {
-  const send: SendEmail = deps.sendEmail ?? defaultSend();
+  const send: SendEmail = ports.sendEmail;
   // Une seule lecture (réservation + détail) au lieu de deux requêtes.
   const detail = await bookingsDal.getBookingById(bookingId);
   if (!detail) return false;
-  const b = detail.booking;
-  if (b.status !== "pending") return false;
-  if (b.paymentStatus === "pending") return false;
-  if (b.validationRequired && !b.validatedAt) {
+  const { booking } = detail;
+  if (booking.status !== "pending") return false;
+  if (booking.paymentStatus === "pending") return false;
+  if (booking.validationRequired && !booking.validatedAt) {
     // Payé mais en attente de validation : on prévient le patient.
-    if (b.paymentStatus === "paid") {
-      await send(paymentReceivedEmail(b.patientEmail, mailModel(b, detail)));
-      await notifyValidationRequest(send, detail, b);
+    if (booking.paymentStatus === "paid") {
+      await send(paymentReceivedEmail(booking.patientEmail, mailModel(booking, detail)));
+      await notifyValidationRequest(send, detail, booking);
     }
     return false;
   }
-  await bookingsDal.markBookingConfirmed(b.id);
-  await send(
-    confirmationEmail(
-      b.patientEmail,
-      mailModel(b, detail),
-      bookingIcs(b, detail.practitioner.displayName, detail.office),
-    ),
-  );
+  await bookingsDal.markBookingConfirmed(booking.id);
+  await send(confirmationEmail(booking.patientEmail, mailModel(booking, detail)));
   return true;
 }
 
 /** Libère les pendings dont le paiement a expiré (cron). */
-export async function releaseExpiredPendings(deps: Deps): Promise<number> {
-  const now = deps.now ?? new Date();
+export async function releaseExpiredPendings(ports: Ports): Promise<number> {
+  const now = ports.clock.now();
   const expired = await bookingsDal.listExpiredPendings(now);
-  for (const b of expired) {
-    await bookingsDal.markBookingCancelled(b.id, "Paiement expiré", now);
+  for (const expiredBooking of expired) {
+    await bookingsDal.markBookingCancelled(expiredBooking.id, "Paiement expiré", now);
   }
   return expired.length;
 }
@@ -88,12 +78,12 @@ export async function releaseExpiredPendings(deps: Deps): Promise<number> {
 export async function getBookingStatusByStripeSession(stripeSessionId: string) {
   const detail = await bookingsDal.findBookingByStripeSession(stripeSessionId);
   if (!detail) return null;
-  const { booking: b, practitioner: prac } = detail;
+  const { booking, practitioner } = detail;
   return {
-    status: b.status,
-    paymentStatus: b.paymentStatus,
-    practitionerSlug: prac.slug,
-    sessionName: b.sessionNameSnapshot,
-    startAt: b.startAt.toISOString(),
+    status: booking.status,
+    paymentStatus: booking.paymentStatus,
+    practitionerSlug: practitioner.slug,
+    sessionName: booking.sessionNameSnapshot,
+    startAt: booking.startAt.toISOString(),
   };
 }

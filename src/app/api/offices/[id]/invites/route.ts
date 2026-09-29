@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { createInvite, listPendingInvites } from "@/lib/services/team";
+import { services } from "@/lib/container";
 import { createInviteSchema } from "@/lib/schemas/team";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
@@ -11,7 +11,7 @@ export const GET = withAuth(async (user, _req: NextRequest,
 ) => {
   const { id } = await params;
   return NextResponse.json(
-    await listPendingInvites({ officeId: id, requesterUserId: user.id }),
+    await services.team.listPendingInvites({ officeId: id, requesterUserId: user.id }),
   );
 });
 
@@ -30,6 +30,6 @@ export const POST = withAuth(async (user, req: NextRequest,
     requesterUserId: user.id,
     origin: `${proto}://${host}`,
   });
-  const result = await createInvite({}, input);
+  const result = await services.team.createInvite(input);
   return NextResponse.json(result, { status: 201 });
 });

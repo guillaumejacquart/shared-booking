@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { getBookingStatusByStripeSession } from "@/lib/services/bookings";
+import { services } from "@/lib/container";
 
 /** Statut d'une réservation payée, pour la page de retour Stripe. */
 export async function GET(req: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: "Requête invalide" }, { status: 400 });
   }
-  const status = await getBookingStatusByStripeSession(sessionId);
+  const status = await services.bookings.statusByStripeSession(sessionId);
   if (!status) return NextResponse.json({ error: "Réservation introuvable" }, { status: 404 });
   return NextResponse.json(status);
 }

@@ -65,10 +65,10 @@ export const createExceptionSchema = scopeSchema.merge(requesterSchema).extend({
     .string()
     .regex(DATE_RE, "Date invalide (AAAA-MM-JJ)")
     .refine(
-      (d) => {
-        const [y, m, day] = d.split("-").map(Number);
-        const dt = new Date(Date.UTC(y, m - 1, day));
-        return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === day;
+      (value) => {
+        const [year, month, day] = value.split("-").map(Number);
+        const dt = new Date(Date.UTC(year, month - 1, day));
+        return dt.getUTCFullYear() === year && dt.getUTCMonth() === month - 1 && dt.getUTCDate() === day;
       },
       "Date invalide (AAAA-MM-JJ)",
     ),

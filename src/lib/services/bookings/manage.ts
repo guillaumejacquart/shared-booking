@@ -1,14 +1,20 @@
 import * as bookingsDal from "@/dal/bookings";
 import * as membersDal from "@/dal/members";
+import type { Booking, BookingDetail, Office, Practitioner } from "@/dal/types";
 import * as usersDal from "@/dal/users";
 import {
-  createMailer,
   patientCancelledEmail,
   practitionerCancelledEmail,
   rescheduledEmail,
   type SendEmail,
 } from "@/lib/email";
-import type { CancelInput, RescheduleInput, ValidateInput } from "@/lib/schemas/bookings";
+import type { Ports } from "@/lib/ports";
+import type {
+  BookingResult,
+  CancelInput,
+  RescheduleInput,
+  ValidateInput,
+} from "@/lib/schemas/bookings";
 import { dateStrInTz } from "@/lib/timezone";
 import { generateSlots } from "@/lib/slots";
 import { bookingMutex } from "@/lib/mutex";
@@ -20,72 +26,77 @@ import {
   ValidationError,
 } from "../errors";
 import {
-  bookingIcs,
   deadline,
-  defaultSend,
   mailModel,
-  type Deps,
 } from "./shared";
 import { loadSlotContext } from "./slots";
 import { finalizeBookingIfReady } from "./payment";
 
 // --- Validation praticien ----------------------------------------------------
 
+/** Le praticien du RDV ou un owner actif du cabinet peut valider. */
+async function assertCanValidate(
+  detail: BookingDetail,
+  requesterUserId: string,
+): Promise<void> {
+  const { practitioner: prac, office } = detail;
+  if (prac.userId === requesterUserId && prac.active) return;
+  const membership = await membersDal.getMembership(office.id, requesterUserId);
+  if (!membership || membership.role !== "owner" || !membership.active) {
+    throw new ForbiddenError("Seul le praticien ou le responsable peut valider");
+  }
+}
+
 /**
  * Valide (confirme) ou refuse une demande en attente de validation.
  * Autorisé : le praticien du RDV ou un owner du cabinet.
  */
 export async function validateBooking(
-  deps: Deps,
+  ports: Ports,
   input: ValidateInput,
 ): Promise<{ id: string; status: string }> {
-  const now = deps.now ?? new Date();
-  const send = deps.sendEmail ?? defaultSend();
+  const now = ports.clock.now();
+  const send = ports.sendEmail;
 
   const detail = await bookingsDal.getBookingById(input.bookingId);
   if (!detail) throw new NotFoundError("Réservation introuvable");
-  const { booking: b, practitioner: prac, office } = detail;
-  if (b.status !== "pending" || !b.validationRequired || b.validatedAt) {
+  const { booking } = detail;
+  if (booking.status !== "pending" || !booking.validationRequired || booking.validatedAt) {
     throw new ConflictError("Cette réservation n'est plus à valider");
   }
-  if (prac.userId !== input.requesterUserId || !prac.active) {
-    const m = await membersDal.getMembership(office.id, input.requesterUserId);
-    if (!m || m.role !== "owner" || !m.active) {
-      throw new ForbiddenError("Seul le praticien ou le responsable peut valider");
-    }
-  }
-  if (b.paymentStatus === "pending") {
+  await assertCanValidate(detail, input.requesterUserId);
+  if (booking.paymentStatus === "pending") {
     throw new ConflictError("Paiement en attente");
   }
 
-  const model = mailModel(b, detail);
+  const model = mailModel(booking, detail);
   if (input.accept) {
-    await bookingsDal.markBookingValidated(b.id, now);
-    await finalizeBookingIfReady({ ...deps, sendEmail: send }, b.id);
-    return { id: b.id, status: "confirmed" };
+    await bookingsDal.markBookingValidated(booking.id, now);
+    await finalizeBookingIfReady(ports, booking.id);
+    return { id: booking.id, status: "confirmed" };
   }
   if (!input.reason) throw new ValidationError("Un motif de refus est requis");
-  await bookingsDal.markBookingCancelled(b.id, input.reason, now);
-  await send(practitionerCancelledEmail(b.patientEmail, { ...model, reason: input.reason }));
-  return { id: b.id, status: "cancelled" };
+  await bookingsDal.markBookingCancelled(booking.id, input.reason, now);
+  await send(practitionerCancelledEmail(booking.patientEmail, { ...model, reason: input.reason }));
+  return { id: booking.id, status: "cancelled" };
 }
 
 // --- Annulation --------------------------------------------------------------
 
 export async function cancelBooking(
-  deps: Deps,
+  ports: Ports,
   input: CancelInput,
 ): Promise<{ id: string; status: string }> {
-  const now = deps.now ?? new Date();
-  const send = deps.sendEmail ?? createMailer();
+  const now = ports.clock.now();
+  const send = ports.sendEmail;
 
   const detail = await bookingsDal.findBookingByCancelToken(input.token);
   if (!detail) throw new NotFoundError("Réservation introuvable");
-  const { booking: b, practitioner: prac, office } = detail;
-  if (b.status === "cancelled") return { id: b.id, status: b.status };
+  const { booking, practitioner: prac, office } = detail;
+  if (booking.status === "cancelled") return { id: booking.id, status: booking.status };
 
   if (input.by === "patient") {
-    if (now.getTime() > deadline(office, b.startAt).getTime()) {
+    if (now.getTime() > deadline(office, booking.startAt).getTime()) {
       throw new DeadlineError(
         "Annulation en ligne impossible : contactez directement le praticien",
       );
@@ -94,44 +105,88 @@ export async function cancelBooking(
     throw new ValidationError("Un motif d'annulation est requis");
   }
 
-  await bookingsDal.markBookingCancelled(b.id, input.reason ?? null, now);
+  await bookingsDal.markBookingCancelled(booking.id, input.reason ?? null, now);
 
   // Pas de lien de gestion dans un email d'annulation : `manageUrl` vide.
-  const model = { ...mailModel(b, detail), manageUrl: "" };
+  const model = { ...mailModel(booking, detail), manageUrl: "" };
   if (input.by === "patient") {
     const pracEmail = await usersDal.getUserEmail(prac.userId);
     if (pracEmail) {
       await send(
         patientCancelledEmail(pracEmail, {
           ...model,
-          patientName: `${b.patientFirstName} ${b.patientLastName}`,
+          patientName: `${booking.patientFirstName} ${booking.patientLastName}`,
         }),
       );
     }
   } else {
     await send(
-      practitionerCancelledEmail(b.patientEmail, { ...model, reason: input.reason! }),
+      practitionerCancelledEmail(booking.patientEmail, { ...model, reason: input.reason! }),
     );
   }
-  return { id: b.id, status: "cancelled" };
+  return { id: booking.id, status: "cancelled" };
 }
 
 // --- Report ------------------------------------------------------------------
 
+/**
+ * Déplace la réservation vers `newStart` sous mutex (vérification de la grille
+ * puis écriture), comme dans createBooking. Retourne le créneau cible.
+ */
+async function moveBookingToNewSlot(args: {
+  booking: Booking;
+  prac: Practitioner;
+  office: Office;
+  newStart: Date;
+  now: Date;
+}): Promise<{ start: Date; end: Date }> {
+  const { booking, prac, office, newStart, now } = args;
+  return bookingMutex.run(async () => {
+    const tz = office.timezone;
+    const dateStr = dateStrInTz(newStart, tz);
+    const engineFrom = now;
+    const horizonEnd = new Date(newStart.getTime() + 86_400_000);
+    const context = await loadSlotContext(prac.id, office.id, engineFrom, horizonEnd, tz, booking.id, booking.sessionTypeId);
+    const allSlots = generateSlots({
+      timezone: tz,
+      ...context,
+      sessionDurationMin: booking.durationMinSnapshot,
+      bufferAfterMin: booking.bufferAfterMinSnapshot,
+      leadTimeMin: office.bookingLeadTimeMin,
+      from: engineFrom,
+      days: Math.max(
+        1,
+        Math.ceil((horizonEnd.getTime() - engineFrom.getTime()) / 86_400_000),
+      ),
+    }).filter((slot) => dateStrInTz(slot.start, tz) === dateStr);
+
+    const found = allSlots.find((slot) => slot.start.getTime() === newStart.getTime());
+    if (!found) throw new ConflictError("Nouveau créneau indisponible");
+
+    const moved = await bookingsDal.tryMoveBooking(booking.id, {
+      startAt: found.start,
+      endAt: found.end,
+      roomId: found.roomId,
+    });
+    if (!moved) throw new ConflictError("Nouveau créneau indisponible");
+    return { start: found.start, end: found.end };
+  });
+}
+
 export async function rescheduleBooking(
-  deps: Deps,
+  ports: Ports,
   input: RescheduleInput,
-): Promise<import("@/lib/schemas/bookings").BookingResult> {
-  const now = deps.now ?? new Date();
-  const send: SendEmail = deps.sendEmail ?? defaultSend();
+): Promise<BookingResult> {
+  const now = ports.clock.now();
+  const send: SendEmail = ports.sendEmail;
 
   const detail = await bookingsDal.findBookingByRescheduleToken(input.token);
   if (!detail) throw new NotFoundError("Réservation introuvable");
-  const { booking: b, practitioner: prac, office } = detail;
-  if (b.status !== "confirmed") {
+  const { booking, practitioner: prac, office } = detail;
+  if (booking.status !== "confirmed") {
     throw new ConflictError("Cette réservation n'est plus modifiable");
   }
-  if (now.getTime() > deadline(office, b.startAt).getTime()) {
+  if (now.getTime() > deadline(office, booking.startAt).getTime()) {
     throw new DeadlineError(
       "Report en ligne impossible : contactez directement le praticien",
     );
@@ -142,58 +197,20 @@ export async function rescheduleBooking(
     throw new ValidationError("Nouvel horaire invalide");
   }
 
-  // La séance garde son type d'origine (snapshots) : on régénère la grille du
-  // jour cible avec durée/buffer d'origine et on vérifie l'alignement.
-  // Vérification + déplacement sous mutex (voir createBooking).
-  const target = await bookingMutex.run(async () => {
-    const tz = office.timezone;
-    const dateStr = dateStrInTz(newStart, tz);
-    const engineFrom = now;
-    const horizonEnd = new Date(newStart.getTime() + 86_400_000);
-    const context = await loadSlotContext(prac.id, office.id, engineFrom, horizonEnd, tz, b.id, b.sessionTypeId);
-    const allSlots = generateSlots({
-      timezone: tz,
-      ...context,
-      sessionDurationMin: b.durationMinSnapshot,
-      bufferAfterMin: b.bufferAfterMinSnapshot,
-      leadTimeMin: office.bookingLeadTimeMin,
-      from: engineFrom,
-      days: Math.max(
-        1,
-        Math.ceil((horizonEnd.getTime() - engineFrom.getTime()) / 86_400_000),
-      ),
-    }).filter((s) => dateStrInTz(s.start, tz) === dateStr);
+  // La séance garde son type d'origine (snapshots) : le moteur régénère la
+  // grille du jour cible avec durée/buffer d'origine et vérifie l'alignement.
+  const target = await moveBookingToNewSlot({ booking, prac, office, newStart, now });
 
-    const found = allSlots.find((s) => s.start.getTime() === newStart.getTime());
-    if (!found) throw new ConflictError("Nouveau créneau indisponible");
-
-    const moved = await bookingsDal.tryMoveBooking(b.id, {
-      startAt: found.start,
-      endAt: found.end,
-      roomId: found.roomId,
-    });
-    if (!moved) throw new ConflictError("Nouveau créneau indisponible");
-    return found;
-  });
-
-  await send(
-    rescheduledEmail(
-      b.patientEmail,
-      mailModel(b, detail, target.start),
-      bookingIcs(b, prac.displayName, office, {
-        start: target.start,
-        end: target.end,
-      }),
-    ),
-  );
+  const model = mailModel(booking, detail, target);
+  await send(rescheduledEmail(booking.patientEmail, model));
 
   return {
-    id: b.id,
+    id: booking.id,
     status: "confirmed",
     startAt: target.start.toISOString(),
     endAt: target.end.toISOString(),
-    cancelToken: b.cancelToken,
-    rescheduleToken: b.rescheduleToken,
+    cancelToken: booking.cancelToken,
+    rescheduleToken: booking.rescheduleToken,
     requiresPayment: false,
   };
 }

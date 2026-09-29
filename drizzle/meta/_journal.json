@@ -57,6 +57,13 @@
       "when": 1790109891002,
       "tag": "0007_neat_madrox",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790708590145,
+      "tag": "0008_wild_ma_gnuci",
+      "breakpoints": true
     }
   ]
 }
