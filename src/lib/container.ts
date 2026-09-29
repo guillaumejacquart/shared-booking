@@ -7,13 +7,13 @@ import {
   type Ports,
   type StripeLike,
 } from "@/lib/ports";
-import { createBookingsService, type BookingsService } from "@/lib/services/bookings";
-import { createCalendarService, type CalendarService } from "@/lib/services/calendar";
-import { createGoogleService, type GoogleService } from "@/lib/services/google";
-import { createPreferencesService, type PreferencesService } from "@/lib/services/preferences";
-import { createRemindersService, type RemindersService } from "@/lib/services/reminders";
-import { createScheduleService, type ScheduleService } from "@/lib/services/schedule";
-import { createTeamService, type TeamService } from "@/lib/services/team";
+import { createBookingsService, type BookingsService } from "@/services/bookings";
+import { createCalendarService, type CalendarService } from "@/services/calendar";
+import { createGoogleService, type GoogleService } from "@/services/google";
+import { createPreferencesService, type PreferencesService } from "@/services/preferences";
+import { createRemindersService, type RemindersService } from "@/services/reminders";
+import { createScheduleService, type ScheduleService } from "@/services/schedule";
+import { createTeamService, type TeamService } from "@/services/team";
 import Stripe from "stripe";
 
 /**

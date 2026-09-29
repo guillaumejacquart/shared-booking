@@ -8,14 +8,14 @@ import {
   DeadlineError,
   NotFoundError,
   ValidationError,
-} from "@/lib/services/errors";
+} from "@/services/errors";
 import {
   cancelBooking,
   createBooking,
   getAvailableSlots,
   rescheduleBooking,
   type Ports,
-} from "@/lib/services/bookings";
+} from "@/services/bookings";
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
@@ -422,8 +422,8 @@ describe("rescheduleBooking", () => {
 
 describe("validateBooking", () => {
   it("le praticien valide : confirmé + email de confirmation", async () => {
-    const { validateBooking } = await import("@/lib/services/bookings");
-    const { ForbiddenError } = await import("@/lib/services/errors");
+    const { validateBooking } = await import("@/services/bookings");
+    const { ForbiddenError } = await import("@/services/errors");
     void ForbiddenError;
     const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
@@ -444,7 +444,7 @@ describe("validateBooking", () => {
   });
 
   it("le praticien refuse avec motif : annulé + patient notifié", async () => {
-    const { validateBooking } = await import("@/lib/services/bookings");
+    const { validateBooking } = await import("@/services/bookings");
     const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
     });
@@ -459,8 +459,8 @@ describe("validateBooking", () => {
   });
 
   it("un tiers ne peut pas valider, ni valider deux fois", async () => {
-    const { validateBooking } = await import("@/lib/services/bookings");
-    const { ConflictError, ForbiddenError } = await import("@/lib/services/errors");
+    const { validateBooking } = await import("@/services/bookings");
+    const { ConflictError, ForbiddenError } = await import("@/services/errors");
     const res = await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
     });
@@ -475,7 +475,7 @@ describe("validateBooking", () => {
   });
 
   it("le owner peut valider pour un autre praticien", async () => {
-    const { validateBooking } = await import("@/lib/services/bookings");
+    const { validateBooking } = await import("@/services/bookings");
     const res = await createBooking(ports(), {
       practitionerSlug: "bob", sessionTypeId: "st4", startAt: BOB_10H, ...patient,
     });

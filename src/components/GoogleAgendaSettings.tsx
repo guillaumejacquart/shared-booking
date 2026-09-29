@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { t } from "@/lib/i18n";
-import type { GoogleStatus } from "@/lib/services/google";
+import type { GoogleStatus } from "@/services/google";
 import {
   Button,
   ConfirmButton,

@@ -4,7 +4,7 @@ import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import type { Booking } from "@/dal/types";
 import { practitionerColor } from "@/lib/calendar-colors";
-import { sortRooms } from "@/lib/rooms";
+import { sortRooms } from "@/services/room-order";
 import { ForbiddenError, NotFoundError } from "./errors";
 
 /**

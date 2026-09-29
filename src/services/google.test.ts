@@ -5,12 +5,12 @@ import * as googleAccountsDal from "@/dal/google-accounts";
 import * as practitionerGoogleDal from "@/dal/practitioner-google";
 import type { Db } from "@/dal/types";
 import { createMemoryDb } from "@/test/memory-db";
-import { ValidationError } from "@/lib/services/errors";
+import { ValidationError } from "@/services/errors";
 import {
   disconnectGoogle,
   getGoogleStatus,
   saveGooglePrefs,
-} from "@/lib/services/google";
+} from "@/services/google";
 
 let db: Db;
 

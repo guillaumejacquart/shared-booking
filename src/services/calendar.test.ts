@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { getAgendaEvents, getSharedCalendar } from "@/lib/services/calendar";
-import { ForbiddenError, NotFoundError } from "@/lib/services/errors";
+import { getAgendaEvents, getSharedCalendar } from "@/services/calendar";
+import { ForbiddenError, NotFoundError } from "@/services/errors";
 
 let db: Db;
 const START = new Date("2026-09-14T00:00:00Z");

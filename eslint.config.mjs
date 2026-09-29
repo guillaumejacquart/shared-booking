@@ -41,7 +41,7 @@ const eslintConfig = defineConfig([
   // Noms explicites : exigé sur le cœur métier (services, DAL, lib),
   // signalé en warning sur le reste (dette UI existante à purger).
   {
-    files: ["src/lib/**/*.ts", "src/dal/**/*.ts"],
+    files: ["src/services/**/*.ts", "src/lib/**/*.ts", "src/dal/**/*.ts"],
     ignores: ["**/*.test.ts", "src/test/**"],
     rules: {
       "id-length": ["error", { min: 2, properties: "never", exceptions: ["t"] }], // `t()` = i18n
@@ -49,7 +49,14 @@ const eslintConfig = defineConfig([
   },
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["**/*.test.ts", "**/*.test.tsx", "src/test/**", "src/lib/**/*.ts", "src/dal/**/*.ts"],
+    ignores: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "src/test/**",
+      "src/services/**/*.ts",
+      "src/lib/**/*.ts",
+      "src/dal/**/*.ts",
+    ],
     rules: {
       "id-length": ["warn", { min: 2, properties: "never", exceptions: ["t"] }],
     },
@@ -57,11 +64,29 @@ const eslintConfig = defineConfig([
 
   // Garde-fous de forme sur la logique métier.
   {
-    files: ["src/lib/services/**/*.ts", "src/dal/**/*.ts"],
+    files: ["src/services/**/*.ts", "src/dal/**/*.ts"],
     ignores: ["**/*.test.ts"],
     rules: {
       complexity: ["error", 12],
       "max-lines-per-function": ["error", { max: 80, skipComments: true }],
+    },
+  },
+
+  // Services exécutables sans contexte HTTP (Vitest, cron).
+  {
+    files: ["src/services/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["next", "next/*", "react", "react-dom"],
+              message: "Les services ne dépendent ni de Next ni de React.",
+            },
+          ],
+        },
+      ],
     },
   },
 
@@ -78,7 +103,6 @@ const eslintConfig = defineConfig([
     ],
     ignores: [
       "**/*.test.ts",
-      "src/lib/services/**",
       "src/lib/auth.ts",
       "src/lib/dashboard.ts",
       "src/lib/google-calendar.ts",
@@ -91,7 +115,7 @@ const eslintConfig = defineConfig([
             {
               group: ["@/dal/*", "@/db/*"],
               message:
-                "Seuls les services (src/lib/services) accèdent à la DAL/DB. Passer par un service.",
+                "Seuls les services (src/services) accèdent à la DAL/DB. Passer par un service.",
               allowTypeImports: true,
             },
           ],

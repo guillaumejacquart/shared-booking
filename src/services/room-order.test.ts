@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { allowedRoomIdsFor, sortRooms } from "./rooms";
+import { allowedRoomIdsFor, sortRooms } from "./room-order";
 
 function row(id: string, sortOrder: number, name: string, practitionerIds: string[] = []) {
   return { room: { id, sortOrder, name }, practitionerIds };

@@ -6,7 +6,7 @@ import type { Db } from "@/dal/types";
 import {
   getUserPreferences,
   saveUserPreferences,
-} from "@/lib/services/preferences";
+} from "@/services/preferences";
 
 let db: Db;
 

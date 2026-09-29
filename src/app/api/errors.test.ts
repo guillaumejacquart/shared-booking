@@ -8,7 +8,7 @@ import {
   ForbiddenError,
   NotFoundError,
   ValidationError,
-} from "@/lib/services/errors";
+} from "@/services/errors";
 import { readJsonBody, route, toResponse } from "./errors";
 
 async function body(res: Response) {

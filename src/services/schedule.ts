@@ -6,7 +6,7 @@ import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
 import type { Ports } from "@/lib/ports";
-import { sortRooms } from "@/lib/rooms";
+import { sortRooms } from "@/services/room-order";
 import { dateStrInTz } from "@/lib/timezone";
 
 import type {

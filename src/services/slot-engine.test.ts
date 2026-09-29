@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { generateSlots, type SlotRequest } from "./slots";
+import { generateSlots, type SlotRequest } from "./slot-engine";
 
 const TZ = "Europe/Paris";
 const ROOM_A = "room-a";

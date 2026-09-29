@@ -4,10 +4,10 @@ import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
 import type { Ports } from "@/lib/ports";
-import { allowedRoomIdsFor } from "@/lib/rooms";
+import { allowedRoomIdsFor } from "@/services/room-order";
 import type { SlotsInput } from "@/lib/schemas/bookings";
 import { dateStrInTz, zonedTimeToUtc } from "@/lib/timezone";
-import { generateSlots, type Occupancy, type Slot, type SlotRequest } from "@/lib/slots";
+import { generateSlots, type Occupancy, type Slot, type SlotRequest } from "@/services/slot-engine";
 import { NotFoundError } from "../errors";
 
 export { allowedRoomIdsFor };

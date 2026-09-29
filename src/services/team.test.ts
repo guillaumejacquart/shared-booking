@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { acceptInvite, createInvite, listPendingInvites, removeMember } from "@/lib/services/team";
+import { acceptInvite, createInvite, listPendingInvites, removeMember } from "@/services/team";
 import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
   ValidationError,
-} from "@/lib/services/errors";
+} from "@/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
@@ -73,7 +73,7 @@ describe("createInvite", () => {
 
 describe("createOffice", () => {
   it("crée cabinet + membre owner + praticien", async () => {
-    const { createOffice } = await import("@/lib/services/team");
+    const { createOffice } = await import("@/services/team");
     const res = await createOffice({
       userId: "owner1",
       userName: "Owner",
@@ -91,7 +91,7 @@ describe("createOffice", () => {
   });
 
   it("refuse un slug déjà pris (le format invalide est rejeté par le schéma)", async () => {
-    const { createOffice } = await import("@/lib/services/team");
+    const { createOffice } = await import("@/services/team");
     await expect(
       createOffice({ userId: "owner1", userName: "Owner", name: "X", slug: "cabinet" }),
     ).rejects.toBeInstanceOf(ConflictError);

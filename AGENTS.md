@@ -53,14 +53,14 @@ La plupart sont vérifiées par ESLint (`npm run lint`) : garder lint + `npm run
 
 - Services : gardes d'abord, puis un happy path linéaire ; extraire un helper privé
   au-delà de ~80 lignes ou de complexité 12 (lint `max-lines-per-function` / `complexity`
-  sur `src/lib/services` + `src/dal`).
+  sur `src/services` + `src/dal`).
 - Promesses jamais flottantes (lint `no-floating-promises`) : `await`, `return`, ou
   `void` explicite. Envoi d'emails non bloquant après commit via `safeSend`.
 - Imports de types en `import type` (lint `consistent-type-imports`).
 
 ### Couches (lint `no-restricted-imports`)
 
-- Seuls `src/lib/services/**` accèdent en runtime à `@/dal` / `@/db` ;
+- Seuls `src/services/**` accèdent en runtime à `@/dal` / `@/db` ;
   `import type` est accepté partout.
 - Tolérances documentées : pages RSC (`app/**/page.tsx`) en **lecture seule**,
   `src/lib/auth.ts` et `src/lib/google-calendar.ts` (infra/adaptateurs),

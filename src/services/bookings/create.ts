@@ -7,7 +7,7 @@ import type { Ports, StripeLike } from "@/lib/ports";
 import type { BookingResult, CreateBookingInput } from "@/lib/schemas/bookings";
 import { dateStrInTz } from "@/lib/timezone";
 import { bookingMutex } from "@/lib/mutex";
-import type { Slot } from "@/lib/slots";
+import type { Slot } from "@/services/slot-engine";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import {
   mailModel,

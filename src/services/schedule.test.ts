@@ -13,12 +13,12 @@ import {
   replaceAvailability,
   saveSessionType,
   updateProfile,
-} from "@/lib/services/schedule";
+} from "@/services/schedule";
 import {
   ConflictError,
   ForbiddenError,
   ValidationError,
-} from "@/lib/services/errors";
+} from "@/services/errors";
 
 let db: Db;
 const NOW = new Date("2026-09-14T06:00:00Z");
@@ -217,7 +217,7 @@ describe("updateProfile", () => {
 
 describe("saveRoom / deleteRoom", () => {
   it("crée et modifie une salle avec allowlist (owner uniquement)", async () => {
-    const { saveRoom } = await import("@/lib/services/schedule");
+    const { saveRoom } = await import("@/services/schedule");
     const id = await saveRoom({
       officeId: "o1", requesterUserId: "u1", name: "Salle B", color: "#3b82f6", practitionerIds: ["p1", "p2"],
     });
@@ -236,7 +236,7 @@ describe("saveRoom / deleteRoom", () => {
   });
 
   it("refuse de supprimer une salle avec des réservations futures", async () => {
-    const { deleteRoom } = await import("@/lib/services/schedule");
+    const { deleteRoom } = await import("@/services/schedule");
     const s = await import("@/db/schema");
     await db.insert(s.booking).values({
       id: "b1", officeId: "o1", practitionerId: "p1", roomId: "room-a", sessionTypeId: "st1",
@@ -253,7 +253,7 @@ describe("saveRoom / deleteRoom", () => {
   });
 
   it("refuse de supprimer une salle requise par un type de séance", async () => {
-    const { deleteRoom, saveSessionType } = await import("@/lib/services/schedule");
+    const { deleteRoom, saveSessionType } = await import("@/services/schedule");
     const id = await saveSessionType({
       practitionerId: "p1", requesterUserId: "u1",
       name: "Massage", durationMin: 60, bufferAfterMin: 0,
@@ -274,7 +274,7 @@ describe("saveRoom / deleteRoom", () => {
 
 describe("updateOfficeSettings", () => {
   it("met à jour les réglages (owner uniquement)", async () => {
-    const { updateOfficeSettings } = await import("@/lib/services/schedule");
+    const { updateOfficeSettings } = await import("@/services/schedule");
     await updateOfficeSettings({
       officeId: "o1", requesterUserId: "u1",
       name: "Nouveau nom", bookingLeadTimeMin: 60, cancelDeadlineHours: 48,
@@ -287,7 +287,7 @@ describe("updateOfficeSettings", () => {
   });
 
   it("persiste l'ambiance du cabinet", async () => {
-    const { updateOfficeSettings } = await import("@/lib/services/schedule");
+    const { updateOfficeSettings } = await import("@/services/schedule");
     await updateOfficeSettings({ officeId: "o1", requesterUserId: "u1", themePalette: "brume", themeMode: "dark" });
     const s = await import("@/db/schema");
     const { eq } = await import("drizzle-orm");
@@ -299,7 +299,7 @@ describe("updateOfficeSettings", () => {
 
 describe("saveSessionType paiement/validation", () => {
   it("accepte une séance payante avec prix, refuse sans prix", async () => {
-    const { saveSessionType } = await import("@/lib/services/schedule");
+    const { saveSessionType } = await import("@/services/schedule");
     const id = await saveSessionType({
         practitionerId: "p2", requesterUserId: "u2",
         name: "Payante", durationMin: 60, bufferAfterMin: 0,
@@ -313,7 +313,7 @@ describe("saveSessionType paiement/validation", () => {
     expect(rows[0].priceCents).toBe(5000);
     expect(rows[0].requiresValidation).toBe(true);
 
-    const { ValidationError } = await import("@/lib/services/errors");
+    const { ValidationError } = await import("@/services/errors");
     await expect(
       saveSessionType({
           practitionerId: "p2", requesterUserId: "u2",
@@ -327,7 +327,7 @@ describe("saveSessionType paiement/validation", () => {
 
 describe("saveSessionType nulls DB", () => {
   it("accepte les champs null renvoyés tels quels par le formulaire", async () => {
-    const { saveSessionType } = await import("@/lib/services/schedule");
+    const { saveSessionType } = await import("@/services/schedule");
     // Reproduit le payload réel : description/priceCents à null.
     const id = await saveSessionType({
         practitionerId: "p2", requesterUserId: "u2",

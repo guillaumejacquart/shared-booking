@@ -1,4 +1,4 @@
-import { dateStrInTz, weekdayInTz, zonedTimeToUtc } from "./timezone";
+import { dateStrInTz, weekdayInTz, zonedTimeToUtc } from "@/lib/timezone";
 
 /**
  * Moteur de créneaux (SPEC.md §F7) — logique pure, sans accès DB.
@@ -85,86 +85,93 @@ function overlaps(candidate: Interval, busy: Occupancy): boolean {
   return candidate.start < busy.end.getTime() && busy.start.getTime() < candidate.end;
 }
 
-export function generateSlots(req: SlotRequest): Slot[] {
+/** Fenêtre ramenée au jour traité : salle imposée (extra) ou non (hebdo). */
+interface DayWindow {
+  startTime: string;
+  endTime: string;
+  roomId?: string;
+}
+
+function offInterval(exception: DayException, tz: string): Interval {
+  if (exception.fullDay || !exception.startTime || !exception.endTime) {
+    return { start: -Infinity, end: Infinity };
+  }
+  return {
+    start: zonedTimeToUtc(exception.date, exception.startTime, tz).getTime(),
+    end: zonedTimeToUtc(exception.date, exception.endTime, tz).getTime(),
+  };
+}
+
+function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key) ?? [];
+  list.push(value);
+  map.set(key, list);
+}
+
+/** Fermetures par date ; les extras imposent leur salle, les règles hebdo non. */
+function indexExceptions(req: SlotRequest) {
+  const offByDate = new Map<string, Interval[]>();
+  const extraByDate = new Map<string, DayWindow[]>();
+  for (const exception of req.exceptions) {
+    if (exception.kind === "off") {
+      pushTo(offByDate, exception.date, offInterval(exception, req.timezone));
+    } else if (exception.startTime && exception.endTime) {
+      pushTo(extraByDate, exception.date, {
+        startTime: exception.startTime,
+        endTime: exception.endTime,
+        roomId: exception.roomId,
+      });
+    }
+  }
+  return { offByDate, extraByDate };
+}
+
+/** Salle imposée (extra) ou salles autorisées (hebdo), filtrées par le type de séance. */
+function roomCandidates(window: DayWindow, req: SlotRequest): string[] {
+  const base = window.roomId ? [window.roomId] : req.allowedRoomIds;
+  const sessionRoomIds = req.sessionRoomIds ?? [];
+  return sessionRoomIds.length > 0 ? base.filter((id) => sessionRoomIds.includes(id)) : base;
+}
+
+function slotsInWindow(req: SlotRequest, dateStr: string, window: DayWindow, offs: Interval[]): Slot[] {
   const tz = req.timezone;
   const durationMs = req.sessionDurationMin * 60_000;
   const stepMs = (req.sessionDurationMin + req.bufferAfterMin) * 60_000;
   const earliest = req.from.getTime() + req.leadTimeMin * 60_000;
-
-  const offByDate = new Map<string, Interval[]>();
-  /** Fenêtre du jour : les extras imposent leur salle, les règles hebdo non. */
-  const extraByDate = new Map<string, { startTime: string; endTime: string; roomId?: string }[]>();
-  for (const exception of req.exceptions) {
-    if (exception.kind === "off") {
-      const list = offByDate.get(exception.date) ?? [];
-      list.push(
-        exception.fullDay || !exception.startTime || !exception.endTime
-          ? { start: -Infinity, end: Infinity }
-          : {
-              start: zonedTimeToUtc(exception.date, exception.startTime, tz).getTime(),
-              end: zonedTimeToUtc(exception.date, exception.endTime, tz).getTime(),
-            },
-      );
-      offByDate.set(exception.date, list);
-    } else if (exception.startTime && exception.endTime) {
-      const list = extraByDate.get(exception.date) ?? [];
-      // Le jour de semaine sera recalculé au traitement du jour ; on stocke
-      // la fenêtre brute et on l'applique directement à cette date.
-      list.push({ startTime: exception.startTime, endTime: exception.endTime, roomId: exception.roomId });
-      extraByDate.set(exception.date, list);
-    }
+  const windowStart = zonedTimeToUtc(dateStr, window.startTime, tz).getTime();
+  const windowEnd = zonedTimeToUtc(dateStr, window.endTime, tz).getTime();
+  const candidates = roomCandidates(window, req);
+  const slots: Slot[] = [];
+  for (let start = windowStart; start + durationMs <= windowEnd; start += stepMs) {
+    if (start < earliest) continue;
+    const candidate: Interval = { start, end: start + stepMs };
+    if (offs.some((off) => candidate.start < off.end && off.start < candidate.end)) continue;
+    if (req.practitionerBusy.some((busy) => overlaps(candidate, busy))) continue;
+    const roomId = candidates.find(
+      (id) => !(req.roomBusy[id] ?? []).some((busy) => overlaps(candidate, busy)),
+    );
+    if (roomId) slots.push({ start: new Date(start), end: new Date(start + durationMs), roomId });
   }
+  return slots;
+}
 
-  /** Fenêtre ramenée au jour traité : salle imposée (extra) ou non (hebdo). */
-  interface DayWindow {
-    startTime: string;
-    endTime: string;
-    roomId?: string;
-  }
-
+export function generateSlots(req: SlotRequest): Slot[] {
+  const tz = req.timezone;
+  const { offByDate, extraByDate } = indexExceptions(req);
   const byWeekday = new Map<number, DayWindow[]>();
   for (const window of req.windows) {
-    const list = byWeekday.get(window.weekday) ?? [];
-    list.push({ startTime: window.startTime, endTime: window.endTime });
-    byWeekday.set(window.weekday, list);
+    pushTo(byWeekday, window.weekday, { startTime: window.startTime, endTime: window.endTime });
   }
 
   const slots: Slot[] = [];
   // Curseur à midi (heure murale) : +24h reste sur le lendemain même les
   // jours de changement d'heure (23h/25h).
   let cursor = zonedTimeToUtc(dateStrInTz(req.from, tz), "12:00", tz);
-
   for (let day = 0; day < req.days; day++) {
     const dateStr = dateStrInTz(cursor, tz);
-    const weekday = weekdayInTz(cursor, tz);
-    const dayWindows = [...(byWeekday.get(weekday) ?? []), ...(extraByDate.get(dateStr) ?? [])];
+    const dayWindows = [...(byWeekday.get(weekdayInTz(cursor, tz)) ?? []), ...(extraByDate.get(dateStr) ?? [])];
     const offs = offByDate.get(dateStr) ?? [];
-
-    for (const window of dayWindows) {
-      const ws = zonedTimeToUtc(dateStr, window.startTime, tz).getTime();
-      const we = zonedTimeToUtc(dateStr, window.endTime, tz).getTime();
-      if (!(ws < we)) continue;
-      // Salle imposée (extra) ou salles autorisées (hebdo), intersectées
-      // avec la restriction éventuelle du type de séance.
-      const base = window.roomId ? [window.roomId] : req.allowedRoomIds;
-      const candidates =
-        req.sessionRoomIds && req.sessionRoomIds.length > 0
-          ? base.filter((id) => req.sessionRoomIds!.includes(id))
-          : base;
-
-      for (let cursor = ws; cursor + durationMs <= we; cursor += stepMs) {
-        if (cursor < earliest) continue;
-        const candidate: Interval = { start: cursor, end: cursor + stepMs };
-        if (offs.some((off) => candidate.start < off.end && off.start < candidate.end)) continue;
-        if (req.practitionerBusy.some((busy) => overlaps(candidate, busy))) continue;
-        const roomId = candidates.find(
-          (id) => !(req.roomBusy[id] ?? []).some((busy) => overlaps(candidate, busy)),
-        );
-        if (!roomId) continue;
-        slots.push({ start: new Date(cursor), end: new Date(cursor + durationMs), roomId });
-      }
-    }
-
+    for (const window of dayWindows) slots.push(...slotsInWindow(req, dateStr, window, offs));
     cursor = new Date(cursor.getTime() + 24 * 3_600_000);
   }
 

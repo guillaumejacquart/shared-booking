@@ -8,7 +8,7 @@ import {
   ForbiddenError,
   NotFoundError,
   ValidationError,
-} from "@/lib/services/errors";
+} from "@/services/errors";
 
 /**
  * Mappe les erreurs métier vers des réponses HTTP structurées :

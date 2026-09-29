@@ -16,7 +16,7 @@ import type {
   ValidateInput,
 } from "@/lib/schemas/bookings";
 import { dateStrInTz } from "@/lib/timezone";
-import { generateSlots } from "@/lib/slots";
+import { generateSlots } from "@/services/slot-engine";
 import { bookingMutex } from "@/lib/mutex";
 import {
   ConflictError,

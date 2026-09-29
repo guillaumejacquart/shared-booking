@@ -7,8 +7,8 @@ import {
   applyPaymentCompleted,
   createBooking,
   releaseExpiredPendings,
-} from "@/lib/services/bookings";
-import { ValidationError } from "@/lib/services/errors";
+} from "@/services/bookings";
+import { ValidationError } from "@/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock, type Ports } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
@@ -93,7 +93,7 @@ describe("paid booking", () => {
     await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
     });
-    const { ConflictError } = await import("@/lib/services/errors");
+    const { ConflictError } = await import("@/services/errors");
     await expect(
       createBooking(ports(), {
         practitionerSlug: "alice", sessionTypeId: "stFree", startAt: SLOT,

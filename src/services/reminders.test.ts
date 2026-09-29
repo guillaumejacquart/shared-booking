@@ -5,7 +5,7 @@ import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { processReminders } from "@/lib/services/reminders";
+import { processReminders } from "@/services/reminders";
 import type { OutgoingEmail } from "@/lib/email";
 
 let db: Db;
