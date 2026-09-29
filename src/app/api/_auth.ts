@@ -29,8 +29,8 @@ export function withAuth<Rest extends unknown[]>(
       const user = await getAuthUser();
       if (!user) return unauthorized();
       return await handler(user, req, ...rest);
-    } catch (e) {
-      return toResponse(e);
+    } catch (error) {
+      return toResponse(error);
     }
   };
 }

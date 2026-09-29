@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
 import { ConfirmButton } from "@/components/ui";
 
 /** Retire un membre du cabinet (owner) : confirmation inline puis DELETE. */
@@ -24,13 +25,8 @@ export default function RemoveMemberButton({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/offices/${officeId}/members/${memberId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
+      const result = await sendJson(`/api/offices/${officeId}/members/${memberId}`, "DELETE");
+      if (!result.ok) throw new Error(result.error);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("booking.errorGeneric"));

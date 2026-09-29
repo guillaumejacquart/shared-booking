@@ -28,7 +28,7 @@ export default async function ManagePage({
   ) {
     notFound();
   }
-  const { booking: b, practitioner: prac, office } = detail;
+  const { booking: booking, practitioner: prac, office } = detail;
 
   return (
     <div
@@ -38,7 +38,7 @@ export default async function ManagePage({
     >
     <main className="mx-auto w-full max-w-2xl px-4 py-10">
       <h1 className="mb-6 text-center text-2xl font-semibold tracking-tight">{t("manage.title")}</h1>
-      {b.status === "cancelled" ? (
+      {booking.status === "cancelled" ? (
         <p className="rounded-3xl border border-line bg-card p-6 text-center shadow-soft">
           {t("manage.alreadyCancelled")}
         </p>
@@ -46,15 +46,15 @@ export default async function ManagePage({
         <ManageClient
           data={{
             practitionerName: prac.displayName,
-            sessionName: b.sessionNameSnapshot,
-            startAt: b.startAt.toISOString(),
-            status: b.status,
-            sessionTypeId: b.sessionTypeId,
+            sessionName: booking.sessionNameSnapshot,
+            startAt: booking.startAt.toISOString(),
+            status: booking.status,
+            sessionTypeId: booking.sessionTypeId,
             practitionerSlug: prac.slug,
-            rescheduleToken: b.rescheduleToken,
-            cancelToken: b.cancelToken,
+            rescheduleToken: booking.rescheduleToken,
+            cancelToken: booking.cancelToken,
           }}
-          when={formatBookingFr(b.startAt, office.timezone)}
+          when={formatBookingFr(booking.startAt, office.timezone)}
         />
       )}
       </main>

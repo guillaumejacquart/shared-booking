@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
 import { notifyAvailabilitiesChanged } from "@/lib/availabilities-events";
 import { Button, Checkbox, Field, FormMessage, Select, TextInput } from "@/components/ui";
 
@@ -38,15 +39,12 @@ export default function ExceptionsManager({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
+  async function add(event: React.FormEvent) {
+    event.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch("/api/exceptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await sendJson("/api/exceptions", "POST", {
           practitionerId,
           date,
           kind,
@@ -55,12 +53,8 @@ export default function ExceptionsManager({
           endTime: fullDay && kind === "off" ? undefined : endTime,
           roomId: kind === "extra" ? roomId : undefined,
           reason: reason || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
+        });
+      if (!result.ok) throw new Error(result.error);
       setDate("");
       setReason("");
       notifyAvailabilitiesChanged();
@@ -82,43 +76,43 @@ export default function ExceptionsManager({
     <div>
       <form onSubmit={add} className="flex flex-wrap items-end gap-2">
         <Field label="Type">
-          <Select value={kind} onChange={(e) => setKind(e.target.value as "off" | "extra")}>
+          <Select value={kind} onChange={(event) => setKind(event.target.value as "off" | "extra")}>
             <option value="off">{t("availability.dayOff")}</option>
             <option value="extra">{t("availability.extra")}</option>
           </Select>
         </Field>
         <Field label="Date">
-          <TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
         </Field>
         {kind === "off" ? (
           <label className="flex items-center gap-2 pb-2 text-sm">
-            <Checkbox checked={fullDay} onChange={(e) => setFullDay(e.target.checked)} />
+            <Checkbox checked={fullDay} onChange={(event) => setFullDay(event.target.checked)} />
             {t("availability.dayOff")}
           </label>
         ) : null}
         {!(kind === "off" && fullDay) ? (
           <>
             <Field label="Début">
-              <TextInput type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+              <TextInput type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} required />
             </Field>
             <Field label="Fin">
-              <TextInput type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+              <TextInput type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} required />
             </Field>
           </>
         ) : null}
         {kind === "extra" ? (
           <Field label={t("availability.room")}>
-            <Select value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
+            <Select value={roomId} onChange={(event) => setRoomId(event.target.value)}>
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
                 </option>
               ))}
             </Select>
           </Field>
         ) : null}
         <Field label={t("availability.reason")}>
-          <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} />
+          <TextInput value={reason} onChange={(event) => setReason(event.target.value)} maxLength={200} />
         </Field>
         <Button type="submit" disabled={busy}>
           {t("availability.add")}
@@ -126,18 +120,18 @@ export default function ExceptionsManager({
       </form>
       <FormMessage tone="error">{error ?? ""}</FormMessage>
       <ul className="mt-3 grid gap-2">
-        {initial.map((x) => (
+        {initial.map((exception) => (
           <li
-            key={x.id}
+            key={exception.id}
             className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-2 text-sm shadow-soft"
           >
-            <span className="font-medium">{x.date}</span>
+            <span className="font-medium">{exception.date}</span>
             <span className="text-mist">
-              {x.kind === "off" ? t("availability.dayOff") : t("availability.extra")}
-              {x.fullDay ? "" : ` ${x.startTime}→${x.endTime}`}
-              {x.reason ? ` · ${x.reason}` : ""}
+              {exception.kind === "off" ? t("availability.dayOff") : t("availability.extra")}
+              {exception.fullDay ? "" : ` ${exception.startTime}→${exception.endTime}`}
+              {exception.reason ? ` · ${exception.reason}` : ""}
             </span>
-            <Button size="sm" variant="ghost" onClick={() => void remove(x.id)} className="ml-auto">
+            <Button size="sm" variant="ghost" onClick={() => void remove(exception.id)} className="ml-auto">
               {t("availability.delete")}
             </Button>
           </li>

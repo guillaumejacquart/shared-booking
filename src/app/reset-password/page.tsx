@@ -17,8 +17,8 @@ function ResetForm() {
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setError(null);
     if (password !== confirm) {
       setError(t("auth.passwordMismatch"));
@@ -56,7 +56,7 @@ function ResetForm() {
         <TextInput
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(event) => setPassword(event.target.value)}
           required
           minLength={8}
           autoComplete="new-password"
@@ -66,7 +66,7 @@ function ResetForm() {
         <TextInput
           type="password"
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(event) => setConfirm(event.target.value)}
           required
           minLength={8}
           autoComplete="new-password"

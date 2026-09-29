@@ -20,8 +20,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setError(null);
     setBusy(true);
     try {
@@ -49,17 +49,17 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
         {mode === "signup" ? (
           <Field label={t("auth.name")}>
-            <TextInput value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoComplete="name" />
+            <TextInput value={name} onChange={(event) => setName(event.target.value)} required maxLength={100} autoComplete="name" />
           </Field>
         ) : null}
         <Field label={t("auth.email")}>
-          <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+          <TextInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
         </Field>
         <Field label={t("auth.password")} hint={mode === "signup" ? t("auth.passwordHint") : undefined}>
           <TextInput
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             required
             minLength={8}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}

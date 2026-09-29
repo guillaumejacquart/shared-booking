@@ -39,18 +39,18 @@ export default function Tabs<T extends string>({
   useEffect(() => {
     if (!param) return;
     const onPop = () => {
-      const v = new URL(window.location.href).searchParams.get(param);
-      if (v && keys.split("|").includes(v)) setTab(v as T);
+      const fromUrl = new URL(window.location.href).searchParams.get(param);
+      if (fromUrl && keys.split("|").includes(fromUrl)) setTab(fromUrl as T);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [param, keys]);
 
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    e.preventDefault();
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
     const idx = tabs.findIndex((t) => t.key === tab);
-    const delta = e.key === "ArrowRight" ? 1 : -1;
+    const delta = event.key === "ArrowRight" ? 1 : -1;
     const next = tabs[(idx + delta + tabs.length) % tabs.length];
     if (next) {
       select(next.key);

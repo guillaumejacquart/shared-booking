@@ -132,7 +132,7 @@ export default function ManageClient({
         <SlotPicker
           availableDays={availableDays}
           day={day}
-          slots={daySlots.map((s) => s.startAt)}
+          slots={daySlots.map((daySlot) => daySlot.startAt)}
           selected={newSlot}
           loading={loading}
           onSelectDay={(key) => {

@@ -43,7 +43,7 @@ export function ensureDevDatabase(): void {
     const rows = sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all() as { name: string }[];
-    const names = new Set(rows.map((r) => r.name));
+    const names = new Set(rows.map((row) => row.name));
     if (!names.has("user")) {
       sqlite.close();
       runMigrations(dbPath);

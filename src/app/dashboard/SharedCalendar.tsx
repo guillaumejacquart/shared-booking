@@ -75,18 +75,18 @@ export default function SharedCalendar() {
       fetch(
         `/api/calendrier/events?start=${encodeURIComponent(fetchInfo.startStr)}&end=${encodeURIComponent(fetchInfo.endStr)}`,
       )
-        .then((r) => (r.ok ? r.json() : { events: [], practitioners: [], rooms: [] }))
-        .then((j) => {
+        .then((res) => (res.ok ? res.json() : { events: [], practitioners: [], rooms: [] }))
+        .then((data) => {
           // Même référence si inchangé : évite un rendu (et donc une recharge).
           setPractitioners((prev) =>
-            JSON.stringify(prev) === JSON.stringify(j.practitioners ?? [])
+            JSON.stringify(prev) === JSON.stringify(data.practitioners ?? [])
               ? prev
-              : (j.practitioners ?? []),
+              : (data.practitioners ?? []),
           );
           setRooms((prev) =>
-            JSON.stringify(prev) === JSON.stringify(j.rooms ?? []) ? prev : (j.rooms ?? []),
+            JSON.stringify(prev) === JSON.stringify(data.rooms ?? []) ? prev : (data.rooms ?? []),
           );
-          successCallback(j.events ?? []);
+          successCallback(data.events ?? []);
         })
         .catch(() => failureCallback(new Error("chargement impossible")));
     },
@@ -94,36 +94,36 @@ export default function SharedCalendar() {
   );
 
   function onEventClick(info: EventClickArg) {
-    const p = info.event.extendedProps as Omit<Selected, "id" | "start" | "end">;
+    const props = info.event.extendedProps as Omit<Selected, "id" | "start" | "end">;
     setSelected({
       id: info.event.id,
       start: info.event.start?.toISOString() ?? "",
       end: info.event.end?.toISOString() ?? "",
-      ...p,
+      ...props,
     });
   }
 
   function renderEvent(arg: EventContentArg) {
-    const p = arg.event.extendedProps as Partial<Selected>;
+    const props = arg.event.extendedProps as Partial<Selected>;
     const inList = arg.view.type.startsWith("list");
     return (
       <span className="flex min-w-0 items-center gap-1">
         <span
           className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
           style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
-          title={p.practitionerName ?? ""}
+          title={props.practitionerName ?? ""}
         >
-          {initials(p.practitionerName ?? "?")}
+          {initials(props.practitionerName ?? "?")}
         </span>
         <span className="truncate">{arg.event.title}</span>
-        {inList && p.practitionerName ? (
-          <span className="shrink-0 opacity-80">· {p.practitionerName}</span>
+        {inList && props.practitionerName ? (
+          <span className="shrink-0 opacity-80">· {props.practitionerName}</span>
         ) : null}
-        {p.roomColor ? (
+        {props.roomColor ? (
           <span
             className="h-2 w-2 shrink-0 rounded-full"
-            style={{ backgroundColor: p.roomColor }}
-            title={p.roomName ?? ""}
+            style={{ backgroundColor: props.roomColor }}
+            title={props.roomName ?? ""}
           />
         ) : null}
       </span>
@@ -136,28 +136,28 @@ export default function SharedCalendar() {
         <div className="flex flex-col gap-2 text-sm">
           {practitioners.length > 0 ? (
             <div className="flex flex-wrap gap-3">
-              {practitioners.map((p) => (
-                <span key={p.id} className="inline-flex items-center gap-1.5">
+              {practitioners.map((prac) => (
+                <span key={prac.id} className="inline-flex items-center gap-1.5">
                   <span
                     className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    style={{ backgroundColor: p.color }}
+                    style={{ backgroundColor: prac.color }}
                   >
-                    {initials(p.displayName)}
+                    {initials(prac.displayName)}
                   </span>
-                  {p.displayName}
+                  {prac.displayName}
                 </span>
               ))}
             </div>
           ) : null}
           {rooms.length > 0 ? (
             <div className="flex flex-wrap gap-3">
-              {rooms.map((r) => (
-                <span key={r.id} className="inline-flex items-center gap-1.5">
+              {rooms.map((room) => (
+                <span key={room.id} className="inline-flex items-center gap-1.5">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: r.color ?? "var(--faint)" }}
+                    style={{ backgroundColor: room.color ?? "var(--faint)" }}
                   />
-                  {r.name}
+                  {room.name}
                 </span>
               ))}
             </div>

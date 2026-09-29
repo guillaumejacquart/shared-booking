@@ -28,16 +28,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
 }
 
+/** Classes du bouton, réutilisables sur un lien (`<a>`). */
+export function buttonStyles(variant: Variant = "primary", size: Size = "md"): string {
+  return `rounded-full font-medium transition-all duration-200 outline-brand focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]}`;
+}
+
 export default function Button({
   variant = "primary",
   size = "md",
   className = "",
   ...props
 }: ButtonProps) {
-  return (
-    <button
-      className={`rounded-full font-medium transition-all duration-200 outline-brand focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
-      {...props}
-    />
-  );
+  return <button className={`${buttonStyles(variant, size)} ${className}`} {...props} />;
 }

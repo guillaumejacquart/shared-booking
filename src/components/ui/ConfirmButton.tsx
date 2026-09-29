@@ -23,8 +23,8 @@ export default function ConfirmButton({
   // Échap annule la confirmation en cours.
   useEffect(() => {
     if (!confirming) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setConfirming(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfirming(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);

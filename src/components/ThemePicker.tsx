@@ -31,17 +31,17 @@ export default function ThemePicker({
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex flex-wrap gap-2">
-          {PALETTES.map((p) => {
-            const active = p === palette;
+          {PALETTES.map((paletteId) => {
+            const active = paletteId === palette;
             return (
               <button
-                key={p}
+                key={paletteId}
                 type="button"
-                onClick={() => onPalette(p)}
+                onClick={() => onPalette(paletteId)}
                 aria-pressed={active}
-                title={t(PALETTE_LABEL_KEYS[p])}
-                aria-label={t(PALETTE_LABEL_KEYS[p])}
-                style={{ backgroundColor: PALETTE_SWATCH[p] }}
+                title={t(PALETTE_LABEL_KEYS[paletteId])}
+                aria-label={t(PALETTE_LABEL_KEYS[paletteId])}
+                style={{ backgroundColor: PALETTE_SWATCH[paletteId] }}
                 className={`h-9 w-9 rounded-full transition-all duration-200 ${
                   active
                     ? "scale-110 ring-2 ring-brand ring-offset-2 ring-offset-card"
@@ -59,17 +59,17 @@ export default function ThemePicker({
           aria-label={t("theme.appearance")}
           className="flex w-fit gap-1 rounded-full border border-line bg-card p-1"
         >
-          {THEME_MODES.map((m) => (
+          {THEME_MODES.map((themeMode) => (
             <button
-              key={m}
+              key={themeMode}
               type="button"
-              onClick={() => onMode(m)}
-              aria-pressed={m === mode}
+              onClick={() => onMode(themeMode)}
+              aria-pressed={themeMode === mode}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                m === mode ? "bg-brand text-brand-ink shadow-soft" : "text-mist hover:text-ink"
+                themeMode === mode ? "bg-brand text-brand-ink shadow-soft" : "text-mist hover:text-ink"
               }`}
             >
-              {t(`theme.mode.${m}`)}
+              {t(`theme.mode.${themeMode}`)}
             </button>
           ))}
         </div>

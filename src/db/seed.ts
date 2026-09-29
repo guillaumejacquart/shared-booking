@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { auth } from "@/lib/auth";
-import * as s from "@/db/schema";
+import * as schema from "@/db/schema";
 
 /**
  * Jeu de démo (miroir du pilote SPEC.md §1) : 1 cabinet, 3 praticiennes,
@@ -17,8 +17,8 @@ const PASSWORD = process.env.SEED_PASSWORD ?? "demo-demo-1234";
 async function ensureUser(name: string, email: string): Promise<string> {
   const existing = await db
     .select()
-    .from(s.user)
-    .where(eq(s.user.email, email))
+    .from(schema.user)
+    .where(eq(schema.user.email, email))
     .limit(1);
   if (existing[0]) return existing[0].id;
   const res = (await auth.api.signUpEmail({
@@ -30,13 +30,13 @@ async function ensureUser(name: string, email: string): Promise<string> {
 
 async function put(table: "office" | "room" | "member" | "practitioner" | "roomMember" | "sessionType" | "availabilityRule", row: Record<string, unknown>) {
   const tables = {
-    office: s.office,
-    room: s.room,
-    member: s.member,
-    practitioner: s.practitioner,
-    roomMember: s.roomMember,
-    sessionType: s.sessionType,
-    availabilityRule: s.availabilityRule,
+    office: schema.office,
+    room: schema.room,
+    member: schema.member,
+    practitioner: schema.practitioner,
+    roomMember: schema.roomMember,
+    sessionType: schema.sessionType,
+    availabilityRule: schema.availabilityRule,
   } as const;
   await db
     .insert(tables[table])
@@ -93,7 +93,7 @@ async function main() {
   console.log("  Camille : http://localhost:3000/p/camille");
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

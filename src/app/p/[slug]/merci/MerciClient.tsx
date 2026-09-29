@@ -26,12 +26,12 @@ function MerciStatus({ slug }: { slug: string }) {
       try {
         const res = await fetch(`/api/b/by-session?sessionId=${encodeURIComponent(sessionId)}`);
         if (res.ok) {
-          const j = (await res.json()) as { status: string; paymentStatus: string };
-          if (j.status === "confirmed") {
+          const body = (await res.json()) as { status: string; paymentStatus: string };
+          if (body.status === "confirmed") {
             if (!stop) setState("confirmed");
             return;
           }
-          if (j.paymentStatus === "paid") {
+          if (body.paymentStatus === "paid") {
             if (!stop) setState("pendingValidation");
             return;
           }

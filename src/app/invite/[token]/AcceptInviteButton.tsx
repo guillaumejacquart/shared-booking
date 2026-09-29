@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
+import { Button, FormMessage } from "@/components/ui";
 
 export default function AcceptInviteButton({ token }: { token: string }) {
   const router = useRouter();
@@ -14,14 +16,11 @@ export default function AcceptInviteButton({ token }: { token: string }) {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/invites/${token}`, { method: "POST" });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
-      router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("booking.errorGeneric"));
+      const result = await sendJson(`/api/invites/${token}`, "POST");
+      if (result.ok) router.push("/dashboard");
+      else setError(result.error);
+    } catch {
+      setError(t("booking.errorGeneric"));
     } finally {
       setBusy(false);
     }
@@ -29,15 +28,10 @@ export default function AcceptInviteButton({ token }: { token: string }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={accept}
-        className="rounded-full bg-brand px-5 py-3 text-sm font-medium text-brand-ink shadow-soft transition-all duration-200 hover:bg-brand-deep disabled:opacity-50"
-      >
+      <Button size="lg" disabled={busy} onClick={accept}>
         {t("invite.accept")}
-      </button>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      </Button>
+      {error ? <FormMessage tone="error">{error}</FormMessage> : null}
     </div>
   );
 }

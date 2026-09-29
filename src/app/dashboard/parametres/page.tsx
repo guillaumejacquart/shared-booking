@@ -81,15 +81,15 @@ export default async function ParametresPage({
                   <p className="text-sm text-mist">—</p>
                 ) : (
                   <ul className="grid gap-2">
-                    {pending.map((i) => (
+                    {pending.map((invite) => (
                       <li
-                        key={i.id}
+                        key={invite.id}
                         className="flex flex-wrap gap-2 rounded-2xl border border-line bg-card p-3 text-sm shadow-soft"
                       >
-                        <span className="font-medium">{i.email}</span>
-                        <span className="text-mist">{i.role}</span>
+                        <span className="font-medium">{invite.email}</span>
+                        <span className="text-mist">{invite.role}</span>
                         <span className="ml-auto text-mist">
-                          expire le {new Date(i.expiresAt).toLocaleDateString("fr-FR")}
+                          expire le {new Date(invite.expiresAt).toLocaleDateString("fr-FR")}
                         </span>
                       </li>
                     ))}
@@ -101,19 +101,19 @@ export default async function ParametresPage({
                   {t("team.members")} ({members.length})
                 </h2>
                 <ul className="grid gap-2">
-                  {members.map(({ member: m, user: u }) => (
+                  {members.map(({ member: member, user: memberUser }) => (
                     <li
-                      key={m.id}
+                      key={member.id}
                       className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-3 text-sm shadow-soft"
                     >
-                      <span className="font-medium">{u?.name ?? "?"}</span>
-                      <span className="text-mist">{u?.email}</span>
-                      <span className="text-mist">{m.role}</span>
-                      {m.userId === ctx.userId ? null : (
+                      <span className="font-medium">{memberUser?.name ?? "?"}</span>
+                      <span className="text-mist">{memberUser?.email}</span>
+                      <span className="text-mist">{member.role}</span>
+                      {member.userId === ctx.userId ? null : (
                         <RemoveMemberButton
                           officeId={ctx.officeId}
-                          memberId={m.id}
-                          memberName={u?.name ?? u?.email ?? ""}
+                          memberId={member.id}
+                          memberName={memberUser?.name ?? memberUser?.email ?? ""}
                         />
                       )}
                     </li>
@@ -125,13 +125,13 @@ export default async function ParametresPage({
           rooms: (
             <RoomsManager
               officeId={ctx.officeId}
-              initial={rooms.map((r) => ({
-                id: r.room.id,
-                name: r.room.name,
-                color: r.room.color,
-                practitionerIds: r.practitionerIds,
+              initial={rooms.map((room) => ({
+                id: room.room.id,
+                name: room.room.name,
+                color: room.room.color,
+                practitionerIds: room.practitionerIds,
               }))}
-              practitioners={pracs.map((p) => ({ id: p.id, displayName: p.displayName }))}
+              practitioners={pracs.map((prac) => ({ id: prac.id, displayName: prac.displayName }))}
             />
           ),
         }}

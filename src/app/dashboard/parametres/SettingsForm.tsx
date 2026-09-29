@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
 import { parseMode, parsePalette, type PaletteId, type ThemeMode } from "@/lib/theme";
 import { Button, Field, FormMessage, NumberInput, TextInput, Toggle } from "@/components/ui";
 import PublicLinkCard from "@/components/PublicLinkCard";
@@ -38,8 +39,8 @@ export default function SettingsForm({
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function set<K extends keyof Settings>(k: K, v: Settings[K]) {
-    setForm((f) => ({ ...f, [k]: v }));
+  function set<K extends keyof Settings>(key: K, value: Settings[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   /** Aperçu immédiat : le tableau de bord suit l'ambiance enregistrée. */
@@ -47,20 +48,13 @@ export default function SettingsForm({
     document.documentElement.dataset.palette = palette;
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/offices/${officeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, address: form.address || null }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
+      const result = await sendJson(`/api/offices/${officeId}`, "PATCH", { ...form, address: form.address || null });
+      if (!result.ok) throw new Error(result.error);
       // L'ambiance choisie devient aussi celle du tableau de bord du
       // responsable (son choix personnel suit, mode inchangé).
       try {
@@ -93,20 +87,20 @@ export default function SettingsForm({
       />
     <form onSubmit={save} className="flex max-w-xl flex-col gap-4">
       <Field label="Cabinet">
-        <TextInput value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={80} />
+        <TextInput value={form.name} onChange={(event) => set("name", event.target.value)} required maxLength={80} />
       </Field>
       <Field label={t("settings.address")}>
-        <TextInput value={form.address ?? ""} onChange={(e) => set("address", e.target.value)} maxLength={200} />
+        <TextInput value={form.address ?? ""} onChange={(event) => set("address", event.target.value)} maxLength={200} />
       </Field>
       <Toggle
         label={t("settings.officePages")}
         checked={form.enablePractitionerPages}
-        onChange={(v) => set("enablePractitionerPages", v)}
+        onChange={(checked) => set("enablePractitionerPages", checked)}
       />
       <Toggle
         label={t("settings.enableOfficePage")}
         checked={form.enableOfficePage}
-        onChange={(v) => set("enableOfficePage", v)}
+        onChange={(checked) => set("enableOfficePage", checked)}
       />
       <div className="rounded-3xl border border-line bg-card p-4 shadow-soft">
         <h2 className="text-base font-semibold">{t("settings.ambiance")}</h2>
@@ -115,23 +109,23 @@ export default function SettingsForm({
           <ThemePicker
             palette={form.themePalette}
             mode={form.themeMode}
-            onPalette={(p) => set("themePalette", p)}
-            onMode={(m) => set("themeMode", m)}
+            onPalette={(palette) => set("themePalette", palette)}
+            onMode={(mode) => set("themeMode", mode)}
           />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t("settings.leadTime")}>
-          <NumberInput unit="min" value={form.bookingLeadTimeMin} min={0} max={1440} onChange={(e) => set("bookingLeadTimeMin", Number(e.target.value))} />
+          <NumberInput unit="min" value={form.bookingLeadTimeMin} min={0} max={1440} onChange={(event) => set("bookingLeadTimeMin", Number(event.target.value))} />
         </Field>
         <Field label={t("settings.cancelDeadline")}>
-          <NumberInput unit="h" value={form.cancelDeadlineHours} min={0} max={168} onChange={(e) => set("cancelDeadlineHours", Number(e.target.value))} />
+          <NumberInput unit="h" value={form.cancelDeadlineHours} min={0} max={168} onChange={(event) => set("cancelDeadlineHours", Number(event.target.value))} />
         </Field>
         <Field label={t("settings.reminder")}>
-          <NumberInput unit="h" value={form.reminderHoursBefore} min={0} max={168} onChange={(e) => set("reminderHoursBefore", Number(e.target.value))} />
+          <NumberInput unit="h" value={form.reminderHoursBefore} min={0} max={168} onChange={(event) => set("reminderHoursBefore", Number(event.target.value))} />
         </Field>
         <Field label={t("settings.buffer")}>
-          <NumberInput unit="min" value={form.defaultBufferAfterMin} min={0} max={480} onChange={(e) => set("defaultBufferAfterMin", Number(e.target.value))} />
+          <NumberInput unit="min" value={form.defaultBufferAfterMin} min={0} max={480} onChange={(event) => set("defaultBufferAfterMin", Number(event.target.value))} />
         </Field>
       </div>
       {message ? <FormMessage tone={message.ok ? "ok" : "error"}>{message.text}</FormMessage> : null}

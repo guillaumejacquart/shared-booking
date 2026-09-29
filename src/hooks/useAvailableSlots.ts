@@ -30,17 +30,17 @@ export function useAvailableSlots(slug: string, sessionTypeId: string, days = 56
     setLoading(Boolean(sessionTypeId));
   }
 
-  const reload = useCallback(() => setNonce((n) => n + 1), []);
-  const reset = useCallback(() => setNonce((n) => n + 1), []);
+  const reload = useCallback(() => setNonce((prev) => prev + 1), []);
+  const reset = useCallback(() => setNonce((prev) => prev + 1), []);
 
   useEffect(() => {
     if (!sessionTypeId) return;
     let cancelled = false;
     const today = toKey(new Date());
     fetch(`/api/p/${slug}/slots?sessionTypeId=${sessionTypeId}&from=${today}&days=${days}`)
-      .then((r) => (r.ok ? r.json() : { slots: [] }))
-      .then((j) => {
-        if (!cancelled) setAllSlots(j.slots ?? []);
+      .then((res) => (res.ok ? res.json() : { slots: [] }))
+      .then((data) => {
+        if (!cancelled) setAllSlots(data.slots ?? []);
       })
       .catch(() => {
         if (!cancelled) setAllSlots([]);
@@ -55,10 +55,10 @@ export function useAvailableSlots(slug: string, sessionTypeId: string, days = 56
 
   const byDay = useMemo(() => {
     const map = new Map<string, SlotDto[]>();
-    for (const s of allSlots) {
-      const key = toKey(new Date(s.startAt));
+    for (const slot of allSlots) {
+      const key = toKey(new Date(slot.startAt));
       const list = map.get(key) ?? [];
-      list.push(s);
+      list.push(slot);
       map.set(key, list);
     }
     return map;

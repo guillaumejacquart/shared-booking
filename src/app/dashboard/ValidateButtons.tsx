@@ -44,9 +44,9 @@ export default function ValidateButtons({
         body: JSON.stringify({ accept, reason: accept ? undefined : reason }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => null);
+        const body = await res.json().catch(() => null);
         throw new Error(
-          (j?.error as string) || (j?.code as string) || t("booking.errorGeneric"),
+          (body?.error as string) || (body?.code as string) || t("booking.errorGeneric"),
         );
       }
       setDone(accept ? t("agenda.validated") : t("agenda.refused"));
@@ -76,7 +76,7 @@ export default function ValidateButtons({
   return (
     <div className="flex flex-col gap-2">
       <Field label={t("agenda.refuseReason")}>
-        <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+        <TextInput value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} />
       </Field>
       <FormMessage tone="error">{error ?? ""}</FormMessage>
       <div className="flex gap-2">

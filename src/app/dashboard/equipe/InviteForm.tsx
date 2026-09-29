@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
 import { Button, Field, FormMessage, Select, TextInput } from "@/components/ui";
 
 export default function InviteForm({ officeId }: { officeId: string }) {
@@ -13,20 +14,13 @@ export default function InviteForm({ officeId }: { officeId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/offices/${officeId}/invites`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
+      const result = await sendJson(`/api/offices/${officeId}/invites`, "POST", { email, role });
+      if (!result.ok) throw new Error(result.error);
       setEmail("");
       router.refresh();
     } catch (err) {
@@ -42,14 +36,14 @@ export default function InviteForm({ officeId }: { officeId: string }) {
         <TextInput
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(event) => setEmail(event.target.value)}
           required
           maxLength={254}
           placeholder={t("team.invitePlaceholder")}
         />
       </Field>
       <Field label="Rôle">
-        <Select value={role} onChange={(e) => setRole(e.target.value as "owner" | "practitioner")}>
+        <Select value={role} onChange={(event) => setRole(event.target.value as "owner" | "practitioner")}>
           <option value="practitioner">Praticien</option>
           <option value="owner">Responsable</option>
         </Select>

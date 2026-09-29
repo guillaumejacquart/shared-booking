@@ -54,23 +54,23 @@ export default function AgendaCalendar() {
   const [rooms, setRooms] = useState<{ id: string; name: string; color: string | null }[]>([]);
 
   function onEventClick(info: EventClickArg) {
-    const p = info.event.extendedProps as Partial<Omit<Selected, "id" | "title" | "start" | "end">>;
+    const props = info.event.extendedProps as Partial<Omit<Selected, "id" | "title" | "start" | "end">>;
     setSelected({
       id: info.event.id,
       title: info.event.title,
       start: info.event.start?.toISOString() ?? "",
       end: info.event.end?.toISOString() ?? "",
-      status: p.status ?? "",
-      paymentStatus: p.paymentStatus ?? "none",
-      validationRequired: p.validationRequired ?? false,
-      sessionName: p.sessionName ?? info.event.title,
-      roomName: p.roomName ?? "",
-      roomColor: p.roomColor ?? null,
-      patientName: p.patientName ?? "",
-      patientEmail: p.patientEmail ?? "",
-      patientPhone: p.patientPhone ?? null,
-      notes: p.notes ?? null,
-      cancelToken: p.cancelToken ?? "",
+      status: props.status ?? "",
+      paymentStatus: props.paymentStatus ?? "none",
+      validationRequired: props.validationRequired ?? false,
+      sessionName: props.sessionName ?? info.event.title,
+      roomName: props.roomName ?? "",
+      roomColor: props.roomColor ?? null,
+      patientName: props.patientName ?? "",
+      patientEmail: props.patientEmail ?? "",
+      patientPhone: props.patientPhone ?? null,
+      notes: props.notes ?? null,
+      cancelToken: props.cancelToken ?? "",
     });
   }
 
@@ -79,19 +79,19 @@ export default function AgendaCalendar() {
   }
 
   function renderEvent(arg: EventContentArg) {
-    const p = arg.event.extendedProps as Partial<Selected>;
+    const props = arg.event.extendedProps as Partial<Selected>;
     const inList = arg.view.type.startsWith("list");
     return (
       <span className="flex min-w-0 items-center gap-1">
         <span className="truncate">{arg.event.title}</span>
-        {p.roomColor ? (
+        {props.roomColor ? (
           <span
             className="h-2 w-2 shrink-0 rounded-full"
-            style={{ backgroundColor: p.roomColor }}
-            title={p.roomName ?? ""}
+            style={{ backgroundColor: props.roomColor }}
+            title={props.roomName ?? ""}
           />
         ) : null}
-        {inList && p.roomName ? <span className="shrink-0 opacity-80">· {p.roomName}</span> : null}
+        {inList && props.roomName ? <span className="shrink-0 opacity-80">· {props.roomName}</span> : null}
       </span>
     );
   }
@@ -100,13 +100,13 @@ export default function AgendaCalendar() {
   const fetchEvents: EventSourceFunc = useCallback(
     (fetchInfo, successCallback, failureCallback) => {
       fetch(`/api/agenda/events?start=${encodeURIComponent(fetchInfo.startStr)}&end=${encodeURIComponent(fetchInfo.endStr)}`)
-        .then((r) => (r.ok ? r.json() : { events: [], rooms: [] }))
-        .then((j) => {
+        .then((res) => (res.ok ? res.json() : { events: [], rooms: [] }))
+        .then((data) => {
           // Même référence si inchangé : évite un rendu (et donc une recharge).
           setRooms((prev) =>
-            JSON.stringify(prev) === JSON.stringify(j.rooms ?? []) ? prev : (j.rooms ?? []),
+            JSON.stringify(prev) === JSON.stringify(data.rooms ?? []) ? prev : (data.rooms ?? []),
           );
-          successCallback(j.events ?? []);
+          successCallback(data.events ?? []);
         })
         .catch(() => failureCallback(new Error("chargement impossible")));
     },
@@ -128,13 +128,13 @@ export default function AgendaCalendar() {
     <div className="flex flex-col gap-4">
       {rooms.length > 0 ? (
         <div className="flex flex-wrap gap-3 text-sm">
-          {rooms.map((r) => (
-            <span key={r.id} className="inline-flex items-center gap-1.5">
+          {rooms.map((room) => (
+            <span key={room.id} className="inline-flex items-center gap-1.5">
               <span
                 className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: r.color ?? "var(--faint)" }}
+                style={{ backgroundColor: room.color ?? "var(--faint)" }}
               />
-              {r.name}
+              {room.name}
             </span>
           ))}
         </div>

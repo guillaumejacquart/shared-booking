@@ -31,29 +31,29 @@ export default function Modal({
   useEffect(() => {
     if (!open) return;
     previousFocus.current = document.activeElement;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         onClose();
         return;
       }
       // Piège Tab : boucle à l'intérieur du dialogue.
-      if (e.key === "Tab") {
+      if (event.key === "Tab") {
         const dialog = dialogRef.current;
         if (!dialog) return;
         const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
           (el) => el.offsetParent !== null || el === document.activeElement,
         );
         if (focusable.length === 0) {
-          e.preventDefault();
+          event.preventDefault();
           return;
         }
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
           last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
           first.focus();
         }
       }
@@ -92,7 +92,7 @@ export default function Modal({
         aria-label={title}
         tabIndex={-1}
         className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-line bg-card p-5 shadow-lift"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2">
           <h2 className="mr-auto text-lg font-semibold">{title}</h2>

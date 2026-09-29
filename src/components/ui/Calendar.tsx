@@ -43,7 +43,7 @@ export default function Calendar({
       <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
-          onClick={() => setOffset((o) => Math.max(o - 1, minOffset))}
+          onClick={() => setOffset((prev) => Math.max(prev - 1, minOffset))}
           disabled={atMin}
           aria-disabled={atMin}
           aria-label="Mois précédent"
@@ -54,7 +54,7 @@ export default function Calendar({
         <p className="font-display font-medium capitalize">{monthLabel(year, monthIndex)}</p>
         <button
           type="button"
-          onClick={() => setOffset((o) => Math.min(o + 1, maxOffset))}
+          onClick={() => setOffset((prev) => Math.min(prev + 1, maxOffset))}
           disabled={atMax}
           aria-disabled={atMax}
           aria-label="Mois suivant"
@@ -64,26 +64,26 @@ export default function Calendar({
         </button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center text-xs text-mist">
-        {WEEKDAY_SHORT.map((d) => (
-          <span key={d} className="py-1">
-            {d}
+        {WEEKDAY_SHORT.map((label) => (
+          <span key={label} className="py-1">
+            {label}
           </span>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
-        {cells.map((c) => {
-          const available = !availableDays || availableDays.has(c.key);
-          const isSelected = selected === c.key;
+        {cells.map((cell) => {
+          const available = !availableDays || availableDays.has(cell.key);
+          const isSelected = selected === cell.key;
           return (
             <button
-              key={c.key}
+              key={cell.key}
               type="button"
-              disabled={!c.inMonth || !available}
-              onClick={() => onSelect?.(c.key)}
+              disabled={!cell.inMonth || !available}
+              onClick={() => onSelect?.(cell.key)}
               aria-pressed={isSelected}
-              aria-current={c.key === todayKey ? "date" : undefined}
+              aria-current={cell.key === todayKey ? "date" : undefined}
               className={`flex min-h-11 flex-col items-center justify-center rounded-xl px-1 py-1 text-sm transition-colors ${
-                !c.inMonth
+                !cell.inMonth
                   ? "invisible"
                   : isSelected
                     ? "bg-brand font-semibold text-brand-ink shadow-soft"
@@ -92,8 +92,8 @@ export default function Calendar({
                       : "text-faint"
               }`}
             >
-              <span>{c.date.getUTCDate()}</span>
-              {c.inMonth && renderDay ? renderDay(c.key) : null}
+              <span>{cell.date.getUTCDate()}</span>
+              {cell.inMonth && renderDay ? renderDay(cell.key) : null}
             </button>
           );
         })}

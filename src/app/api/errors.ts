@@ -16,38 +16,38 @@ import {
  * côté client/logs ; en dev, les erreurs inconnues incluent aussi le message
  * d'origine (jamais de stack trace vers le client).
  */
-export function toResponse(e: unknown): NextResponse {
+export function toResponse(error: unknown): NextResponse {
   const dev = process.env.NODE_ENV !== "production";
   if (
-    e instanceof NotFoundError ||
-    e instanceof ValidationError ||
-    e instanceof ConflictError ||
-    e instanceof DeadlineError ||
-    e instanceof ForbiddenError
+    error instanceof NotFoundError ||
+    error instanceof ValidationError ||
+    error instanceof ConflictError ||
+    error instanceof DeadlineError ||
+    error instanceof ForbiddenError
   ) {
-    const { status, code } = errorToHttp(e);
+    const { status, code } = errorToHttp(error);
     return NextResponse.json(
       {
-        error: e.message,
+        error: error.message,
         code,
-        ...(e instanceof ValidationError && e.details ? { details: e.details } : {}),
+        ...(error instanceof ValidationError && error.details ? { details: error.details } : {}),
       },
       { status },
     );
   }
-  if (e instanceof z.ZodError) {
+  if (error instanceof z.ZodError) {
     return NextResponse.json(
       {
-        error: e.issues[0]?.message ?? "Requête invalide",
+        error: error.issues[0]?.message ?? "Requête invalide",
         code: "VALIDATION",
-        details: e.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+        details: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
       },
       { status: 400 },
     );
   }
-  console.error("[api]", e);
+  console.error("[api]", error);
   const message =
-    dev && e instanceof Error && e.message ? e.message : "Erreur interne";
+    dev && error instanceof Error && error.message ? error.message : "Erreur interne";
   return NextResponse.json({ error: message, code: "INTERNAL" }, { status: 500 });
 }
 
@@ -75,8 +75,8 @@ export function route<Rest extends unknown[]>(
   return async (req, ...rest) => {
     try {
       return await handler(req, ...rest);
-    } catch (e) {
-      return toResponse(e);
+    } catch (error) {
+      return toResponse(error);
     }
   };
 }

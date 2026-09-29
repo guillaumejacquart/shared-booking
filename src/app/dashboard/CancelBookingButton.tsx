@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
 
 /** Annulation praticien depuis l'agenda (motif obligatoire, patient notifié). */
@@ -29,15 +30,8 @@ export default function CancelBookingButton({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/b/cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: cancelToken, by: "practitioner", reason }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
+      const result = await sendJson("/api/b/cancel", "POST", { token: cancelToken, by: "practitioner", reason });
+      if (!result.ok) throw new Error(result.error);
       setDone(true);
       onDone?.();
       router.refresh();
@@ -62,7 +56,7 @@ export default function CancelBookingButton({
     <div className="flex max-w-sm flex-col gap-2">
       <p className="text-xs text-mist">{t("agenda.confirmCancel")}</p>
       <Field label={t("agenda.reason")}>
-        <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+        <TextInput value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} />
       </Field>
       <FormMessage tone="error">{error ?? ""}</FormMessage>
       <div className="flex gap-2">

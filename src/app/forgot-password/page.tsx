@@ -12,8 +12,8 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setBusy(true);
     try {
       await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
             <TextInput
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
               required
               autoComplete="email"
             />

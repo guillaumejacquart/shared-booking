@@ -26,19 +26,19 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
           <p className="font-display text-sm font-semibold">{ctx.userName}</p>
         </div>
         <nav className="flex flex-wrap items-center gap-1 text-sm">
-          {links.map((l) => {
-            const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
+          {links.map((link) => {
+            const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
             return (
               <Link
-                key={l.href}
-                href={l.href}
+                key={link.href}
+                href={link.href}
                 className={`rounded-full px-3 py-1.5 transition-colors ${
                   active
                     ? "bg-brand font-medium text-brand-ink shadow-soft"
                     : "text-mist hover:bg-wash hover:text-ink"
                 }`}
               >
-                {l.label}
+                {link.label}
               </Link>
             );
           })}

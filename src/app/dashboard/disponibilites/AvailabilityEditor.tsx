@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { t } from "@/lib/i18n";
+import { sendJson } from "@/lib/api-client";
 import { notifyAvailabilitiesChanged } from "@/lib/availabilities-events";
 import { Button, Field, FormMessage, Select, TextInput } from "@/components/ui";
 
@@ -27,29 +28,22 @@ export default function AvailabilityEditor({
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   function patch(key: string, data: Partial<RuleRow>) {
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...data } : r)));
+    setRows((rs) => rs.map((row) => (row.key === key ? { ...row, ...data } : row)));
   }
 
   async function save() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/availability", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await sendJson("/api/availability", "PUT", {
           practitionerId,
-          rules: rows.map((r) => ({
-            weekday: r.weekday,
-            startTime: r.startTime,
-            endTime: r.endTime,
+          rules: rows.map((row) => ({
+            weekday: row.weekday,
+            startTime: row.startTime,
+            endTime: row.endTime,
           })),
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        throw new Error((j?.error as string) || t("booking.errorGeneric"));
-      }
+        });
+      if (!result.ok) throw new Error(result.error);
       setMessage({ ok: true, text: t("dashboard.saved") });
       // Les règles ont changé : le calendrier recharge depuis l'API.
       notifyAvailabilitiesChanged();
@@ -63,30 +57,30 @@ export default function AvailabilityEditor({
   return (
     <div>
       <div className="grid gap-3">
-        {rows.map((r) => (
+        {rows.map((row) => (
           <div
-            key={r.key}
+            key={row.key}
             className="grid grid-cols-2 items-end gap-2 rounded-2xl border border-line bg-card p-3 shadow-soft sm:grid-cols-4"
           >
             <Field label="Jour">
-              <Select value={r.weekday} onChange={(e) => patch(r.key, { weekday: Number(e.target.value) })}>
-                {WEEKDAYS.map((d, i) => (
-                  <option key={i} value={i}>
-                    {d}
+              <Select value={row.weekday} onChange={(event) => patch(row.key, { weekday: Number(event.target.value) })}>
+                {WEEKDAYS.map((label, index) => (
+                  <option key={index} value={index}>
+                    {label}
                   </option>
                 ))}
               </Select>
             </Field>
             <Field label="Début">
-              <TextInput type="time" value={r.startTime} onChange={(e) => patch(r.key, { startTime: e.target.value })} required />
+              <TextInput type="time" value={row.startTime} onChange={(event) => patch(row.key, { startTime: event.target.value })} required />
             </Field>
             <Field label="Fin">
-              <TextInput type="time" value={r.endTime} onChange={(e) => patch(r.key, { endTime: e.target.value })} required />
+              <TextInput type="time" value={row.endTime} onChange={(event) => patch(row.key, { endTime: event.target.value })} required />
             </Field>
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+              onClick={() => setRows((rs) => rs.filter((other) => other.key !== row.key))}
             >
               {t("availability.delete")}
             </Button>

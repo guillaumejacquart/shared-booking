@@ -49,19 +49,19 @@ export default function ThemeSwitcher({
     applyTheme(palette, mode);
   }, [palette, mode]);
 
-  function preview(p: PaletteId, m: ThemeMode) {
-    setPalette(p);
-    setMode(m);
-    applyTheme(p, m);
+  function preview(nextPalette: PaletteId, nextMode: ThemeMode) {
+    setPalette(nextPalette);
+    setMode(nextMode);
+    applyTheme(nextPalette, nextMode);
   }
 
-  async function persist(p: PaletteId, m: ThemeMode) {
-    preview(p, m);
+  async function persist(nextPalette: PaletteId, nextMode: ThemeMode) {
+    preview(nextPalette, nextMode);
     try {
       await fetch("/api/preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ palette: p, mode: m }),
+        body: JSON.stringify({ palette: nextPalette, mode: nextMode }),
       });
     } catch {
       // Aperçu conservé même si la persistance échoue.
@@ -95,8 +95,8 @@ export default function ThemeSwitcher({
         <ThemePicker
           palette={palette}
           mode={mode}
-          onPalette={(p) => void persist(p, mode)}
-          onMode={(m) => void persist(palette, m)}
+          onPalette={(nextPalette) => void persist(nextPalette, mode)}
+          onMode={(nextMode) => void persist(palette, nextMode)}
         />
         <div className="mt-5 flex justify-end">
           <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>

@@ -40,8 +40,8 @@ export async function POST(req: Request) {
     }
     // `checkout.session.expired` : le sweep périodique libère le créneau.
     return NextResponse.json({ received: true });
-  } catch (e) {
-    console.error("[stripe-webhook]", e);
+  } catch (error) {
+    console.error("[stripe-webhook]", error);
     return NextResponse.json({ error: "Erreur interne" }, { status: 500 });
   }
 }

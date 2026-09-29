@@ -56,15 +56,15 @@ export default async function PractitionerPage({
       ) : null}
       <BookingWidget
         slug={page.practitioner.slug}
-        sessionTypes={page.sessionTypes.map((s) => ({
-          id: s.id,
-          name: s.name,
-          description: s.description,
-          durationMin: s.durationMin,
-          priceDisplay: s.priceDisplay,
-          requiresPayment: s.requiresPayment,
-          priceCents: s.priceCents,
-          currency: s.currency,
+        sessionTypes={page.sessionTypes.map((sessionType) => ({
+          id: sessionType.id,
+          name: sessionType.name,
+          description: sessionType.description,
+          durationMin: sessionType.durationMin,
+          priceDisplay: sessionType.priceDisplay,
+          requiresPayment: sessionType.requiresPayment,
+          priceCents: sessionType.priceCents,
+          currency: sessionType.currency,
         }))}
       />
       </main>

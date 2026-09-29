@@ -61,7 +61,7 @@ export default async function OfficePage({
               ) : null}
               {sessionTypes.length > 0 ? (
                 <p className="mt-2 text-sm text-mist">
-                  {t("office.sessions")} : {sessionTypes.map((s) => s.name).join(" · ")}
+                  {t("office.sessions")} : {sessionTypes.map((sessionType) => sessionType.name).join(" · ")}
                 </p>
               ) : (
                 <p className="mt-2 text-sm text-mist">{t("office.none")}</p>
