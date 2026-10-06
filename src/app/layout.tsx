@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Script from "next/script";
 import type { Metadata } from "next";
 import { Fraunces, Work_Sans } from "next/font/google";
 import "./globals.css";
@@ -41,7 +42,16 @@ export default async function RootLayout({
       data-mode={mode}
       className={`${display.variable} ${sans.variable} h-full antialiased`}
     >
-      <body className="font-sans min-h-full flex flex-col">{children}</body>
+      <body className="font-sans min-h-full flex flex-col">
+        {children}
+        {/* Umami analytics (stats.guillaumejacquart.com). Skipped in dev. */}
+        {process.env.NODE_ENV !== "development" && (
+          <Script
+            src="https://stats.guillaumejacquart.com/script.js"
+            data-website-id="ad8fcc2f-4830-436f-82e0-319f14727adb"
+          />
+        )}
+      </body>
     </html>
   );
 }
