@@ -11,12 +11,13 @@ import ProfileForm from "@/components/ProfileForm";
 import GoogleAgendaSettings, {
   type GoogleCalendar,
 } from "@/components/GoogleAgendaSettings";
+import StripeConnectSettings from "@/components/StripeConnectSettings";
 import SessionTypesManager from "../seances/SessionTypesManager";
 import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
 import ExceptionsManager from "../disponibilites/ExceptionsManager";
 import AvailabilityMonthLoader from "../disponibilites/AvailabilityMonthLoader";
 
-export type ProfilTab = "profil" | "seances" | "disponibilites" | "google";
+export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "paiements";
 
 /** Hub praticien : profil public, séances, disponibilités. */
 export default async function ProfilPage({
@@ -29,12 +30,13 @@ export default async function ProfilPage({
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "profil";
   const initial: ProfilTab =
-    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google"
+    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google" || rawTab === "paiements"
       ? rawTab
       : "profil";
+  const backFromStripe = sp.stripe === "retour" || sp.stripe === "refresh";
 
   const now = new Date();
-  const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus] = await Promise.all([
+  const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus] = await Promise.all([
     practitionersDal.getPractitionerById(ctx.practitionerId),
     sessionTypesDal.listSessionTypes(ctx.practitionerId),
     availabilityDal.listRules(ctx.practitionerId),
@@ -44,7 +46,12 @@ export default async function ProfilPage({
       dateStrInTz(new Date(now.getTime() + 365 * 86_400_000), tz),),
     sessionTypesDal.listCompatibleRoomsByPractitioner(ctx.practitionerId),
     services.google.getGoogleStatus(ctx.userId),
+    services.stripeConnect.getConnectStatus(ctx.userId),
   ]);
+  // Retour d'onboarding Stripe : re-synchronise les flags (best-effort).
+  const stripeStatus = backFromStripe
+    ? await services.stripeConnect.refreshConnectStatus(ctx.userId).catch(() => connectStatus)
+    : connectStatus;
   // La liste des agendas exige un appel Google : échec silencieux (le
   // sélecteur retombe sur l'agenda principal, rechargeable côté client).
   const googleCalendars: GoogleCalendar[] = await services.google
@@ -75,6 +82,7 @@ export default async function ProfilPage({
           { key: "seances", label: t("profile.tabSessionTypes") },
           { key: "disponibilites", label: t("profile.tabAvailability") },
           { key: "google", label: t("profile.tabGoogle") },
+          { key: "paiements", label: t("profile.tabPayments") },
         ]}
       >
         {{
@@ -156,6 +164,14 @@ export default async function ProfilPage({
                   initialStatus={googleStatus}
                   initialCalendars={googleCalendars}
                 />
+              </section>
+            </div>
+          ),
+          paiements: (
+            <div className="flex flex-col gap-4">
+              <section>
+                <h2 className="mb-1 text-lg font-semibold">{t("profile.tabPayments")}</h2>
+                <StripeConnectSettings initialStatus={stripeStatus} />
               </section>
             </div>
           ),

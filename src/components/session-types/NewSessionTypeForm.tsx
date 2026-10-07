@@ -120,17 +120,6 @@ export default function NewSessionTypeForm({
           />
           {t("sessionTypesAdmin.requiresPayment")}
         </label>
-        {draft.requiresPayment ? (
-          <Field label={t("sessionTypesAdmin.priceCents")}>
-            <NumberInput
-              unit="€"
-              value={draft.priceEuros}
-              min={1}
-              onChange={(event) => update({ priceEuros: event.target.value })}
-              required
-            />
-          </Field>
-        ) : null}
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={draft.requiresValidation}
@@ -139,6 +128,19 @@ export default function NewSessionTypeForm({
           {t("sessionTypesAdmin.requiresValidation")}
         </label>
       </div>
+      {draft.requiresPayment ? (
+        <div className="mt-3 max-w-xs">
+          <Field label={t("sessionTypesAdmin.priceCents")} hint={t("sessionTypesAdmin.priceCentsHint")}>
+            <NumberInput
+              unit="€"
+              value={draft.priceEuros}
+              min={1}
+              onChange={(event) => update({ priceEuros: event.target.value })}
+              required
+            />
+          </Field>
+        </div>
+      ) : null}
       <RoomCheckboxes
         rooms={rooms}
         selected={draft.compatibleRoomIds}

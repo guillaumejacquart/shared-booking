@@ -45,6 +45,28 @@ export async function createOffice(data: {
   await conn.insert(practitioner).values({ ...data.practitioner, active: true });
 }
 
+/** Met à jour les références d'abonnement Stripe d'un cabinet. */
+export async function setOfficeSubscription(officeId: string, data: {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  subscriptionStatus: string | null;
+  subscriptionCurrentPeriodEnd: Date | null;
+}) {
+  const conn = getConnection();
+  await conn.update(office).set(data).where(eq(office.id, officeId));
+}
+
+/** Retrouve le cabinet propriétaire d'un customer Stripe (webhooks abo). */
+export async function findOfficeByStripeCustomer(stripeCustomerId: string) {
+  const conn = getConnection();
+  const rows = await conn
+    .select()
+    .from(office)
+    .where(eq(office.stripeCustomerId, stripeCustomerId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function updateOffice(officeId: string,
   data: Partial<{
     name: string;

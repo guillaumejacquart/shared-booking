@@ -3,15 +3,17 @@ import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
+import { services } from "@/lib/container";
 import { getDashboardContext } from "@/lib/dashboard";
 import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
+import BillingSettings from "@/components/BillingSettings";
 import SettingsForm from "./SettingsForm";
 import InviteForm from "../equipe/InviteForm";
 import RemoveMemberButton from "../equipe/RemoveMemberButton";
 import RoomsManager from "../salles/RoomsManager";
 
-export type SettingsTab = "general" | "team" | "rooms";
+export type SettingsTab = "general" | "team" | "rooms" | "abonnement";
 
 /** Paramètres du cabinet (owner) : général, équipe, salles. */
 export default async function ParametresPage({
@@ -25,16 +27,22 @@ export default async function ParametresPage({
   }
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "general";
-  const initial: SettingsTab = rawTab === "team" || rawTab === "rooms" ? rawTab : "general";
+  const initial: SettingsTab = rawTab === "team" || rawTab === "rooms" || rawTab === "abonnement" ? rawTab : "general";
+  const backFromCheckout = sp.abo === "ok";
 
-  const [office, members, pending, rooms, pracs] = await Promise.all([
+  const [office, members, pending, rooms, pracs, billingStatus] = await Promise.all([
     officesDal.getOfficeById(ctx.officeId),
     membersDal.listMembersWithUsers(ctx.officeId),
     invitesDal.listPendingInvites(ctx.officeId),
     roomsDal.listRoomsWithMembers(ctx.officeId),
     practitionersDal.listPractitionersByOffice(ctx.officeId),
+    services.billing.getBillingStatus(ctx.userId),
   ]);
   if (!office) return null;
+  // Retour du checkout : re-synchronise le statut depuis Stripe (best-effort).
+  const billing = backFromCheckout
+    ? await services.billing.refreshBillingStatus(ctx.userId).catch(() => billingStatus)
+    : billingStatus;
 
   return (
     <div>
@@ -46,6 +54,7 @@ export default async function ParametresPage({
           { key: "general", label: t("settings.tabGeneral") },
           { key: "team", label: t("settings.tabTeam") },
           { key: "rooms", label: t("settings.tabRooms") },
+          { key: "abonnement", label: t("settings.tabBilling") },
         ]}
       >
         {{
@@ -133,6 +142,14 @@ export default async function ParametresPage({
               }))}
               practitioners={pracs.map((prac) => ({ id: prac.id, displayName: prac.displayName }))}
             />
+          ),
+          abonnement: (
+            <div className="flex flex-col gap-4">
+              <section>
+                <h2 className="mb-1 text-lg font-semibold">{t("settings.tabBilling")}</h2>
+                <BillingSettings initialStatus={billing} />
+              </section>
+            </div>
           ),
         }}
       </Tabs>

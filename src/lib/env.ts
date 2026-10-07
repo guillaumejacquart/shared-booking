@@ -21,6 +21,12 @@ const envSchema = z.object({
   // les types de séance payants sont rejetés à la réservation.
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Commission plateforme prélevée via Connect (destination charges).
+  // 0 = pas de commission (reversement intégral au praticien).
+  STRIPE_APPLICATION_FEE_CENTS: z.coerce.number().int().min(0).default(0),
+  // Abonnement SaaS (1 par cabinet) : prix mensuel Stripe (`price_...`).
+  // Sans prix, la facturation est désactivée (bandeau masqué).
+  STRIPE_SUBSCRIPTION_PRICE_ID: z.string().optional(),
 
   // --- Google (push agenda praticien) — optionnel : sans GOOGLE_CLIENT_*,
   // la connexion Google est désactivée et les réservations restent locales.
@@ -39,6 +45,8 @@ export const env = envSchema.parse({
   EMAIL_FROM: process.env.EMAIL_FROM,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+  STRIPE_APPLICATION_FEE_CENTS: process.env.STRIPE_APPLICATION_FEE_CENTS,
+  STRIPE_SUBSCRIPTION_PRICE_ID: process.env.STRIPE_SUBSCRIPTION_PRICE_ID,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
 });

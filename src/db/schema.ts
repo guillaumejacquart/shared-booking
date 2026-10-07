@@ -118,6 +118,12 @@ export const office = sqliteTable("office", {
   enableOfficePage: integer("enable_office_page", { mode: "boolean" })
     .notNull()
     .default(false),
+  // Abonnement SaaS (1 par cabinet, payé par le owner) : customer + abo Stripe.
+  // `subscriptionStatus` suit les statuts Stripe (trialing/active/past_due/canceled…).
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionStatus: text("subscription_status"),
+  subscriptionCurrentPeriodEnd: integer("subscription_current_period_end", { mode: "timestamp" }),
   bookingLeadTimeMin: integer("booking_lead_time_min").notNull().default(120),
   cancelDeadlineHours: integer("cancel_deadline_hours").notNull().default(24),
   reminderHoursBefore: integer("reminder_hours_before").notNull().default(24),
@@ -177,6 +183,15 @@ export const practitioner = sqliteTable(
     bio: text("bio"),
     publicContact: text("public_contact"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    // Stripe Connect Express (destination charges) : un compte par praticien.
+    // Null tant que le praticien n'a pas lié son compte Stripe.
+    stripeAccountId: text("stripe_account_id"),
+    stripeChargesEnabled: integer("stripe_charges_enabled", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    stripePayoutsEnabled: integer("stripe_payouts_enabled", { mode: "boolean" })
+      .notNull()
+      .default(false),
     ...timestamps,
   },
   (t) => [index("practitioner_office_idx").on(t.officeId)],

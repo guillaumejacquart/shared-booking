@@ -11,6 +11,8 @@ import { createBookingsService, type BookingsService } from "@/services/bookings
 import { createCalendarService, type CalendarService } from "@/services/calendar";
 import { createGoogleService, type GoogleService } from "@/services/google";
 import { createPreferencesService, type PreferencesService } from "@/services/preferences";
+import { createBillingService, type BillingService } from "@/services/billing";
+import { createStripeConnectService, type StripeConnectService } from "@/services/stripe-connect";
 import { createRemindersService, type RemindersService } from "@/services/reminders";
 import { createScheduleService, type ScheduleService } from "@/services/schedule";
 import { createTeamService, type TeamService } from "@/services/team";
@@ -38,6 +40,8 @@ const realGoogleCalendar: GoogleCalendarPort = {
 };
 
 export interface Services {
+  billing: BillingService;
+  stripeConnect: StripeConnectService;
   bookings: BookingsService;
   team: TeamService;
   reminders: RemindersService;
@@ -52,10 +56,13 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
     clock: systemClock,
     sendEmail: createMailer(),
     stripeClient: realStripe(),
+    subscriptionPriceId: env.STRIPE_SUBSCRIPTION_PRICE_ID ?? null,
     googleCalendar: realGoogleCalendar,
     ...overrides,
   };
   return {
+    billing: createBillingService(ports),
+    stripeConnect: createStripeConnectService(ports),
     bookings: createBookingsService(ports),
     team: createTeamService(ports),
     reminders: createRemindersService(ports),

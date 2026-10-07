@@ -22,11 +22,43 @@ export function fixedClock(at: Date): Clock {
   return { now: () => at };
 }
 
-/** Sous-ensemble de l'API Stripe utilisé (checkout uniquement). */
+/** Sous-ensemble de l'API Stripe utilisé (checkout + Connect Express). */
+export interface StripeAccountLike {
+  id: string;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+}
+
+/** Abonnement Stripe minimal (facturation SaaS du cabinet). */
+export interface StripeSubscriptionLike {
+  id: string;
+  customer: string;
+  status: string;
+  current_period_end: number | null;
+}
+
 export interface StripeLike {
   checkout: {
     sessions: {
       create(params: Record<string, unknown>): Promise<{ id: string; url: string | null }>;
+    };
+  };
+  accounts: {
+    create(params: Record<string, unknown>): Promise<{ id: string }>;
+    retrieve(accountId: string): Promise<StripeAccountLike>;
+  };
+  accountLinks: {
+    create(params: Record<string, unknown>): Promise<{ url: string }>;
+  };
+  customers: {
+    create(params: Record<string, unknown>): Promise<{ id: string }>;
+  };
+  subscriptions: {
+    retrieve(subscriptionId: string): Promise<StripeSubscriptionLike>;
+  };
+  billingPortal: {
+    sessions: {
+      create(params: Record<string, unknown>): Promise<{ url: string | null }>;
     };
   };
 }
@@ -45,4 +77,6 @@ export interface Ports {
   sendEmail: SendEmail;
   stripeClient: StripeLike | null;
   googleCalendar: GoogleCalendarPort | null;
+  /** Prix mensuel de l'abonnement cabinet (`price_...`, null = facturation off). */
+  subscriptionPriceId: string | null;
 }

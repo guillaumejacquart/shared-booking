@@ -82,6 +82,27 @@ export async function listPractitionersByOffice(officeId: string) {
     .where(and(eq(practitioner.officeId, officeId), eq(practitioner.active, true)));
 }
 
+/** Lie (ou met à jour) le compte Stripe Connect d'un praticien. */
+export async function setPractitionerStripe(practitionerId: string, data: {
+  stripeAccountId: string | null;
+  stripeChargesEnabled: boolean;
+  stripePayoutsEnabled: boolean;
+}) {
+  const conn = getConnection();
+  await conn.update(practitioner).set(data).where(eq(practitioner.id, practitionerId));
+}
+
+/** Retrouve le praticien propriétaire d'un compte Stripe Connect. */
+export async function findPractitionerByStripeAccount(stripeAccountId: string): Promise<Practitioner | null> {
+  const conn = getConnection();
+  const rows = await conn
+    .select()
+    .from(practitioner)
+    .where(eq(practitioner.stripeAccountId, stripeAccountId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function updatePractitioner(practitionerId: string,
   data: Partial<{
     displayName: string;

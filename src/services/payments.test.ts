@@ -29,6 +29,33 @@ const fakeStripe = {
       },
     },
   },
+  accounts: {
+    create: async () => ({ id: "acct_test_123" }),
+    retrieve: async (accountId: string) => ({
+      id: accountId,
+      charges_enabled: true,
+      payouts_enabled: true,
+    }),
+  },
+  accountLinks: {
+    create: async () => ({ url: "https://connect.stripe.test/onboarding" }),
+  },
+  customers: {
+    create: async () => ({ id: "cus_test_123" }),
+  },
+  subscriptions: {
+    retrieve: async (subscriptionId: string) => ({
+      id: subscriptionId,
+      customer: "cus_test_123",
+      status: "active",
+      current_period_end: Math.floor(NOW.getTime() / 1000) + 30 * 86_400,
+    }),
+  },
+  billingPortal: {
+    sessions: {
+      create: async () => ({ url: "https://billing.stripe.test/portal" }),
+    },
+  },
 };
 
 function ports(extra: Partial<Ports> = {}) {
@@ -42,20 +69,26 @@ function ports(extra: Partial<Ports> = {}) {
 
 async function seed() {
   const s = await import("@/db/schema");
-  await db.insert(s.user).values([{ id: "u1", name: "Alice", email: "alice@example.com" }]);
+  await db.insert(s.user).values([
+    { id: "u1", name: "Alice", email: "alice@example.com" },
+    { id: "u2", name: "Bob", email: "bob@example.com" },
+  ]);
   await db.insert(s.office).values({ id: "o1", name: "Cab", slug: "cab" });
   await db.insert(s.room).values([{ id: "room-a", officeId: "o1", name: "Salle A" }]);
   await db.insert(s.practitioner).values([
-    { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice" },
+    { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice", stripeAccountId: "acct_test_123", stripeChargesEnabled: true, stripePayoutsEnabled: true },
+    { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "alice-2" },
   ]);
   await db.insert(s.sessionType).values([
     { id: "stFree", practitionerId: "p1", name: "Gratuit", durationMin: 60, bufferAfterMin: 0 },
     { id: "stPaid", practitionerId: "p1", name: "Payant", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, currency: "eur" },
     { id: "stPaidVal", practitionerId: "p1", name: "Payant + validation", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, currency: "eur", requiresValidation: true },
     { id: "stBroken", practitionerId: "p1", name: "Mal configuré", durationMin: 60, bufferAfterMin: 0, requiresPayment: true },
+    { id: "stNoStripe", practitionerId: "p2", name: "Payant sans Connect", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, currency: "eur" },
   ]);
   await db.insert(s.availabilityRule).values([
     { id: "r1", practitionerId: "p1", weekday: 1, startTime: "09:00", endTime: "13:00" },
+    { id: "r2", practitionerId: "p2", weekday: 1, startTime: "09:00", endTime: "13:00" },
   ]);
 }
 
@@ -87,6 +120,10 @@ describe("paid booking", () => {
     const lineItems = (params.line_items as { price_data: { unit_amount: number; currency: string } }[]);
     expect(lineItems[0].price_data).toMatchObject({ unit_amount: 6000, currency: "eur" });
     expect((params.metadata as { bookingId: string }).bookingId).toBe(res.id);
+    // Connect (destination charges) : reversement au compte du praticien.
+    expect(
+      (params.payment_intent_data as { transfer_data: { destination: string } }).transfer_data,
+    ).toMatchObject({ destination: "acct_test_123" });
   });
 
   it("un pending bloque le créneau comme un confirmé", async () => {
@@ -116,6 +153,15 @@ describe("paid booking", () => {
         practitionerSlug: "alice", sessionTypeId: "stBroken", startAt: SLOT, ...patient,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuse si le praticien n'a pas lié son compte Stripe", async () => {
+    await expect(
+      createBooking(ports(), {
+        practitionerSlug: "alice-2", sessionTypeId: "stNoStripe", startAt: SLOT, ...patient,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(stripeCalls).toHaveLength(0);
   });
 });
 

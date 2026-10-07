@@ -47,12 +47,34 @@ puis confirmé sauf si validation requise. Annuler un RDV payé ne rembourse
 pas : remboursement manuel via le dashboard Stripe.
 
 1. Clés `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (voir `.env.example`).
-2. Webhook Stripe → `https://<domaine>/api/stripe/webhook` (événement
-   `checkout.session.completed`). Tester en local avec `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
+   Commission éventuelle via `STRIPE_APPLICATION_FEE_CENTS` (0 = reversement intégral).
+2. Webhook Stripe → `https://<domaine>/api/stripe/webhook` (événements
+   `checkout.session.completed`, `customer.subscription.*` + `account.updated`).
+   Tester en local avec `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
 3. Sans clé, toute réservation payante est rejetée proprement (400).
 
-Limite MVP : un seul compte Stripe pour tout le SaaS (pas de reversement
-par praticien — Stripe Connect plus tard).
+Stripe Connect Express (destination charges) : chaque praticien lie son
+compte via **Profil → Paiements** (onboarding KYC/IBAN géré par Stripe).
+Le checkout encaisse sur la plateforme puis reverse automatiquement sur le
+compte du praticien (`transfer_data.destination`, moins la commission).
+Tant que le praticien n'a pas finalisé son onboarding (`charges_enabled`),
+ses séances payantes sont rejetées proprement (400).
+
+Annuler un RDV payé ne rembourse pas : remboursement manuel via le dashboard
+Stripe (à terme : bouton praticien via `refunds.create`).
+
+## Abonnement SaaS (Stripe Billing, optionnel)
+
+1 abonnement par cabinet (10 €/mois), payé par le owner via
+**Paramètres → Abonnement** (checkout `mode: subscription` + portail Stripe
+pour factures/résiliation). Non bloquant : sans abonnement actif, un bandeau
+le rappelle dans le dashboard, les réservations restent possibles.
+
+1. Prix `STRIPE_SUBSCRIPTION_PRICE_ID` (voir `.env.example` ; prix test 10 €/mois
+déjà créé : `price_1UO27KB5HdKRRKyHy9ERmyeo`). Sans prix, la facturation est
+désactivée (bandeau masqué).
+2. Mêmes webhook que ci-dessus (`customer.subscription.*` met à jour le statut
+   du cabinet : `trialing`/`active` = à jour).
 
 ## Google Agenda (push outbound, optionnel)
 

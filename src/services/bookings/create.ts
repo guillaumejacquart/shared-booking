@@ -116,7 +116,10 @@ async function createCheckoutSession(args: {
   now: Date;
 }): Promise<{ stripeSessionId: string; checkoutUrl: string }> {
   const { stripe, st, page, email, bookingId, now } = args;
+  const destination = page.practitioner.stripeAccountId;
+  if (!destination) throw new ValidationError("Paiement en ligne indisponible pour ce praticien");
   const origin = env.BETTER_AUTH_URL.replace(/\/$/, "");
+  const fee = env.STRIPE_APPLICATION_FEE_CENTS;
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: email,
@@ -130,6 +133,10 @@ async function createCheckoutSession(args: {
         quantity: 1,
       },
     ],
+    payment_intent_data: {
+      transfer_data: { destination },
+      ...(fee > 0 && fee < st.priceCents! ? { application_fee_amount: fee } : {}),
+    },
     metadata: { bookingId },
     expires_at: Math.floor((now.getTime() + PENDING_TTL_MS) / 1000),
     success_url: `${origin}/p/${page.practitioner.slug}/merci?session_id={CHECKOUT_SESSION_ID}`,
@@ -207,6 +214,10 @@ async function resolveBookingPlan(
   const stripe = needsPayment ? ports.stripeClient : null;
   if (needsPayment && !stripe) {
     throw new ValidationError("Paiement en ligne indisponible pour le moment");
+  }
+  // Connect : le praticien doit avoir lié son compte et fini son onboarding.
+  if (needsPayment && (!page.practitioner.stripeAccountId || !page.practitioner.stripeChargesEnabled)) {
+    throw new ValidationError("Paiement en ligne indisponible pour ce praticien");
   }
   return {
     page,

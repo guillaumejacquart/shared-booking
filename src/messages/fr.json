@@ -8,6 +8,126 @@
     "subtitle": "Choisissez votre praticien, trouvez un créneau, recevez votre confirmation par email. Simple et sans compte.",
     "practitioners": "Espace praticiens"
   },
+  "landing": {
+    "badge": "Pour les cabinets de pratiques bien-être partagés",
+    "title": "La réservation en ligne pensée pour votre cabinet partagé",
+    "subtitle": "Chaque praticien déclare ses disponibilités, partage les salles sans conflit, et reçoit des réservations via sa page personnelle. Les patients réservent en moins d'une minute, sans créer de compte.",
+    "ctaPrimary": "Créer mon cabinet",
+    "ctaSecondary": "Espace praticiens",
+    "ctaNote": "Gratuit, sans engagement — votre page praticien en quelques minutes.",
+    "mockOffice": "Cabinet des Tilleuls",
+    "mockPractitioner": "Camille — Sophrologie",
+    "mockCta": "Réserver",
+    "audiencesTitle": "Pensé pour les pratiques d'accompagnement",
+    "audiences": [
+      "Sophrologie",
+      "Yoga & Pilates",
+      "Massages bien-être",
+      "Naturopathie",
+      "Coaching",
+      "Thérapies douces"
+    ],
+    "featuresKicker": "Fonctionnalités",
+    "featuresTitle": "Tout ce qu'un cabinet partagé attend d'un agenda",
+    "featuresSubtitle": "Ni usine à gaz, ni cahier papier : juste les bons outils, partagés entre praticiens.",
+    "features": [
+      {
+        "title": "Pages praticien personnelles",
+        "text": "Chaque praticien a sa page publique : présentation, types de séances, créneaux en temps réel. Un lien à partager, et les patients réservent."
+      },
+      {
+        "title": "Salles partagées sans conflit",
+        "text": "Déclarez vos salles une fois : la réservation attribue automatiquement une salle libre. Jamais de double réservation, ni du praticien, ni de la salle."
+      },
+      {
+        "title": "Zéro compte pour les patients",
+        "text": "Prénom, email, et c'est réservé. La confirmation arrive par email avec un lien magique pour annuler ou reporter, sans mot de passe."
+      },
+      {
+        "title": "Emails & rappels automatiques",
+        "text": "Confirmation immédiate, rappel avant la séance, notification à chaque annulation. Vous n'avez plus à y penser."
+      },
+      {
+        "title": "Paiement en ligne en option",
+        "text": "Séances gratuites par défaut, paiement Stripe et validation manuelle quand vous en avez besoin. L'encaissement part directement au praticien."
+      },
+      {
+        "title": "Agenda partagé & Google Agenda",
+        "text": "Qui est où, dans quelle salle, en un coup d'œil. Et chaque réservation peut se recopier dans votre Google Agenda."
+      }
+    ],
+    "roomsKicker": "La différence",
+    "roomsTitle": "Des salles partagées, sans le casse-tête",
+    "roomsText": "Dans un cabinet partagé, la vraie contrainte n'est pas l'agenda de chacun : c'est la salle. Déclarez vos disponibilités hebdomadaires, indiquez vos salles et qui peut les utiliser — le moteur propose uniquement les créneaux où vous êtes libre et où une salle est disponible.",
+    "roomsPoints": [
+      "Attribution automatique de la salle à la réservation",
+      "Salles exclusives ou partagées, au choix",
+      "Marges de battement entre séances",
+      "Délais de réservation et d'annulation configurables"
+    ],
+    "howKicker": "Comment ça marche",
+    "howTitle": "En ligne en trois temps",
+    "practitionerTitle": "Côté praticiens",
+    "practitionerSteps": [
+      {
+        "title": "Créez le cabinet",
+        "text": "Nom, adresse, salles : votre espace est prêt en quelques minutes."
+      },
+      {
+        "title": "Invitez votre équipe",
+        "text": "Chaque praticien pose ses disponibilités, ses séances et ses tarifs."
+      },
+      {
+        "title": "Partagez vos liens",
+        "text": "Une page par praticien, une pour le cabinet : les réservations arrivent."
+      }
+    ],
+    "patientTitle": "Côté patients",
+    "patientSteps": [
+      {
+        "title": "Choisissez la séance",
+        "text": "Le type de séance, puis un créneau libre sur le calendrier."
+      },
+      {
+        "title": "Laissez vos coordonnées",
+        "text": "Sans compte : prénom, nom, email. Message au praticien en option."
+      },
+      {
+        "title": "Recevez la confirmation",
+        "text": "Par email, avec le lien pour annuler ou reporter si besoin."
+      }
+    ],
+    "faqKicker": "Questions fréquentes",
+    "faqTitle": "Ce que se demandent les cabinets",
+    "faq": [
+      {
+        "question": "Mes patients doivent-ils créer un compte ?",
+        "answer": "Non. Ils réservent avec leur prénom, leur nom et leur email. Le lien magique reçu par email leur permet d'annuler ou de reporter sans mot de passe."
+      },
+      {
+        "question": "Comment éviter les doubles réservations de salle ?",
+        "answer": "Le moteur de créneaux vérifie à chaque réservation que le praticien est libre et qu'au moins une salle autorisée est disponible, marges incluses. La salle est attribuée automatiquement."
+      },
+      {
+        "question": "Puis-je encaisser mes séances en ligne ?",
+        "answer": "Oui, en option : reliez votre compte Stripe depuis votre profil et marquez vos séances comme payantes. Sans cela, la réservation reste gratuite. Annuler une séance payée ne rembourse pas automatiquement."
+      },
+      {
+        "question": "Et si un patient annule au dernier moment ?",
+        "answer": "Vous fixez un délai d'annulation (24 h par défaut). Passé ce délai, le patient doit vous contacter directement et le créneau reste bloqué."
+      },
+      {
+        "question": "Mes données sont-elles sauvegardées ?",
+        "answer": "Oui : la base est sauvegardée chaque jour vers un stockage externe chiffré, avec 30 jours d'historique."
+      }
+    ],
+    "finalTitle": "Ouvrez votre cabinet à la réservation en ligne",
+    "finalText": "Rejoignez les praticiens qui ont troqué le cahier de rendez-vous contre un lien à partager.",
+    "footerTagline": "La réservation en ligne des cabinets bien-être partagés.",
+    "footerPractitioners": "Espace praticiens",
+    "footerSignup": "Créer un cabinet",
+    "footerLogin": "Se connecter"
+  },
   "booking": {
     "chooseSession": "1. Choisissez votre séance",
     "chooseSlot": "2. Choisissez votre créneau",
@@ -121,6 +241,7 @@
   },
   "profile": {
     "tabProfile": "Mon profil",
+    "tabPayments": "Paiements",
     "tabSessionTypes": "Mes séances",
     "tabAvailability": "Mes disponibilités",
     "tabGoogle": "Google Agenda",
@@ -171,13 +292,12 @@
     "invalidHours": "L'heure de fin doit être après le début.",
     "needRoom": "Aucune salle disponible pour ouvrir.",
     "hasBookings": "{n} RDV",
-    "extra": "Exceptionnel",
+    "extra": "Ouverture exceptionnelle",
     "add": "Ajouter",
     "room": "Salle",
     "delete": "Supprimer",
     "exceptions": "Fermetures et ouvertures exceptionnelles",
     "dayOff": "Jour de fermeture",
-    "extra": "Ouverture exceptionnelle",
     "reason": "Motif (optionnel)"
   },
   "sessionTypesAdmin": {
@@ -190,6 +310,7 @@
     "price": "Prix affiché (optionnel)",
     "requiresPayment": "Paiement en ligne requis",
     "priceCents": "Prix à débiter",
+    "priceCentsHint": "Montant prélevé via Stripe à la réservation (compte à lier dans Profil → Paiements).",
     "requiresValidation": "Validation manuelle par le praticien",
     "compatibleRooms": "Salles compatibles",
     "compatibleRoomsHint": "Laisser vide pour toutes les salles accessibles.",
@@ -233,6 +354,7 @@
     "tabGeneral": "Général",
     "tabTeam": "Équipe",
     "tabRooms": "Salles",
+    "tabBilling": "Abonnement",
     "ambiance": "Ambiance des pages publiques",
     "ambianceHint": "Couleurs et mode d'affichage vus par vos patients sur vos pages de réservation (« Système » suit leur appareil)."
   },
@@ -249,6 +371,31 @@
     "lastSync": "Dernière synchronisation : {when}.",
     "resync": "Resynchroniser",
     "resyncDone": "{ok} synchronisée(s), {failed} en échec."
+  },
+  "stripeConnect": {
+    "notConfigured": "Le paiement en ligne n'est pas configuré sur ce serveur (clé STRIPE_SECRET_KEY manquante).",
+    "hint": "Liez votre compte Stripe pour encaisser vos séances payantes : l'argent arrive directement sur votre compte, moins l'éventuelle commission plateforme.",
+    "connect": "Lier mon compte Stripe",
+    "continue": "Reprendre la configuration Stripe",
+    "refresh": "Actualiser le statut",
+    "disconnect": "Délier",
+    "disconnectConfirm": "Délier votre compte Stripe ? Vos séances payantes ne seront plus réservables en ligne.",
+    "ready": "Paiements actifs : vos séances payantes sont encaissées sur votre compte Stripe.",
+    "pending": "Compte lié, configuration à finaliser côté Stripe (identité, IBAN).",
+    "unlinked": "Aucun compte Stripe lié.",
+    "payoutsPending": "Encaissements actifs, versements vers votre banque en cours d'activation."
+  },
+  "billing": {
+    "banner": "Abonnement du cabinet inactif — pensez à l'activer pour soutenir le service.",
+    "bannerCta": "Gérer",
+    "notConfigured": "La facturation n'est pas configurée sur ce serveur (clé ou prix Stripe manquant).",
+    "hint": "10 € par mois et par cabinet, sans engagement. Factures et résiliation via le portail Stripe.",
+    "subscribe": "S'abonner — 10 €/mois",
+    "manage": "Gérer mon abonnement",
+    "refresh": "Actualiser le statut",
+    "active": "Abonnement actif, prochain renouvellement le {when}.",
+    "pastDue": "Dernier paiement en échec — régularisez votre moyen de paiement via le portail.",
+    "inactive": "Aucun abonnement actif pour ce cabinet."
   },
   "theme": {
     "appearance": "Apparence",

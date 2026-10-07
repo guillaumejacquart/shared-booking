@@ -60,20 +60,6 @@ export default function SessionTypeCard({
           />
           {t("sessionTypesAdmin.requiresPayment")}
         </label>
-        {row.requiresPayment ? (
-          <Field label={t("sessionTypesAdmin.priceCents")}>
-            <NumberInput
-              unit="€"
-              value={row.priceCents != null ? row.priceCents / 100 : ""}
-              min={1}
-              onChange={(event) =>
-                onChange({
-                  priceCents: event.target.value === "" ? null : Math.round(Number(event.target.value) * 100),
-                })
-              }
-            />
-          </Field>
-        ) : null}
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={row.requiresValidation}
@@ -90,6 +76,22 @@ export default function SessionTypeCard({
           </Button>
         </span>
       </div>
+      {row.requiresPayment ? (
+        <div className="mt-3 max-w-xs">
+          <Field label={t("sessionTypesAdmin.priceCents")} hint={t("sessionTypesAdmin.priceCentsHint")}>
+            <NumberInput
+              unit="€"
+              value={row.priceCents != null ? row.priceCents / 100 : ""}
+              min={1}
+              onChange={(event) =>
+                onChange({
+                  priceCents: event.target.value === "" ? null : Math.round(Number(event.target.value) * 100),
+                })
+              }
+            />
+          </Field>
+        </div>
+      ) : null}
       <RoomCheckboxes
         rooms={rooms}
         selected={row.compatibleRoomIds}

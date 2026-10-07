@@ -10,6 +10,7 @@ export function testPorts(overrides: Partial<Ports> = {}): Ports {
     sendEmail: async () => {},
     stripeClient: null,
     googleCalendar: null,
+    subscriptionPriceId: null,
     ...overrides,
   };
 }
