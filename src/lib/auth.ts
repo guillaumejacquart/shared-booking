@@ -18,6 +18,13 @@ import * as schema from "@/db/schema";
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
+  // Ancien domaine gardé en alias Traefik le temps de la transition : les
+  // deux origines restent autorisées pour que login/session fonctionnent
+  // quel que soit l'hôte visité. À resserrer quand l'alias sera retiré.
+  trustedOrigins: [
+    "https://lecabinetpartage.fr",
+    "https://shared-booking.guillaumejacquart.com",
+  ],
   database: drizzleAdapter(db, {
     provider: "sqlite",
     schema: {

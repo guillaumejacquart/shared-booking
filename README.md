@@ -98,6 +98,19 @@ sqlite3 /tmp/restore.db "PRAGMA integrity_check;"
 
 ## Déploiement
 
-Recette VPS standard (`AGENTS.md`) : DNS `shared-booking.guillaumejacquart.com` →
+Recette VPS standard (`AGENTS.md`) : DNS `shared-booking.guillaumejacquart.com` +
+`lecabinetpartage.fr` (enregistrements A → IP du VPS) →
 `npm run deploy` après un push sur `main` (image GHCR `linux/arm64`).
 Ne jamais déployer sans demande explicite.
+
+## Domaine (cutover effectué le 2026-10-07)
+
+Domaine canonique : `lecabinetpartage.fr` (`BETTER_AUTH_URL`). L'ancien
+(`shared-booking.guillaumejacquart.com`) reste servi en alias Traefik le temps
+que les anciens liens (emails déjà envoyés, bookmarks) s'éteignent.
+
+Nettoyage final (plus tard) :
+
+1. Retirer le `Host(\`shared-booking.guillaumejacquart.com\`)` du compose.
+2. Resserrer `trustedOrigins` dans `src/lib/auth.ts` (nouveau domaine seul).
+3. `npm run deploy`.

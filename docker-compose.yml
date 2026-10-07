@@ -8,12 +8,14 @@ services:
     environment:
       - NODE_ENV=production
       - SQLITE_PATH=/app/data/shared-booking.db
-      - BETTER_AUTH_URL=https://shared-booking.guillaumejacquart.com
+      # Domaine canonique (liens emails, OAuth). Ancien domaine gardé en alias
+      # Traefik le temps de la transition ; à retirer plus tard (voir README).
+      - BETTER_AUTH_URL=https://lecabinetpartage.fr
     volumes:
       - sqlite-data:/app/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.shared-booking.rule=Host(`shared-booking.guillaumejacquart.com`)"
+      - "traefik.http.routers.shared-booking.rule=Host(`shared-booking.guillaumejacquart.com`) || Host(`lecabinetpartage.fr`)"
       - "traefik.http.routers.shared-booking.entrypoints=websecure"
       - "traefik.http.routers.shared-booking.tls=true"
       - "traefik.http.routers.shared-booking.tls.certresolver=myresolver"
