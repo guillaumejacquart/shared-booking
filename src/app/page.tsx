@@ -277,6 +277,9 @@ export default function LandingPage() {
             <Link href="/login" className="transition-colors hover:text-ink">
               {copy.footerPractitioners}
             </Link>
+            <Link href="/legal" className="transition-colors hover:text-ink">
+              {copy.footerLegal}
+            </Link>
           </div>
         </div>
       </footer>

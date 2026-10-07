@@ -126,6 +126,7 @@
     "footerTagline": "La réservation en ligne des cabinets bien-être partagés.",
     "footerPractitioners": "Espace praticiens",
     "footerSignup": "Créer un cabinet",
+    "footerLegal": "Mentions légales",
     "footerLogin": "Se connecter"
   },
   "booking": {
@@ -396,6 +397,26 @@
     "active": "Abonnement actif, prochain renouvellement le {when}.",
     "pastDue": "Dernier paiement en échec — régularisez votre moyen de paiement via le portail.",
     "inactive": "Aucun abonnement actif pour ce cabinet."
+  },
+  "legal": {
+    "title": "Mentions légales & CGV",
+    "updated": "Dernière mise à jour : octobre 2026.",
+    "editorTitle": "1. Éditeur du site",
+    "editor": "Le site lecabinetpartage.fr est édité par Guillaume Jacquart. Contact : dev@guillaumejacquart.com. Numéro SIREN et adresse postale : à compléter.",
+    "hostingTitle": "2. Hébergement",
+    "hosting": "Application hébergée sur un serveur dédié Oracle Cloud (Union européenne). Emails transactionnels via Mailjet. Sauvegardes chiffrées sur Cloudflare R2 (supprimées après 30 jours).",
+    "serviceTitle": "3. Service proposé",
+    "service": "Le Cabinet Partagé est un outil de réservation en ligne pour cabinets bien-être : chaque praticien déclare ses disponibilités, partage les salles sans conflit et reçoit des réservations via sa page personnelle. Les patients réservent sans créer de compte. Les séances payantes sont encaissées en ligne via Stripe.",
+    "subscriptionTitle": "4. Abonnement des cabinets",
+    "subscription": "L'utilisation du service par un cabinet est facturée 10 € TTC par mois et par cabinet, sans engagement, via Stripe. La résiliation se fait à tout moment depuis le portail Stripe (Paramètres → Abonnement) : l'accès reste actif jusqu'à la fin de la période payée, sans remboursement au prorata.",
+    "sessionsTitle": "5. Paiement des séances (patients)",
+    "sessions": "Le règlement d'une séance s'effectue en ligne par carte bancaire via Stripe Checkout, au moment de la réservation. Les fonds sont reversés directement au praticien. En cas d'annulation, le remboursement éventuel est effectué manuellement : contactez votre praticien ou l'éditeur via l'adresse ci-dessus.",
+    "privacyTitle": "6. Données personnelles",
+    "privacy": "Responsable du traitement : l'éditeur du site. Données collectées : identité et coordonnées des comptes, rendez-vous (praticien, horaire, notes transmises), emails transactionnels. Finalités : fourniture du service de réservation et facturation. Base légale : exécution du contrat. Les paiements sont traités par Stripe (aucune donnée bancaire conservée sur nos serveurs). Vos droits d'accès, de rectification et d'effacement s'exercent à l'adresse de contact ci-dessus. Les comptes et données associées sont supprimés sur simple demande.",
+    "analyticsTitle": "7. Mesure d'audience",
+    "analytics": "La fréquentation est mesurée avec Umami, outil auto-hébergé qui ne dépose aucun cookie tiers et ne revend aucune donnée.",
+    "lawTitle": "8. Droit applicable",
+    "law": "Les présentes mentions sont soumises au droit français. En cas de litige, les tribunaux français compétents seront saisis."
   },
   "theme": {
     "appearance": "Apparence",
