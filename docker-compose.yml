@@ -15,7 +15,7 @@ services:
       - sqlite-data:/app/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.shared-booking.rule=Host(`shared-booking.guillaumejacquart.com`) || Host(`lecabinetpartage.fr`)"
+      - "traefik.http.routers.shared-booking.rule=Host(`shared-booking.guillaumejacquart.com`) || Host(`lecabinetpartage.fr`) || Host(`www.lecabinetpartage.fr`)"
       - "traefik.http.routers.shared-booking.entrypoints=websecure"
       - "traefik.http.routers.shared-booking.tls=true"
       - "traefik.http.routers.shared-booking.tls.certresolver=myresolver"

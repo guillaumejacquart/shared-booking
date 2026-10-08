@@ -247,8 +247,8 @@ export default function LandingPage() {
 
         {/* Appel final */}
         <section className="mx-auto w-full max-w-6xl px-4 py-16 md:py-24">
-          <div className="rounded-3xl bg-brand-soft px-6 py-12 text-center md:py-16">
-            <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-brand-deep md:text-4xl">
+          <div className="rounded-3xl border border-line bg-card px-6 py-12 text-center shadow-soft md:py-16">
+            <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight md:text-4xl">
               {copy.finalTitle}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-mist">{copy.finalText}</p>
