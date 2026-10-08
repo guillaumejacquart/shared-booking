@@ -2,15 +2,19 @@ import { getConnection } from "./connection";
 
 import { and, eq } from "drizzle-orm";
 
-import { office, practitioner, sessionType } from "@/db/schema";
-import type { Office, Practitioner, SessionType } from "./types";
+import { office, practitioner, sessionType, sessionTypeVariant } from "@/db/schema";
+import type { Office, Practitioner, SessionType, SessionTypeVariant } from "./types";
 
 /** Repository praticiens (+ page publique). */
+
+export interface PageSessionType extends SessionType {
+  variants: SessionTypeVariant[];
+}
 
 export interface PractitionerPage {
   practitioner: Practitioner;
   office: Office;
-  sessionTypes: SessionType[];
+  sessionTypes: PageSessionType[];
 }
 
 /** Page publique praticien : null si slug inconnu, praticien inactif ou pages désactivées. */
@@ -41,7 +45,26 @@ export async function getPractitionerPage(slug: string): Promise<PractitionerPag
         eq(sessionType.active, true),
       ),
     );
-  return { practitioner: prac, office: off, sessionTypes: types };
+  const variants = types.length > 0
+    ? await conn.select().from(sessionTypeVariant)
+    : [];
+  const byType = new Map<string, SessionTypeVariant[]>();
+  for (const variant of variants) {
+    const list = byType.get(variant.sessionTypeId) ?? [];
+    list.push(variant);
+    byType.set(variant.sessionTypeId, list);
+  }
+  for (const list of byType.values()) {
+    list.sort((first, second) => first.sortOrder - second.sortOrder || first.durationMin - second.durationMin);
+  }
+  return {
+    practitioner: prac,
+    office: off,
+    sessionTypes: types.map((sessionType) => ({
+      ...sessionType,
+      variants: byType.get(sessionType.id) ?? [],
+    })),
+  };
 }
 
 export async function getPractitionerById(practitionerId: string): Promise<Practitioner | null> {

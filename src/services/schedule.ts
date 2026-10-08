@@ -8,6 +8,7 @@ import * as sessionTypesDal from "@/dal/session-types";
 import type { Ports } from "@/lib/ports";
 import { sortRooms } from "@/services/room-order";
 import { dateStrInTz } from "@/lib/timezone";
+import type { SessionTypeVariant } from "@/dal/types";
 
 import type {
   CreateExceptionInput,
@@ -77,18 +78,46 @@ async function assertRoomAllowed(
   }
 }
 
-/** Payload commun création / mise à jour d'un type de séance. */
+/** Payload commun création / mise à jour d'un type de séance (niveau groupe). */
 function buildSessionTypePayload(input: SaveSessionTypeInput) {
   return {
     name: input.name,
     description: input.description ?? null,
-    durationMin: input.durationMin,
-    bufferAfterMin: input.bufferAfterMin,
-    priceDisplay: input.priceDisplay || null,
     requiresPayment: input.requiresPayment,
-    priceCents: input.requiresPayment ? (input.priceCents ?? null) : null,
     requiresValidation: input.requiresValidation,
   };
+}
+
+/** Payload d'une déclinaison (le prix débité n'existe qu'en payant). */
+function buildVariantPayload(
+  input: SaveSessionTypeInput,
+  variant: SaveSessionTypeInput["variants"][number],
+  sortOrder: number,
+) {
+  return {
+    durationMin: variant.durationMin,
+    bufferAfterMin: variant.bufferAfterMin,
+    priceDisplay: variant.priceDisplay || null,
+    priceCents: input.requiresPayment ? (variant.priceCents ?? null) : null,
+    sortOrder,
+  };
+}
+
+/** Durées distinctes + prix requis sur chaque déclinaison si payant. */
+function assertValidVariants(input: SaveSessionTypeInput): void {
+  const durations = input.variants.map((variant) => variant.durationMin);
+  if (new Set(durations).size !== durations.length) {
+    throw new ValidationError("Deux déclinaisons ont la même durée");
+  }
+  if (input.requiresPayment) {
+    for (const variant of input.variants) {
+      if (!variant.priceCents) {
+        throw new ValidationError(
+          "Un prix (centimes) est requis pour chaque déclinaison d'une séance payante",
+        );
+      }
+    }
+  }
 }
 
 // --- Disponibilités ----------------------------------------------------------
@@ -119,10 +148,11 @@ export async function replaceAvailability(input: ReplaceAvailabilityInput): Prom
 
 // --- Types de séances --------------------------------------------------------
 
-export async function saveSessionType(input: SaveSessionTypeInput): Promise<string> {
-  if (input.requiresPayment && !input.priceCents) {
-    throw new ValidationError("Un prix (centimes) est requis pour une séance payante");
-  }
+export async function saveSessionType(
+  ports: Ports,
+  input: SaveSessionTypeInput,
+): Promise<{ id: string; variants: SessionTypeVariant[] }> {
+  assertValidVariants(input);
   const { practitionerId } = input;
   const { officeId } = await checkAccess(practitionerId, input.requesterUserId);
 
@@ -143,8 +173,9 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
       ...buildSessionTypePayload(input),
       active: input.active ?? existing.active,
     });
+    await reconcileVariants(ports, input.id, input);
     await sessionTypesDal.replaceCompatibleRooms(input.id, compatibleRoomIds);
-    return input.id;
+    return { id: input.id, variants: await sessionTypesDal.listVariants(input.id) };
   }
   const id = crypto.randomUUID();
   await sessionTypesDal.createSessionType({
@@ -152,8 +183,51 @@ export async function saveSessionType(input: SaveSessionTypeInput): Promise<stri
     practitionerId,
     ...buildSessionTypePayload(input),
   });
+  for (const [index, variant] of input.variants.entries()) {
+    await sessionTypesDal.createVariant({
+      id: crypto.randomUUID(),
+      sessionTypeId: id,
+      ...buildVariantPayload(input, variant, index),
+    });
+  }
   await sessionTypesDal.replaceCompatibleRooms(id, compatibleRoomIds);
-  return id;
+  return { id, variants: await sessionTypesDal.listVariants(id) };
+}
+
+/**
+ * Réconcilie les déclinaisons : met à jour celles qui ont un id connu, crée
+ * les nouvelles, supprime les retirées (refusé si une déclinaison retirée
+ * porte des réservations à venir — comme pour la suppression d'un type).
+ */
+async function reconcileVariants(ports: Ports, sessionTypeId: string, input: SaveSessionTypeInput): Promise<void> {
+  const now = ports.clock.now();
+  const existing = await sessionTypesDal.listVariants(sessionTypeId);
+  const knownIds = new Set(existing.map((variant) => variant.id));
+  const wantedIds = new Set(
+    input.variants.map((variant) => variant.id).filter((id): id is string => !!id),
+  );
+  for (const variant of existing) {
+    if (!wantedIds.has(variant.id)) {
+      const future = await sessionTypesDal.countFutureBookingsByVariant(variant.id, now);
+      if (future > 0) {
+        throw new ValidationError(
+          "Une déclinaison supprimée est utilisée par des réservations à venir",
+        );
+      }
+      await sessionTypesDal.deleteVariant(variant.id);
+    }
+  }
+  for (const [index, variant] of input.variants.entries()) {
+    if (variant.id && knownIds.has(variant.id)) {
+      await sessionTypesDal.updateVariant(variant.id, buildVariantPayload(input, variant, index));
+    } else {
+      await sessionTypesDal.createVariant({
+        id: crypto.randomUUID(),
+        sessionTypeId,
+        ...buildVariantPayload(input, variant, index),
+      });
+    }
+  }
 }
 
 export async function deleteSessionType(ports: Ports, input: DeleteSessionTypeInput): Promise<void> {
@@ -407,7 +481,7 @@ export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
 /** Surface du service paramétrage (utilisée par les routes via le container). */
 export interface ScheduleService {
   replaceAvailability: typeof replaceAvailability;
-  saveSessionType: typeof saveSessionType;
+  saveSessionType(input: SaveSessionTypeInput): ReturnType<typeof saveSessionType>;
   deleteSessionType(input: DeleteSessionTypeInput): ReturnType<typeof deleteSessionType>;
   createException: typeof createException;
   deleteException: typeof deleteException;
@@ -422,7 +496,7 @@ export interface ScheduleService {
 export function createScheduleService(ports: Ports): ScheduleService {
   return {
     replaceAvailability,
-    saveSessionType,
+    saveSessionType: (input) => saveSessionType(ports, input),
     deleteSessionType: (input) => deleteSessionType(ports, input),
     createException,
     deleteException,

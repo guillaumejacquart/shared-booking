@@ -23,6 +23,7 @@ const EXPECTED = [
   "room",
   "room_member",
   "session_type",
+  "session_type_variant",
   "availability_rule",
   "exception",
   "booking",

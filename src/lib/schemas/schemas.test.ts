@@ -73,14 +73,23 @@ describe("schedule schemas", () => {
     ).toThrowError(/startTime/);
   });
 
-  it("saveSessionType refuse les durées absurdes et le payant sans prix", () => {
-    const base = { ...req, name: "X", durationMin: 45, bufferAfterMin: 5 };
+  it("saveSessionType exige au moins une déclinaison valide", () => {
+    const base = { ...req, name: "X", variants: [{ durationMin: 45, bufferAfterMin: 5 }] };
     expect(saveSessionTypeSchema.parse(base)).toBeDefined();
-    expect(() => saveSessionTypeSchema.parse({ ...base, durationMin: 0 })).toThrowError(
-      /durationMin/,
-    );
-    expect(() => saveSessionTypeSchema.parse({ ...base, bufferAfterMin: 999 })).toThrowError(
-      /bufferAfterMin/,
+    expect(() =>
+      saveSessionTypeSchema.parse({
+        ...base,
+        variants: [{ durationMin: 0, bufferAfterMin: 5 }],
+      }),
+    ).toThrowError(/durationMin/);
+    expect(() =>
+      saveSessionTypeSchema.parse({
+        ...base,
+        variants: [{ durationMin: 45, bufferAfterMin: 999 }],
+      }),
+    ).toThrowError(/bufferAfterMin/);
+    expect(() => saveSessionTypeSchema.parse({ ...req, name: "X", variants: [] })).toThrowError(
+      /variants/,
     );
   });
 

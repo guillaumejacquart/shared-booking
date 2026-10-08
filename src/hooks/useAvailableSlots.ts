@@ -10,19 +10,20 @@ export interface SlotDto {
 }
 
 /**
- * Charge les créneaux disponibles d'un praticien pour un type de séance.
- * Un seul appel couvrant `days` jours : jours disponibles + créneaux par jour.
+ * Charge les créneaux disponibles d'un praticien pour une déclinaison de
+ * séance (la durée de la variante pilote la grille). Un seul appel couvrant
+ * `days` jours : jours disponibles + créneaux par jour.
  *
  * Remise à zéro via le motif « ajustement d'état pendant le rendu »
  * (clé mémorisée) : l'effet ne fait que s'abonner au fetch, sans setState
  * synchrone.
  */
-export function useAvailableSlots(slug: string, sessionTypeId: string, days = 56) {
+export function useAvailableSlots(slug: string, sessionTypeId: string, days = 56, variantId?: string) {
   const [allSlots, setAllSlots] = useState<SlotDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
 
-  const key = `${slug}|${sessionTypeId}|${days}|${nonce}`;
+  const key = `${slug}|${sessionTypeId}|${variantId ?? ""}|${days}|${nonce}`;
   const [prevKey, setPrevKey] = useState(key);
   if (prevKey !== key) {
     setPrevKey(key);
@@ -37,7 +38,8 @@ export function useAvailableSlots(slug: string, sessionTypeId: string, days = 56
     if (!sessionTypeId) return;
     let cancelled = false;
     const today = toKey(new Date());
-    fetch(`/api/p/${slug}/slots?sessionTypeId=${sessionTypeId}&from=${today}&days=${days}`)
+    const variantParam = variantId ? `&variantId=${variantId}` : "";
+    fetch(`/api/p/${slug}/slots?sessionTypeId=${sessionTypeId}${variantParam}&from=${today}&days=${days}`)
       .then((res) => (res.ok ? res.json() : { slots: [] }))
       .then((data) => {
         if (!cancelled) setAllSlots(data.slots ?? []);
@@ -51,7 +53,7 @@ export function useAvailableSlots(slug: string, sessionTypeId: string, days = 56
     return () => {
       cancelled = true;
     };
-  }, [slug, sessionTypeId, days, nonce]);
+  }, [slug, sessionTypeId, variantId, days, nonce]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, SlotDto[]>();

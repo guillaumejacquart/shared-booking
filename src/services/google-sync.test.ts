@@ -6,6 +6,7 @@ import type { Db } from "@/dal/types";
 import { createMemoryDb } from "@/test/memory-db";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
+import { seedSingleVariant } from "@/test/session-types";
 import type { CalendarClient } from "@/lib/google-calendar";
 import { buildGoogleEvent, syncBookingToGoogle, syncMany } from "./google-sync";
 
@@ -46,13 +47,7 @@ async function seedBooking(status = "confirmed") {
     displayName: "Camille",
     slug: "camille",
   });
-  await db.insert(s.sessionType).values({
-    id: "st1",
-    practitionerId: "p1",
-    name: "Séance 60min",
-    durationMin: 60,
-    bufferAfterMin: 0,
-  });
+  await seedSingleVariant(db, { id: "st1", practitionerId: "p1", name: "Séance 60min", durationMin: 60, bufferAfterMin: 0 });
   await db.insert(s.booking).values({
     id: "b1",
     officeId: "o1",

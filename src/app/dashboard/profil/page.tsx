@@ -38,10 +38,11 @@ export default async function ProfilPage({
   const backFromStripe = sp.stripe === "retour" || sp.stripe === "refresh";
 
   const now = new Date();
-  const [prac, office, types, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus] = await Promise.all([
+  const [prac, office, types, variants, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus] = await Promise.all([
     practitionersDal.getPractitionerById(ctx.practitionerId),
     officesDal.getOfficeById(ctx.officeId),
     sessionTypesDal.listSessionTypes(ctx.practitionerId),
+    sessionTypesDal.listVariantsByPractitioner(ctx.practitionerId),
     availabilityDal.listRules(ctx.practitionerId),
     roomsDal.listRoomsWithMembers(ctx.officeId),
     availabilityDal.listExceptions(ctx.practitionerId,
@@ -72,6 +73,12 @@ export default async function ProfilPage({
     const list = compatibleByType.get(c.sessionTypeId) ?? [];
     list.push(c.roomId);
     compatibleByType.set(c.sessionTypeId, list);
+  }
+  const variantsByType = new Map<string, typeof variants[number]["variant"][]>();
+  for (const { sessionTypeId, variant } of variants) {
+    const list = variantsByType.get(sessionTypeId) ?? [];
+    list.push(variant);
+    variantsByType.set(sessionTypeId, list);
   }
 
   return (
@@ -112,14 +119,17 @@ export default async function ProfilPage({
                 id: s.id,
                 name: s.name,
                 description: s.description,
-                durationMin: s.durationMin,
-                bufferAfterMin: s.bufferAfterMin,
-                priceDisplay: s.priceDisplay,
                 active: s.active,
                 requiresPayment: s.requiresPayment,
-                priceCents: s.priceCents,
                 currency: s.currency,
                 requiresValidation: s.requiresValidation,
+                variants: (variantsByType.get(s.id) ?? []).map((variant) => ({
+                  id: variant.id,
+                  durationMin: variant.durationMin,
+                  bufferAfterMin: variant.bufferAfterMin,
+                  priceDisplay: variant.priceDisplay,
+                  priceCents: variant.priceCents,
+                })),
                 compatibleRoomIds: compatibleByType.get(s.id) ?? [],
               }))}
               rooms={rooms}

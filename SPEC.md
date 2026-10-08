@@ -43,7 +43,10 @@ MVP simplification: `owner` is also a practitioner in the pilot. Support `owner`
 * **Office:** a shared cabinet. `slug` → `/o/[slug]`.
 * **Practitioner:** member of an office with a public page `/p/[slug]`. Slug unique globally (simpler + allows future directory).
 * **Room:** physical room in an office. Has allowlist of practitioners (empty = all office members).
-* **SessionType:** a bookable service, e.g. "1ère séance 60min". `durationMin` + `bufferAfterMin`.
+* **SessionType:** a bookable service, e.g. "Massage du corps". The name +
+  description are shared; each **variant** (`session_type_variant`) carries its
+  own `durationMin` + `bufferAfterMin` + price (e.g. 60 min / 60 €, 90 min / 80 €).
+  Single-variant services behave like the historical single duration/price.
 * **AvailabilityRule:** recurring weekly window in which a practitioner can receive: "Tue 09:00–12:00" (no room — assigned at booking time).
 * **Exception:** one-off override: day off, holiday, or extra opening.
 * **Slot:** generated bookable unit = AvailabilityRule ÷ SessionType durations, minus existing bookings, buffers, lead-time rules.
@@ -75,11 +78,15 @@ MVP simplification: `owner` is also a practitioner in the pilot. Support `owner`
   * Room B: allowed = [P1] (exclusive)
 * Capacity = 1 booking at a time per room (no overlapping bookings in same room, including buffers).
 
-### F4 — Session types
-* Fields per practitioner: `name, description?, durationMin (15/30/45/60/90/120 presets + custom), bufferAfterMin (default from office), price? (display only, optional, no payment), active flag`.
+### F4 — Session types (groups + variants)
+* Group fields per practitioner: `name, description?, requiresPayment?, currency, requiresValidation?, active flag`.
+* Each service has 1–6 **variants**: `durationMin` (5–480, distinct per service),
+  `bufferAfterMin` (per variant: a longer session may need a longer turnover),
+  `priceDisplay?` (display only) + `priceCents?` (charged if `requiresPayment`).
 * Optional compatible rooms (`session_type_room`, empty = all allowed rooms): e.g. massage only in the equipped room, talk session anywhere. Must be rooms the practitioner is allowed in (validated at save); intersected with the practitioner's rooms at slot generation.
-* Example: P1: "Découverte 30min + 10min buffer", "Séance complète 60min + 15min buffer".
-* Changing duration does not affect existing bookings. Deactivating hides from public page but keeps history.
+* Example: P1: "Massage du corps" → 60 min / 60 € + 90 min / 80 €.
+* The patient picks a service, then its duration; the slot grid follows the variant duration. Bookings freeze `sessionVariantId` + snapshots (name shows the duration only for multi-variant services, e.g. "Massage du corps (90 min)").
+* Changing variants does not affect existing bookings. Deactivating hides from public page but keeps history. Removing a variant used by upcoming bookings is refused.
 
 ### F5 — Weekly availability (recurring)
 * Per practitioner, per weekday, list of windows: `{ weekday 0–6, start "09:00", end "12:00" }`. **No room**: a window declares practitioner availability; the room is assigned at booking time (first free allowed room, deterministic order).
@@ -165,13 +172,14 @@ practitioners(id, officeId, userId UNIQUE, displayName, slug UNIQUE, bio,
 rooms(id, officeId, name, color, sortOrder)
 room_members(roomId, practitionerId)  // empty set = everyone allowed; else allowlist
 
-session_types(id, practitionerId, name, description, durationMin, bufferAfterMin, priceDisplay?, active DEFAULT 1)
+session_types(id, practitionerId, name, description, requiresPayment DEFAULT 0, currency DEFAULT 'eur', requiresValidation DEFAULT 0, active DEFAULT 1)
+session_type_variant(id, sessionTypeId → CASCADE, durationMin, bufferAfterMin DEFAULT 0, priceDisplay?, priceCents?, sortOrder) // UNIQUE(sessionTypeId, durationMin)
 session_type_room(sessionTypeId, roomId)  // empty set = all practitioner rooms compatible
 
 availability_rules(id, practitionerId, weekday, startTime 'HH:MM', endTime 'HH:MM')
 exceptions(id, practitionerId, date 'YYYY-MM-DD', kind 'off|extra', startTime?, endTime?, fullDay DEFAULT 0, roomId?, reason?)
 
-bookings(id, officeId, practitionerId, roomId, sessionTypeId,
+bookings(id, officeId, practitionerId, roomId, sessionTypeId → SET NULL, sessionVariantId → SET NULL,
   sessionNameSnapshot, durationMinSnapshot, bufferAfterMinSnapshot,
   startAt INTEGER (unix ms UTC), endAt INTEGER,
   patientFirstName, patientLastName, patientEmail, patientPhone?, notes?,
@@ -214,8 +222,10 @@ Payments, SMS, patient accounts, recurring bookings (abonnements), group session
 
 ### Paiement Stripe (implémenté)
 
-- Par type de séance : `requiresPayment` + `priceCents`/`currency` (+ affichage
-  `priceDisplay`), et/ou `requiresValidation`.
+- Par type de séance : `requiresPayment` + `currency` (+ validation
+  `requiresValidation`). Le prix est par **déclinaison** : `priceCents` (débité)
+  et/ou affichage `priceDisplay` sur chaque variante (ex. 60 min → 6000,
+  90 min → 8000) ; payant = chaque variante doit avoir son prix.
 - Statuts : `pending` → `confirmed` quand (payé si requis) ET (validé si requis).
   Un `pending` tient le créneau (anti double-réservation) ; les pendings
   impayés expirent après 30 min (sweep `*/10 * * * *`).

@@ -15,6 +15,8 @@ export interface ManageData {
   status: string;
   /** Null quand le type a été supprimé (historique conservé via snapshots). */
   sessionTypeId: string | null;
+  /** Déclinaison d'origine ; la grille du report suit les snapshots sinon. */
+  sessionVariantId: string | null;
   practitionerSlug: string;
   rescheduleToken: string;
   cancelToken: string;
@@ -36,6 +38,7 @@ export default function ManageClient({
     data.practitionerSlug,
     data.sessionTypeId ?? "",
     28,
+    data.sessionVariantId ?? undefined,
   );
   const [day, setDay] = useState<string | null>(null);
   const [newSlot, setNewSlot] = useState("");

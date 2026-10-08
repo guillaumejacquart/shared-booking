@@ -5,10 +5,12 @@ import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
 import type { Ports } from "@/lib/ports";
 import { allowedRoomIdsFor } from "@/services/room-order";
+import type { PageSessionType } from "@/dal/practitioners";
+import type { SessionTypeVariant } from "@/dal/types";
 import type { SlotsInput } from "@/lib/schemas/bookings";
 import { dateStrInTz, zonedTimeToUtc } from "@/lib/timezone";
 import { generateSlots, type Occupancy, type Slot, type SlotRequest } from "@/services/slot-engine";
-import { NotFoundError } from "../errors";
+import { NotFoundError, ValidationError } from "../errors";
 
 export { allowedRoomIdsFor };
 
@@ -118,6 +120,23 @@ export async function loadSlotContext(
   };
 }
 
+/**
+ * Déclinaison visée d'une séance : explicite si fournie (404 si inconnue),
+ * sinon la première variante (ordre d'affichage). Une séance sans variante
+ * est mal configurée (ne devrait pas arriver : migration + garde service).
+ */
+export function resolveVariant(st: PageSessionType, variantId?: string): SessionTypeVariant {
+  if (st.variants.length === 0) {
+    throw new ValidationError("Séance mal configurée : aucune déclinaison");
+  }
+  if (variantId) {
+    const found = st.variants.find((variant) => variant.id === variantId);
+    if (!found) throw new NotFoundError("Déclinaison introuvable");
+    return found;
+  }
+  return st.variants[0];
+}
+
 /** Grille interne : chaque créneau porte sa salle attribuée. */
 export async function getSlotsWithRoom(ports: Ports, input: SlotsInput): Promise<Slot[]> {
   const now = ports.clock.now();
@@ -126,6 +145,7 @@ export async function getSlotsWithRoom(ports: Ports, input: SlotsInput): Promise
   if (!page) throw new NotFoundError("Praticien introuvable");
   const sessionType = page.sessionTypes.find((st) => st.id === input.sessionTypeId);
   if (!sessionType) throw new NotFoundError("Type de séance introuvable");
+  const variant = resolveVariant(sessionType, input.sessionVariantId);
 
   const tz = page.office.timezone;
   const dayStart = zonedTimeToUtc(input.fromDate, "00:00", tz);
@@ -144,8 +164,8 @@ export async function getSlotsWithRoom(ports: Ports, input: SlotsInput): Promise
   return generateSlots({
     timezone: tz,
     ...context,
-    sessionDurationMin: sessionType.durationMin,
-    bufferAfterMin: sessionType.bufferAfterMin,
+    sessionDurationMin: variant.durationMin,
+    bufferAfterMin: variant.bufferAfterMin,
     slotStepMin: page.practitioner.slotStepMin ?? 15,
     leadTimeMin: page.office.bookingLeadTimeMin,
     from: engineFrom,

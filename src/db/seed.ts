@@ -28,7 +28,7 @@ async function ensureUser(name: string, email: string): Promise<string> {
   return res.user.id;
 }
 
-async function put(table: "office" | "room" | "member" | "practitioner" | "roomMember" | "sessionType" | "availabilityRule", row: Record<string, unknown>) {
+async function put(table: "office" | "room" | "member" | "practitioner" | "roomMember" | "sessionType" | "sessionTypeVariant" | "availabilityRule", row: Record<string, unknown>) {
   const tables = {
     office: schema.office,
     room: schema.room,
@@ -36,6 +36,7 @@ async function put(table: "office" | "room" | "member" | "practitioner" | "roomM
     practitioner: schema.practitioner,
     roomMember: schema.roomMember,
     sessionType: schema.sessionType,
+    sessionTypeVariant: schema.sessionTypeVariant,
     availabilityRule: schema.availabilityRule,
   } as const;
   await db
@@ -74,11 +75,17 @@ async function main() {
   await put("roomMember", { id: "rm-a-lea", roomId: "demo-a", practitionerId: "p-lea" });
   await put("roomMember", { id: "rm-c-cam", roomId: "demo-cedre", practitionerId: "p-cam" });
 
-  await put("sessionType", { id: "st-cam-1", practitionerId: "p-cam", name: "Première séance", durationMin: 60, bufferAfterMin: 15, priceDisplay: "70 €" });
-  await put("sessionType", { id: "st-cam-2", practitionerId: "p-cam", name: "Suivi", durationMin: 45, bufferAfterMin: 10, priceDisplay: "60 €" });
-  await put("sessionType", { id: "st-kar-1", practitionerId: "p-kar", name: "Massage bien-être", durationMin: 60, bufferAfterMin: 10, priceDisplay: "65 €" });
-  await put("sessionType", { id: "st-lea-1", practitionerId: "p-lea", name: "Découverte", durationMin: 30, bufferAfterMin: 10, priceDisplay: "35 €" });
-  await put("sessionType", { id: "st-lea-2", practitionerId: "p-lea", name: "Séance complète", durationMin: 60, bufferAfterMin: 15, priceDisplay: "60 €" });
+  await put("sessionType", { id: "st-cam-1", practitionerId: "p-cam", name: "Première séance", description: null });
+  await put("sessionTypeVariant", { id: "stv-cam-1", sessionTypeId: "st-cam-1", durationMin: 60, bufferAfterMin: 15, priceDisplay: "70 €", sortOrder: 0 });
+  await put("sessionType", { id: "st-cam-2", practitionerId: "p-cam", name: "Suivi", description: null });
+  await put("sessionTypeVariant", { id: "stv-cam-2", sessionTypeId: "st-cam-2", durationMin: 45, bufferAfterMin: 10, priceDisplay: "60 €", sortOrder: 0 });
+  await put("sessionType", { id: "st-kar-1", practitionerId: "p-kar", name: "Massage bien-être", description: "Massage du corps, au choix 60 ou 90 minutes." });
+  await put("sessionTypeVariant", { id: "stv-kar-1a", sessionTypeId: "st-kar-1", durationMin: 60, bufferAfterMin: 10, priceDisplay: "60 €", sortOrder: 0 });
+  await put("sessionTypeVariant", { id: "stv-kar-1b", sessionTypeId: "st-kar-1", durationMin: 90, bufferAfterMin: 15, priceDisplay: "80 €", sortOrder: 1 });
+  await put("sessionType", { id: "st-lea-1", practitionerId: "p-lea", name: "Découverte", description: null });
+  await put("sessionTypeVariant", { id: "stv-lea-1", sessionTypeId: "st-lea-1", durationMin: 30, bufferAfterMin: 10, priceDisplay: "35 €", sortOrder: 0 });
+  await put("sessionType", { id: "st-lea-2", practitionerId: "p-lea", name: "Séance complète", description: null });
+  await put("sessionTypeVariant", { id: "stv-lea-2", sessionTypeId: "st-lea-2", durationMin: 60, bufferAfterMin: 15, priceDisplay: "60 €", sortOrder: 0 });
 
   await put("availabilityRule", { id: "ar-1", practitionerId: "p-cam", weekday: 1, startTime: "09:00", endTime: "12:00" });
   await put("availabilityRule", { id: "ar-2", practitionerId: "p-cam", weekday: 3, startTime: "09:00", endTime: "12:00" });

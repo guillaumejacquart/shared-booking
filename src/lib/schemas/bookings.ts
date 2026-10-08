@@ -13,6 +13,8 @@ const DEFAULT_DAYS = 14;
 export const slotsQuerySchema = z.object({
   practitionerSlug: z.string().min(1),
   sessionTypeId: z.string().min(1),
+  /** Déclinaison visée ; défaut = première variante (ordre d'affichage). */
+  sessionVariantId: z.string().min(1).optional(),
   fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   days: z.coerce.number().int().min(1).max(MAX_DAYS).default(DEFAULT_DAYS),
 });
@@ -24,6 +26,8 @@ const emailSchema = z.string().trim().email().max(254);
 export const createBookingSchema = z.object({
   practitionerSlug: z.string().min(1),
   sessionTypeId: z.string().min(1),
+  /** Déclinaison réservée ; défaut = première variante (ordre d'affichage). */
+  sessionVariantId: z.string().min(1).optional(),
   startAt: z.string().datetime(),
   patientFirstName: nameSchema,
   patientLastName: nameSchema,

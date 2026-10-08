@@ -43,15 +43,24 @@ export const saveSessionTypeSchema = scopeSchema.merge(requesterSchema).extend({
   id: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).nullish(),
-  durationMin: z.number().int().min(5).max(480),
-  bufferAfterMin: z.number().int().min(0).max(480),
-  priceDisplay: z.string().trim().max(30).nullish(),
   active: z.boolean().optional(),
   requiresPayment: z.boolean().default(false),
-  priceCents: z.number().int().min(1).max(999999).nullish(),
   requiresValidation: z.boolean().default(false),
   /** Salles compatibles (vide = toutes les salles autorisées au praticien). */
   compatibleRoomIds: z.array(z.string().min(1)).max(20).default([]),
+  /** Déclinaisons durée/prix (1 par défaut, durées distinctes). */
+  variants: z
+    .array(
+      z.object({
+        id: z.string().min(1).optional(),
+        durationMin: z.number().int().min(5).max(480),
+        bufferAfterMin: z.number().int().min(0).max(480),
+        priceDisplay: z.string().trim().max(30).nullish(),
+        priceCents: z.number().int().min(1).max(999999).nullish(),
+      }),
+    )
+    .min(1)
+    .max(6),
 });
 export type SaveSessionTypeInput = z.infer<typeof saveSessionTypeSchema>;
 

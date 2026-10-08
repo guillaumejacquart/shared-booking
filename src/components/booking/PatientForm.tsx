@@ -30,11 +30,13 @@ async function postBooking(slug: string, payload: Record<string, unknown>): Prom
 export default function PatientForm({
   slug,
   sessionTypeId,
+  sessionVariantId,
   startAt,
   onConfirmed,
 }: {
   slug: string;
   sessionTypeId: string;
+  sessionVariantId?: string;
   startAt: string;
   onConfirmed: (slot: SlotDto) => void;
 }) {
@@ -58,6 +60,7 @@ export default function PatientForm({
     try {
       const result = await postBooking(slug, {
         sessionTypeId,
+        ...(sessionVariantId ? { sessionVariantId } : {}),
         startAt,
         patientFirstName: fields.firstName,
         patientLastName: fields.lastName,

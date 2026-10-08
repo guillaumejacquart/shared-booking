@@ -60,11 +60,15 @@ export default async function PractitionerPage({
           id: sessionType.id,
           name: sessionType.name,
           description: sessionType.description,
-          durationMin: sessionType.durationMin,
-          priceDisplay: sessionType.priceDisplay,
           requiresPayment: sessionType.requiresPayment,
-          priceCents: sessionType.priceCents,
           currency: sessionType.currency,
+          variants: sessionType.variants.map((variant) => ({
+            id: variant.id,
+            durationMin: variant.durationMin,
+            bufferAfterMin: variant.bufferAfterMin,
+            priceDisplay: variant.priceDisplay,
+            priceCents: variant.priceCents,
+          })),
         }))}
       />
       </main>

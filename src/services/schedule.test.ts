@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
+import { seedSingleVariant } from "@/test/session-types";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import {
@@ -44,9 +45,9 @@ async function seed() {
   ]);
   // Salle A ouverte à tous ; Exclusive réservée à Alice.
   await db.insert(s.roomMember).values([{ id: "rm1", roomId: "room-x", practitionerId: "p1" }]);
-  await db.insert(s.sessionType).values([
-    { id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0 },
-  ]);
+  await seedSingleVariant(db, {
+    id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0,
+  });
 }
 
 beforeEach(async () => {
@@ -102,31 +103,114 @@ describe("replaceAvailability", () => {
 
 describe("saveSessionType / deleteSessionType", () => {
   it("crée, modifie et désactive", async () => {
-    const id = await saveSessionType({
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p2", ...bob,
-      name: "Suivi", durationMin: 45, bufferAfterMin: 5,
+      name: "Suivi",
+      variants: [{ durationMin: 45, bufferAfterMin: 5 }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
-    const id2 = await saveSessionType({
+    const { id: id2 } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p2", ...bob, id,
-      name: "Suivi long", durationMin: 60, bufferAfterMin: 5, active: false,
+      name: "Suivi long", active: false,
+      variants: [{ durationMin: 60, bufferAfterMin: 5 }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     expect(id2).toBe(id);
   });
 
+  it("crée plusieurs déclinaisons et les réconcilie à la mise à jour", async () => {
+    const { listVariants } = await import("@/dal/session-types");
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+      practitionerId: "p2", ...bob,
+      name: "Massage",
+      variants: [
+        { durationMin: 60, bufferAfterMin: 10, priceDisplay: "60 €" },
+        { durationMin: 90, bufferAfterMin: 15, priceDisplay: "80 €" },
+      ],
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+    });
+    let variants = await listVariants(id);
+    expect(variants.map((variant) => variant.durationMin)).toEqual([60, 90]);
+    expect(variants.map((variant) => variant.bufferAfterMin)).toEqual([10, 15]);
+    // Mise à jour : 60 min conservée (prix modifié), 90 min retirée, 120 min ajoutée.
+    const sixty = variants.find((variant) => variant.durationMin === 60)!;
+    const { variants: reconciled } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+      practitionerId: "p2", ...bob, id,
+      name: "Massage",
+      variants: [
+        { id: sixty.id, durationMin: 60, bufferAfterMin: 10, priceDisplay: "65 €" },
+        { durationMin: 120, bufferAfterMin: 20, priceDisplay: "100 €" },
+      ],
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+    });
+    expect(reconciled.map((variant) => variant.durationMin)).toEqual([60, 120]);
+    expect(reconciled.find((variant) => variant.durationMin === 60)?.id).toBe(sixty.id);
+    expect(reconciled.find((variant) => variant.durationMin === 60)?.priceDisplay).toBe("65 €");
+    variants = await listVariants(id);
+    expect(variants).toHaveLength(2);
+  });
+
+  it("refuse deux déclinaisons de même durée", async () => {
+    await expect(
+      saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+        practitionerId: "p2", ...bob,
+        name: "Doublon",
+        variants: [
+          { durationMin: 60, bufferAfterMin: 0 },
+          { durationMin: 60, bufferAfterMin: 10 },
+        ],
+        requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuse de retirer une déclinaison utilisée par des réservations futures", async () => {
+    const { listVariants } = await import("@/dal/session-types");
+    const s = await import("@/db/schema");
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+      practitionerId: "p1", ...alice,
+      name: "Massage",
+      variants: [
+        { durationMin: 60, bufferAfterMin: 0 },
+        { durationMin: 90, bufferAfterMin: 0 },
+      ],
+      requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+    });
+    const variants = await listVariants(id);
+    const ninety = variants.find((variant) => variant.durationMin === 90)!;
+    await db.insert(s.booking).values({
+      id: "b1", officeId: "o1", practitionerId: "p1", roomId: "room-a", sessionTypeId: id,
+      sessionVariantId: ninety.id,
+      sessionNameSnapshot: "Massage (90 min)", durationMinSnapshot: 90, bufferAfterMinSnapshot: 0,
+      startAt: new Date("2026-09-20T07:00:00Z"), endAt: new Date("2026-09-20T08:30:00Z"),
+      patientFirstName: "J", patientLastName: "D", patientEmail: "j@example.com",
+      status: "confirmed", cancelToken: "c1", rescheduleToken: "r1",
+    });
+    const sixty = variants.find((variant) => variant.durationMin === 60)!;
+    await expect(
+      saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+        practitionerId: "p1", ...alice, id,
+        name: "Massage",
+        variants: [{ id: sixty.id, durationMin: 60, bufferAfterMin: 0 }],
+        requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
   it("restreint les salles compatibles d'une séance (vide = toutes)", async () => {
     const { listCompatibleRoomIds } = await import("@/dal/session-types");
-    const id = await saveSessionType({
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", ...alice,
-      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      name: "Massage",
+      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
     });
     expect(await listCompatibleRoomIds(id)).toEqual(["room-x"]);
     // Mise à jour remplace la restriction.
-    await saveSessionType({
+    await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", ...alice, id,
-      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      name: "Massage",
+      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     expect(await listCompatibleRoomIds(id)).toEqual([]);
@@ -135,15 +219,16 @@ describe("saveSessionType / deleteSessionType", () => {
   it("refuse les salles inconnues ou interdites au praticien", async () => {
     const base = {
       practitionerId: "p2", ...bob,
-      name: "Soin", durationMin: 60, bufferAfterMin: 0,
+      name: "Soin",
+      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
       requiresPayment: false, requiresValidation: false,
     };
     await expect(
-      saveSessionType({ ...base, compatibleRoomIds: ["nope"] }),
+      saveSessionType(testPorts({ clock: fixedClock(NOW) }), { ...base, compatibleRoomIds: ["nope"] }),
     ).rejects.toBeInstanceOf(ValidationError);
     // Bob n'a pas accès à la salle Exclusive (réservée à Alice).
     await expect(
-      saveSessionType({ ...base, compatibleRoomIds: ["room-x"] }),
+      saveSessionType(testPorts({ clock: fixedClock(NOW) }), { ...base, compatibleRoomIds: ["room-x"] }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -298,18 +383,20 @@ describe("saveRoom / deleteRoom", () => {
 
   it("refuse de supprimer une salle requise par un type de séance", async () => {
     const { deleteRoom, saveSessionType } = await import("@/services/schedule");
-    const id = await saveSessionType({
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", requesterUserId: "u1",
-      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      name: "Massage",
+      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
     });
     await expect(
       deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-x" }),
     ).rejects.toBeInstanceOf(ValidationError);
     // Après retrait de la restriction, suppression OK.
-    await saveSessionType({
+    await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", requesterUserId: "u1", id,
-      name: "Massage", durationMin: 60, bufferAfterMin: 0,
+      name: "Massage",
+      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     await deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-x" });
@@ -344,27 +431,50 @@ describe("updateOfficeSettings", () => {
 describe("saveSessionType paiement/validation", () => {
   it("accepte une séance payante avec prix, refuse sans prix", async () => {
     const { saveSessionType } = await import("@/services/schedule");
-    const id = await saveSessionType({
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
         practitionerId: "p2", requesterUserId: "u2",
-        name: "Payante", durationMin: 60, bufferAfterMin: 0,
-        requiresPayment: true, priceCents: 5000, requiresValidation: true, compatibleRoomIds: [],
+        name: "Payante",
+        variants: [{ durationMin: 60, bufferAfterMin: 0, priceCents: 5000 }],
+        requiresPayment: true, requiresValidation: true, compatibleRoomIds: [],
       },
     );
     const s = await import("@/db/schema");
     const { eq } = await import("drizzle-orm");
     const rows = await db.select().from(s.sessionType).where(eq(s.sessionType.id, id));
     expect(rows[0].requiresPayment).toBe(true);
-    expect(rows[0].priceCents).toBe(5000);
     expect(rows[0].requiresValidation).toBe(true);
+    const paidVariants = await db
+      .select()
+      .from(s.sessionTypeVariant)
+      .where(eq(s.sessionTypeVariant.sessionTypeId, id));
+    expect(paidVariants[0].priceCents).toBe(5000);
 
     const { ValidationError } = await import("@/services/errors");
     await expect(
-      saveSessionType({
+      saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
           practitionerId: "p2", requesterUserId: "u2",
-          name: "Sans prix", durationMin: 60, bufferAfterMin: 0, requiresPayment: true,
+          name: "Sans prix",
+          variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+          requiresPayment: true,
           requiresValidation: false, compatibleRoomIds: [],
         },
       ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuse une séance payante si une déclinaison est sans prix", async () => {
+    const { saveSessionType } = await import("@/services/schedule");
+    const { ValidationError } = await import("@/services/errors");
+    await expect(
+      saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+        practitionerId: "p2", requesterUserId: "u2",
+        name: "Partiellement tarifée",
+        variants: [
+          { durationMin: 60, bufferAfterMin: 0, priceCents: 5000 },
+          { durationMin: 90, bufferAfterMin: 0 },
+        ],
+        requiresPayment: true, requiresValidation: false, compatibleRoomIds: [],
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
@@ -373,12 +483,12 @@ describe("saveSessionType nulls DB", () => {
   it("accepte les champs null renvoyés tels quels par le formulaire", async () => {
     const { saveSessionType } = await import("@/services/schedule");
     // Reproduit le payload réel : description/priceCents à null.
-    const id = await saveSessionType({
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
         practitionerId: "p2", requesterUserId: "u2",
         id: undefined,
         name: "Soin 1", description: null,
-        durationMin: 60, bufferAfterMin: 20, priceDisplay: "50",
-        active: true, requiresPayment: false, priceCents: null,
+        variants: [{ durationMin: 60, bufferAfterMin: 20, priceDisplay: "50", priceCents: null }],
+        active: true, requiresPayment: false,
         requiresValidation: true, compatibleRoomIds: [],
       },
     );

@@ -12,6 +12,7 @@ import { ValidationError } from "@/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock, type Ports } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
+import { seedSessionType, seedSingleVariant } from "@/test/session-types";
 
 let db: Db;
 let sent: OutgoingEmail[];
@@ -79,13 +80,18 @@ async function seed() {
     { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice", stripeAccountId: "acct_test_123", stripeChargesEnabled: true, stripePayoutsEnabled: true },
     { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "alice-2" },
   ]);
-  await db.insert(s.sessionType).values([
-    { id: "stFree", practitionerId: "p1", name: "Gratuit", durationMin: 60, bufferAfterMin: 0 },
-    { id: "stPaid", practitionerId: "p1", name: "Payant", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, currency: "eur" },
-    { id: "stPaidVal", practitionerId: "p1", name: "Payant + validation", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, currency: "eur", requiresValidation: true },
-    { id: "stBroken", practitionerId: "p1", name: "Mal configuré", durationMin: 60, bufferAfterMin: 0, requiresPayment: true },
-    { id: "stNoStripe", practitionerId: "p2", name: "Payant sans Connect", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, currency: "eur" },
-  ]);
+  await seedSingleVariant(db, { id: "stFree", practitionerId: "p1", name: "Gratuit", durationMin: 60, bufferAfterMin: 0 });
+  await seedSessionType(db, {
+    id: "stPaid", practitionerId: "p1", name: "Payant",
+    requiresPayment: true, currency: "eur",
+    variants: [
+      { id: "stv-paid-60", durationMin: 60, bufferAfterMin: 0, priceCents: 6000 },
+      { id: "stv-paid-90", durationMin: 90, bufferAfterMin: 0, priceCents: 8000 },
+    ],
+  });
+  await seedSingleVariant(db, { id: "stPaidVal", practitionerId: "p1", name: "Payant + validation", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000, requiresValidation: true });
+  await seedSingleVariant(db, { id: "stBroken", practitionerId: "p1", name: "Mal configuré", durationMin: 60, bufferAfterMin: 0, requiresPayment: true });
+  await seedSingleVariant(db, { id: "stNoStripe", practitionerId: "p2", name: "Payant sans Connect", durationMin: 60, bufferAfterMin: 0, requiresPayment: true, priceCents: 6000 });
   await db.insert(s.availabilityRule).values([
     { id: "r1", practitionerId: "p1", weekday: 1, startTime: "09:00", endTime: "13:00" },
     { id: "r2", practitionerId: "p2", weekday: 1, startTime: "09:00", endTime: "13:00" },
@@ -235,5 +241,23 @@ describe("releaseExpiredPendings", () => {
     expect(rows[0].status).toBe("cancelled");
     const kept = await db.select().from(s.booking).where(eq(s.booking.id, "ok1"));
     expect(kept[0].status).toBe("pending");
+  });
+});
+
+describe("paid booking avec déclinaisons", () => {
+  it("débite le prix de la déclinaison visée (90 min → 80 €)", async () => {
+    const res = await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "stPaid", sessionVariantId: "stv-paid-90",
+      startAt: SLOT, ...patient,
+    });
+    expect(res.status).toBe("pending");
+    const params = stripeCalls[0] as Record<string, unknown>;
+    const lineItems = (params.line_items as { price_data: { unit_amount: number } }[]);
+    expect(lineItems[0].price_data.unit_amount).toBe(8000);
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
+    expect(rows[0].sessionVariantId).toBe("stv-paid-90");
+    expect(rows[0].durationMinSnapshot).toBe(90);
   });
 });

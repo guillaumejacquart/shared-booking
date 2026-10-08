@@ -223,6 +223,7 @@ export async function tryInsertBooking(data: NewBooking): Promise<{ conflict: tr
       practitionerId: data.practitionerId,
       roomId: data.roomId,
       sessionTypeId: data.sessionTypeId,
+      sessionVariantId: data.sessionVariantId ?? null,
       sessionNameSnapshot: data.sessionNameSnapshot,
       durationMinSnapshot: data.durationMinSnapshot,
       bufferAfterMinSnapshot: data.bufferAfterMinSnapshot,

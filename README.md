@@ -40,8 +40,10 @@ Erreurs : 400 invalide, 404 inconnu, 409 pris, 410 deadline dépassée, 429 rate
 
 ## Paiement (Stripe Checkout, optionnel)
 
-Par type de séance : gratuit (défaut), payant (`requiresPayment` + prix),
-et/ou validation manuelle (`requiresValidation`). Un RDV payant reste
+Par type de séance : gratuit (défaut), payant (`requiresPayment` + un prix par
+**déclinaison**), et/ou validation manuelle (`requiresValidation`). Chaque séance
+regroupe 1 à 6 déclinaisons durée/prix (ex. « Massage du corps » → 60 min / 60 €
+et 90 min / 80 €, chacune avec son battement). Un RDV payant reste
 `pending` (créneau tenu 30 min) jusqu'au webhook `checkout.session.completed`,
 puis confirmé sauf si validation requise. Annuler un RDV payé ne rembourse
 pas : remboursement manuel via le dashboard Stripe.

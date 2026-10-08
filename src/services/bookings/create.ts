@@ -19,8 +19,9 @@ import {
   tokens,
   type MailBooking,
 } from "./shared";
-import { getSlotsWithRoom, slotOnGrid } from "./slots";
+import { getSlotsWithRoom, resolveVariant, slotOnGrid } from "./slots";
 import { syncBookingToGoogle } from "../google-sync";
+import type { SessionTypeVariant } from "@/dal/types";
 
 type PractitionerPage = NonNullable<
   Awaited<ReturnType<typeof practitionersDal.getPractitionerPage>>
@@ -35,6 +36,7 @@ async function resolveSlot(
   ports: Ports,
   page: PractitionerPage,
   st: PageSessionType,
+  variant: SessionTypeVariant,
   start: Date,
 ): Promise<Slot> {
   const dateStr = dateStrInTz(start, page.office.timezone);
@@ -42,6 +44,7 @@ async function resolveSlot(
     await getSlotsWithRoom(ports, {
       practitionerSlug: page.practitioner.slug,
       sessionTypeId: st.id,
+      sessionVariantId: variant.id,
       fromDate: dateStr,
       days: 1,
     })
@@ -51,8 +54,8 @@ async function resolveSlot(
       page.practitioner.id,
       page.office.id,
       st.id,
-      st.durationMin,
-      st.bufferAfterMin,
+      variant.durationMin,
+      variant.bufferAfterMin,
       start,
       page.office.timezone,
     );
@@ -67,11 +70,11 @@ async function resolveSlot(
 /** Refuse une demande mal configurée ou hors délai de réservation. */
 function assertBookable(
   page: PractitionerPage,
-  st: PageSessionType,
+  variant: SessionTypeVariant,
   start: Date,
   now: Date,
 ): void {
-  if (st.bufferAfterMin > MAX_BUFFER_MIN) {
+  if (variant.bufferAfterMin > MAX_BUFFER_MIN) {
     throw new ValidationError("Configuration de séance invalide");
   }
   if (Number.isNaN(start.getTime())) throw new ValidationError("Horaire invalide");
@@ -88,12 +91,13 @@ async function lockSlot(
   ports: Ports,
   page: PractitionerPage,
   st: PageSessionType,
+  variant: SessionTypeVariant,
   start: Date,
   email: string,
   now: Date,
 ): Promise<{ roomId: string; end: Date }> {
   return bookingMutex.run(async () => {
-    const slot = await resolveSlot(ports, page, st, start);
+    const slot = await resolveSlot(ports, page, st, variant, start);
     const futureCount = await bookingsDal.countFutureConfirmedByEmail(
       page.practitioner.id,
       email,
@@ -110,16 +114,18 @@ async function lockSlot(
 async function createCheckoutSession(args: {
   stripe: StripeLike;
   st: PageSessionType;
+  variant: SessionTypeVariant;
   page: PractitionerPage;
   email: string;
   bookingId: string;
   now: Date;
 }): Promise<{ stripeSessionId: string; checkoutUrl: string }> {
-  const { stripe, st, page, email, bookingId, now } = args;
+  const { stripe, st, variant, page, email, bookingId, now } = args;
   const destination = page.practitioner.stripeAccountId;
   if (!destination) throw new ValidationError("Paiement en ligne indisponible pour ce praticien");
   const origin = env.BETTER_AUTH_URL.replace(/\/$/, "");
   const fee = env.STRIPE_APPLICATION_FEE_CENTS;
+  const priceCents = variant.priceCents!;
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: email,
@@ -127,15 +133,15 @@ async function createCheckoutSession(args: {
       {
         price_data: {
           currency: st.currency ?? "eur",
-          unit_amount: st.priceCents!,
-          product_data: { name: `${st.name} — ${page.practitioner.displayName}` },
+          unit_amount: priceCents,
+          product_data: { name: `${st.name} (${variant.durationMin} min) — ${page.practitioner.displayName}` },
         },
         quantity: 1,
       },
     ],
     payment_intent_data: {
       transfer_data: { destination },
-      ...(fee > 0 && fee < st.priceCents! ? { application_fee_amount: fee } : {}),
+      ...(fee > 0 && fee < priceCents ? { application_fee_amount: fee } : {}),
     },
     metadata: { bookingId },
     expires_at: Math.floor((now.getTime() + PENDING_TTL_MS) / 1000),
@@ -191,6 +197,7 @@ async function resolveBookingPlan(
 ): Promise<{
   page: PractitionerPage;
   st: PageSessionType;
+  variant: SessionTypeVariant;
   start: Date;
   now: Date;
   email: string;
@@ -203,12 +210,13 @@ async function resolveBookingPlan(
   if (!page) throw new NotFoundError("Praticien introuvable");
   const st = page.sessionTypes.find((sessionType) => sessionType.id === input.sessionTypeId);
   if (!st) throw new NotFoundError("Type de séance introuvable");
+  const variant = resolveVariant(st, input.sessionVariantId);
 
   const start = new Date(input.startAt);
-  assertBookable(page, st, start, now);
+  assertBookable(page, variant, start, now);
   const needsPayment = st.requiresPayment;
   const needsValidation = st.requiresValidation;
-  if (needsPayment && (!st.priceCents || st.priceCents <= 0)) {
+  if (needsPayment && (!variant.priceCents || variant.priceCents <= 0)) {
     throw new ValidationError("Séance mal configurée : prix manquant");
   }
   const stripe = needsPayment ? ports.stripeClient : null;
@@ -222,6 +230,7 @@ async function resolveBookingPlan(
   return {
     page,
     st,
+    variant,
     start,
     now,
     email: input.patientEmail.toLowerCase(),
@@ -232,15 +241,15 @@ async function resolveBookingPlan(
 }
 
 export async function createBooking(ports: Ports, input: CreateBookingInput): Promise<BookingResult> {
-  const { page, st, start, now, email, needsPayment, needsValidation, stripe } =
+  const { page, st, variant, start, now, email, needsPayment, needsValidation, stripe } =
     await resolveBookingPlan(ports, input);
   const { cancelToken, rescheduleToken } = tokens();
   const bookingId = crypto.randomUUID();
   const status = needsPayment || needsValidation ? "pending" : "confirmed";
 
-  const checked = await lockSlot(ports, page, st, start, email, now);
+  const checked = await lockSlot(ports, page, st, variant, start, email, now);
   const checkout = stripe
-    ? await createCheckoutSession({ stripe, st, page, email, bookingId, now })
+    ? await createCheckoutSession({ stripe, st, variant, page, email, bookingId, now })
     : null;
 
   const row: NewBooking = {
@@ -249,9 +258,13 @@ export async function createBooking(ports: Ports, input: CreateBookingInput): Pr
     practitionerId: page.practitioner.id,
     roomId: checked.roomId,
     sessionTypeId: st.id,
-    sessionNameSnapshot: st.name,
-    durationMinSnapshot: st.durationMin,
-    bufferAfterMinSnapshot: st.bufferAfterMin,
+    sessionVariantId: variant.id,
+    // Multi-déclinaisons : la durée fige la variante dans l'historique
+    // (agenda, emails) ; variante unique : nom inchangé (historique).
+    sessionNameSnapshot:
+      st.variants.length > 1 ? `${st.name} (${variant.durationMin} min)` : st.name,
+    durationMinSnapshot: variant.durationMin,
+    bufferAfterMinSnapshot: variant.bufferAfterMin,
     startAt: start,
     endAt: checked.end,
     patientFirstName: input.patientFirstName,

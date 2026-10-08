@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { t } from "@/lib/i18n";
 import { sendJson } from "@/lib/api-client";
 import { FormMessage } from "@/components/ui";
 import NewSessionTypeForm from "@/components/session-types/NewSessionTypeForm";
 import SessionTypeCard from "@/components/session-types/SessionTypeCard";
+import type { PublicVariant } from "@/app/api/session-types/variants";
 import type { Room, SessionTypeRow } from "@/components/session-types/types";
 
 export default function SessionTypesManager({
@@ -27,23 +27,22 @@ export default function SessionTypesManager({
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<SessionTypeRow[]>(initial);
+  // Erreurs globales : suppression + création (la sauvegarde par carte
+  // affiche son propre retour : chargement, confirmation, erreur).
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   function patch(id: string, data: Partial<SessionTypeRow>) {
-    setSaved(false);
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...data } : row)));
   }
 
-  async function save(row: SessionTypeRow) {
-    setError(null);
+  /** Sauvegarde une carte : rejette en cas d'échec (retour affiché par la carte). */
+  async function save(row: SessionTypeRow): Promise<void> {
     const url = `/api/session-types/${row.id}?practitionerId=${practitionerId}`;
-    const result = await sendJson(url, "PATCH", { practitionerId, ...row });
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    setSaved(true);
+    const result = await sendJson<{ variants: PublicVariant[] }>(url, "PATCH", { practitionerId, ...row });
+    if (!result.ok) throw new Error(result.error);
+    // La sauvegarde réconcilie les déclinaisons : on récupère les ids serveurs
+    // (sinon une 2e sauvegarde dupliquerait les variantes nouvellement créées).
+    patch(row.id, { variants: result.data.variants });
     router.refresh();
   }
 
@@ -73,7 +72,7 @@ export default function SessionTypesManager({
             rooms={rooms}
             paymentsReady={paymentsReady}
             onChange={(data) => patch(row.id, data)}
-            onSave={() => void save(row)}
+            onSave={() => save(row)}
             onDelete={() => void remove(row.id)}
           />
         ))}
@@ -81,7 +80,6 @@ export default function SessionTypesManager({
       <NewSessionTypeForm practitionerId={practitionerId} rooms={rooms} paymentsReady={paymentsReady} defaultRequiresValidation={defaultRequiresValidation} onCreated={onCreated} onError={setError} />
       <div className="mt-2 flex flex-col gap-1">
         <FormMessage tone="error">{error ?? ""}</FormMessage>
-        {saved ? <FormMessage tone="ok">{t("dashboard.saved")}</FormMessage> : null}
       </div>
     </div>
   );

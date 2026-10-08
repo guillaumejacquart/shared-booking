@@ -16,6 +16,7 @@ export type DbOrTx = Db | Tx;
 export type Office = typeof schema.office.$inferSelect;
 export type Practitioner = typeof schema.practitioner.$inferSelect;
 export type SessionType = typeof schema.sessionType.$inferSelect;
+export type SessionTypeVariant = typeof schema.sessionTypeVariant.$inferSelect;
 export type AvailabilityRule = typeof schema.availabilityRule.$inferSelect;
 export type DayException = typeof schema.exception.$inferSelect;
 export type Booking = typeof schema.booking.$inferSelect;
@@ -38,6 +39,7 @@ export interface NewBooking {
   practitionerId: string;
   roomId: string;
   sessionTypeId: string;
+  sessionVariantId?: string | null;
   sessionNameSnapshot: string;
   durationMinSnapshot: number;
   bufferAfterMinSnapshot: number;

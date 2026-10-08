@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
+import { seedSingleVariant } from "@/test/session-types";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { processReminders } from "@/services/reminders";
@@ -24,9 +25,7 @@ async function seed() {
   await db.insert(s.practitioner).values([
     { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice" },
   ]);
-  await db.insert(s.sessionType).values([
-    { id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0 },
-  ]);
+  await seedSingleVariant(db, { id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0 });
   const mk = (id: string, start: Date, status = "confirmed") =>
     db.insert(s.booking).values({
       id, officeId: "o1", practitionerId: "p1", roomId: "room-a", sessionTypeId: "st1",

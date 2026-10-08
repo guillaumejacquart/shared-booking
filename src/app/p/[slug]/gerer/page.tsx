@@ -50,6 +50,7 @@ export default async function ManagePage({
             startAt: booking.startAt.toISOString(),
             status: booking.status,
             sessionTypeId: booking.sessionTypeId,
+            sessionVariantId: booking.sessionVariantId,
             practitionerSlug: prac.slug,
             rescheduleToken: booking.rescheduleToken,
             cancelToken: booking.cancelToken,

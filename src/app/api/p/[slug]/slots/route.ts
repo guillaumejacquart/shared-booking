@@ -14,6 +14,7 @@ export const GET = route(async (
   const input = slotsQuerySchema.parse({
     practitionerSlug: slug,
     sessionTypeId: url.searchParams.get("sessionTypeId") ?? "",
+    sessionVariantId: url.searchParams.get("variantId") ?? undefined,
     fromDate: url.searchParams.get("from") ?? new Date().toISOString().slice(0, 10),
     days: url.searchParams.get("days") ?? undefined,
   });

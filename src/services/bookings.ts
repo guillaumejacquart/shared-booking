@@ -40,6 +40,7 @@ export {
   getAvailableSlots,
   getSlotsWithRoom,
   loadSlotContext,
+  resolveVariant,
   slotOnGrid,
   toExceptions,
   toOccupancy,

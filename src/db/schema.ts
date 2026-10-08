@@ -11,7 +11,8 @@ import {
  * Schéma SQLite.
  * Tables `user`/`session`/`account`/`verification` attendues par better-auth,
  * plus les tables métier (SPEC.md §6) : office, member, practitioner, room,
- * room_member, session_type, availability_rule, exception, booking.
+ * room_member, session_type (+ ses déclinaisons session_type_variant),
+ * availability_rule, exception, booking.
  *
  * Les heures murales sont stockées en texte ("HH:MM", "YYYY-MM-DD"), les
  * instants absolus en epoch (`mode: "timestamp"`, UTC). L'affichage se fait
@@ -233,14 +234,11 @@ export const sessionType = sqliteTable(
       .references(() => practitioner.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
-    durationMin: integer("duration_min").notNull(),
-    bufferAfterMin: integer("buffer_after_min").notNull().default(0),
-    priceDisplay: text("price_display"), // affichage seul, aucun paiement
-    // Paiement Stripe : si requiresPayment, priceCents (> 0) est débité.
+    // Paiement Stripe : si requiresPayment, chaque variante porte son
+    // priceCents (> 0) débité. Le montant dépend donc de la déclinaison.
     requiresPayment: integer("requires_payment", { mode: "boolean" })
       .notNull()
       .default(false),
-    priceCents: integer("price_cents"),
     currency: text("currency").notNull().default("eur"),
     // Validation praticien : si vrai, le RDV reste `pending` jusqu'à validation.
     requiresValidation: integer("requires_validation", { mode: "boolean" })
@@ -250,6 +248,32 @@ export const sessionType = sqliteTable(
     ...timestamps,
   },
   (t) => [index("session_type_practitioner_idx").on(t.practitionerId)],
+);
+
+/**
+ * Déclinaisons d'un type de séance : chaque variante porte sa durée, son
+ * battement et son prix. Une séance à variante unique se comporte comme
+ * avant (1 variante = ex-couple durée/prix). Durées distinctes par séance
+ * (index unique) : le patient distingue les déclinaisons par leur durée.
+ */
+export const sessionTypeVariant = sqliteTable(
+  "session_type_variant",
+  {
+    id: id(),
+    sessionTypeId: text("session_type_id")
+      .notNull()
+      .references(() => sessionType.id, { onDelete: "cascade" }),
+    durationMin: integer("duration_min").notNull(),
+    bufferAfterMin: integer("buffer_after_min").notNull().default(0),
+    priceDisplay: text("price_display"), // affichage seul, aucun paiement
+    priceCents: integer("price_cents"), // débité si la séance requiresPayment
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    index("session_type_variant_session_idx").on(t.sessionTypeId),
+    uniqueIndex("session_type_variant_duration_idx").on(t.sessionTypeId, t.durationMin),
+  ],
 );
 
 /**
@@ -343,6 +367,9 @@ export const booking = sqliteTable(
       // Traçabilité : la suppression d'un type met les références à NULL
       // (pas de cascade) ; l'affichage utilise les snapshots ci-dessous.
       .references(() => sessionType.id, { onDelete: "set null" }),
+    sessionVariantId: text("session_variant_id")
+      // Même traçabilité que le type : SET NULL, snapshots ci-dessous.
+      .references(() => sessionTypeVariant.id, { onDelete: "set null" }),
     // Snapshots au moment de la réservation (les types peuvent changer après).
     sessionNameSnapshot: text("session_name_snapshot").notNull(),
     durationMinSnapshot: integer("duration_min_snapshot").notNull(),

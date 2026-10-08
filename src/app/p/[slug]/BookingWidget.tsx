@@ -9,13 +9,20 @@ import { Button } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
 import BookingConfirmation from "@/components/booking/BookingConfirmation";
 import PatientForm from "@/components/booking/PatientForm";
-import SessionTypeList from "@/components/booking/SessionTypeList";
-import type { SessionTypeOpt } from "@/components/booking/format";
+import SessionTypeList, { type SessionSelection } from "@/components/booking/SessionTypeList";
+import { displayPrice, type SessionTypeOpt } from "@/components/booking/format";
 import { useAvailableSlots, type SlotDto } from "@/hooks/useAvailableSlots";
 
 function slotLabel(startAt: string): string {
   const start = new Date(startAt);
   return `${fullFmt.format(start)} à ${timeFmt.format(start)}`;
+}
+
+function defaultSelection(sessionTypes: SessionTypeOpt[]): SessionSelection | null {
+  const first = sessionTypes[0];
+  const variant = first?.variants[0];
+  if (!first || !variant) return null;
+  return { typeId: first.id, variantId: variant.id };
 }
 
 export default function BookingWidget({
@@ -25,18 +32,28 @@ export default function BookingWidget({
   slug: string;
   sessionTypes: SessionTypeOpt[];
 }) {
-  const [typeId, setTypeId] = useState(sessionTypes[0]?.id ?? "");
-  const { allSlots, byDay, availableDays, loading } = useAvailableSlots(slug, typeId, 56);
+  const [selection, setSelection] = useState<SessionSelection | null>(() =>
+    defaultSelection(sessionTypes),
+  );
+  const { allSlots, byDay, availableDays, loading } = useAvailableSlots(
+    slug,
+    selection?.typeId ?? "",
+    56,
+    selection?.variantId,
+  );
   const [day, setDay] = useState<string | null>(null);
   const [slot, setSlot] = useState<string>("");
   const [confirmed, setConfirmed] = useState<SlotDto | null>(null);
 
   const next = allSlots[0] ?? null;
   const daySlots = day ? (byDay.get(day) ?? []) : [];
-  const selectedType = sessionTypes.find((sessionType) => sessionType.id === typeId);
+  const selectedType = sessionTypes.find((sessionType) => sessionType.id === selection?.typeId);
+  const selectedVariant = selectedType?.variants.find(
+    (variant) => variant.id === selection?.variantId,
+  );
 
-  function pickType(id: string) {
-    setTypeId(id);
+  function pickSelection(nextSelection: SessionSelection) {
+    setSelection(nextSelection);
     setDay(null);
     setSlot("");
   }
@@ -60,11 +77,19 @@ export default function BookingWidget({
     return <BookingConfirmation sessionName={selectedType?.name} slot={confirmed} />;
   }
 
+  const variantPrice = selectedVariant
+    ? displayPrice(
+        selectedVariant,
+        selectedType?.currency ?? "eur",
+        selectedType?.requiresPayment ?? false,
+      )
+    : null;
+
   return (
     <div className="flex flex-col gap-8">
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("booking.chooseSession")}</h2>
-        <SessionTypeList sessionTypes={sessionTypes} selectedId={typeId} onSelect={pickType} />
+        <SessionTypeList sessionTypes={sessionTypes} selected={selection} onSelect={pickSelection} />
       </section>
 
       <section>
@@ -95,9 +120,19 @@ export default function BookingWidget({
         <section>
           <h2 className="mb-3 text-lg font-semibold">{t("booking.yourDetails")}</h2>
           <p className="mb-3 text-sm text-mist">
-            {selectedType?.name} — {slotLabel(slot)}
+            {selectedType?.name}
+            {selectedVariant
+              ? ` — ${t("booking.minutes", { min: selectedVariant.durationMin })}${variantPrice ? ` · ${variantPrice}` : ""}`
+              : null}{" "}
+            — {slotLabel(slot)}
           </p>
-          <PatientForm slug={slug} sessionTypeId={typeId} startAt={slot} onConfirmed={setConfirmed} />
+          <PatientForm
+            slug={slug}
+            sessionTypeId={selection?.typeId ?? ""}
+            sessionVariantId={selection?.variantId}
+            startAt={slot}
+            onConfirmed={setConfirmed}
+          />
         </section>
       ) : null}
     </div>

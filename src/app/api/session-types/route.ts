@@ -4,6 +4,7 @@ import { services } from "@/lib/container";
 import { saveSessionTypeSchema } from "@/lib/schemas/schedule";
 import { readJsonBody } from "@/app/api/errors";
 import { withAuth } from "@/app/api/_auth";
+import { publicVariants } from "./variants";
 
 /** Crée un type de séance. */
 export const POST = withAuth(async (user, req: NextRequest) => {
@@ -12,6 +13,6 @@ export const POST = withAuth(async (user, req: NextRequest) => {
     ...body,
     requesterUserId: user.id,
   });
-  const id = await services.schedule.saveSessionType(input);
-  return NextResponse.json({ id }, { status: 201 });
+  const { id, variants } = await services.schedule.saveSessionType(input);
+  return NextResponse.json({ id, variants: publicVariants(variants) }, { status: 201 });
 });

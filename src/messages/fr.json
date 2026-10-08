@@ -172,7 +172,7 @@
     "rescheduled": "Votre rendez-vous est reporté. Un email de confirmation vient de vous être envoyé.",
     "deadlinePassed": "L'annulation ou le report en ligne n'est plus possible pour ce rendez-vous. Merci de contacter directement le praticien.",
     "alreadyCancelled": "Ce rendez-vous est déjà annulé.",
-  "sessionTypeDeleted": "Ce type de séance n'existe plus : le report en ligne n'est pas possible, contactez directement le praticien.",
+    "sessionTypeDeleted": "Ce type de séance n'existe plus : le report en ligne n'est pas possible, contactez directement le praticien.",
     "completed": "Ce rendez-vous est passé. Merci de votre visite !"
   },
   "merci": {
@@ -343,7 +343,7 @@
     "title": "Mes types de séances",
     "name": "Nom",
     "description": "Description (optionnel)",
-    "duration": "Durée de la séance",
+    "duration": "Durée",
     "buffer": "Battement après la séance",
     "bufferHint": "Temps bloqué après chaque rendez-vous (aération, notes), non réservable.",
     "price": "Prix affiché (optionnel)",
@@ -357,7 +357,13 @@
     "active": "Actif",
     "save": "Enregistrer",
     "create": "Créer",
-    "delete": "Supprimer"
+    "delete": "Supprimer",
+    "variants": "Déclinaisons (durée / prix)",
+    "addVariant": "+ Ajouter une déclinaison",
+    "removeVariant": "Retirer cette déclinaison",
+    "saving": "Enregistrement…",
+    "saved": "Enregistré ✓",
+    "creating": "Création…"
   },
   "team": {
     "title": "Équipe et invitations",

@@ -19,6 +19,7 @@ import {
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
+import { seedSingleVariant } from "@/test/session-types";
 
 // Lundi 14 sept. 2026, 08:00 Paris = 06:00 UTC (heure d'été).
 // Fenêtre lun. 09:00–13:00, séances 60min + buffer 10, pas 15min → grille
@@ -67,14 +68,12 @@ async function seed() {
     { id: "rm3", roomId: "room-b", practitionerId: "p1" },
     { id: "rm4", roomId: "room-b", practitionerId: "p3" },
   ]);
-  await db.insert(s.sessionType).values([
-    { id: "st1", practitionerId: "p1", name: "Séance 60min", durationMin: 60, bufferAfterMin: 10 },
-    { id: "st2", practitionerId: "p2", name: "Suivi 60min", durationMin: 60, bufferAfterMin: 0 },
-    { id: "st3", practitionerId: "p1", name: "À valider", durationMin: 60, bufferAfterMin: 10, requiresValidation: true },
-    { id: "st4", practitionerId: "p2", name: "À valider", durationMin: 60, bufferAfterMin: 0, requiresValidation: true },
-    { id: "st5", practitionerId: "p3", name: "Soin 60min", durationMin: 60, bufferAfterMin: 0 },
-    { id: "st6", practitionerId: "p1", name: "Massage (salle B)", durationMin: 60, bufferAfterMin: 10 },
-  ]);
+  await seedSingleVariant(db, { id: "st1", practitionerId: "p1", name: "Séance 60min", durationMin: 60, bufferAfterMin: 10 });
+  await seedSingleVariant(db, { id: "st2", practitionerId: "p2", name: "Suivi 60min", durationMin: 60, bufferAfterMin: 0 });
+  await seedSingleVariant(db, { id: "st3", practitionerId: "p1", name: "À valider", durationMin: 60, bufferAfterMin: 10, requiresValidation: true });
+  await seedSingleVariant(db, { id: "st4", practitionerId: "p2", name: "À valider", durationMin: 60, bufferAfterMin: 0, requiresValidation: true });
+  await seedSingleVariant(db, { id: "st5", practitionerId: "p3", name: "Soin 60min", durationMin: 60, bufferAfterMin: 0 });
+  await seedSingleVariant(db, { id: "st6", practitionerId: "p1", name: "Massage (salle B)", durationMin: 60, bufferAfterMin: 10 });
   // st6 restreint à la salle B ; les autres types restent compatibles partout.
   await db.insert(s.sessionTypeRoom).values([{ id: "str1", sessionTypeId: "st6", roomId: "room-b" }]);
   await db.insert(s.member).values([
@@ -494,5 +493,63 @@ describe("validateBooking", () => {
       bookingId: res.id, requesterUserId: "u1", accept: true,
     });
     expect(out.status).toBe("confirmed");
+  });
+});
+
+describe("variantes (déclinaisons durée/prix)", () => {
+  async function addNinetyVariant() {
+    const { createVariant } = await import("@/dal/session-types");
+    await createVariant({
+      id: "st1-v90", sessionTypeId: "st1",
+      durationMin: 90, bufferAfterMin: 15, priceDisplay: "80 €", priceCents: null, sortOrder: 1,
+    });
+  }
+
+  it("la grille suit la durée de la déclinaison visée", async () => {
+    await addNinetyVariant();
+    const base = { practitionerSlug: "alice", sessionTypeId: "st1", fromDate: "2026-09-14", days: 1 };
+    const sixty = await getAvailableSlots(ports(), base);
+    const ninety = await getAvailableSlots(ports(), { ...base, sessionVariantId: "st1-v90" });
+    // 90 min tient dans moins de fenêtres que 60 min.
+    expect(ninety.length).toBeLessThan(sixty.length);
+    expect(ninety[0].endAt).toBe(
+      new Date(new Date(ninety[0].startAt).getTime() + 90 * 60_000).toISOString(),
+    );
+    // Déclinaison inconnue → 404.
+    await expect(
+      getAvailableSlots(ports(), { ...base, sessionVariantId: "nope" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("la réservation fige durée, battement et variante d'origine", async () => {
+    await addNinetyVariant();
+    const res = await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", sessionVariantId: "st1-v90",
+      startAt: "2026-09-14T08:00:00.000Z", ...patient,
+    });
+    expect(res.status).toBe("confirmed");
+    expect(res.endAt).toBe("2026-09-14T09:30:00.000Z");
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
+    expect(rows[0].sessionVariantId).toBe("st1-v90");
+    expect(rows[0].durationMinSnapshot).toBe(90);
+    expect(rows[0].bufferAfterMinSnapshot).toBe(15);
+    expect(rows[0].sessionNameSnapshot).toBe("Séance 60min (90 min)");
+    // Sans déclinaison explicite : la première variante (60 min, historique).
+    const fallback = await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "st1",
+      startAt: "2026-09-14T10:00:00.000Z", ...patient, patientEmail: "autre@example.com",
+    });
+    expect(fallback.endAt).toBe("2026-09-14T11:00:00.000Z");
+  });
+
+  it("déclinaison inconnue à la réservation → 404", async () => {
+    await expect(
+      createBooking(ports(), {
+        practitionerSlug: "alice", sessionTypeId: "st1", sessionVariantId: "nope",
+        startAt: SLOT_A, ...patient,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

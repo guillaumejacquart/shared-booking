@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
+import { seedSingleVariant } from "@/test/session-types";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { getAgendaEvents, getReservations, getSharedCalendar } from "@/services/calendar";
@@ -31,9 +32,7 @@ async function seed() {
   ]);
   // Salle A ouverte à tous ; Exclusive réservée à Alice.
   await db.insert(s.roomMember).values([{ id: "rm1", roomId: "room-x", practitionerId: "p1" }]);
-  await db.insert(s.sessionType).values([
-    { id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0 },
-  ]);
+  await seedSingleVariant(db, { id: "st1", practitionerId: "p1", name: "Séance", durationMin: 60, bufferAfterMin: 0 });
   await db.insert(s.booking).values([
     {
       id: "b1",
