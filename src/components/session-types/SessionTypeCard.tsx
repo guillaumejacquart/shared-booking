@@ -13,6 +13,7 @@ export default function SessionTypeCard({
   row,
   rooms,
   paymentsReady,
+  bare = false,
   onChange,
   onSave,
   onDelete,
@@ -21,6 +22,8 @@ export default function SessionTypeCard({
   rooms: Room[];
   /** Compte Stripe prêt à encaisser ; sinon on ne peut (ré)activer le paiement. */
   paymentsReady: boolean;
+  /** Rendu nu (sans carte externe) pour l'affichage en modale. */
+  bare?: boolean;
   onChange: (patch: Partial<SessionTypeRow>) => void;
   /** Rejette en cas d'échec (la carte affiche l'erreur sous ses boutons). */
   onSave: () => Promise<void>;
@@ -64,11 +67,11 @@ export default function SessionTypeCard({
   }
 
   return (
-    <div className="rounded-2xl border border-line bg-card p-3 shadow-soft">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Field label={t("sessionTypesAdmin.name")}>
-          <TextInput value={row.name} onChange={(event) => handleChange({ name: event.target.value })} maxLength={80} />
-        </Field>
+    <div className={bare ? "" : "rounded-2xl border border-line bg-card p-3 shadow-soft"}>
+      <Field label={t("sessionTypesAdmin.name")}>
+        <TextInput value={row.name} onChange={(event) => handleChange({ name: event.target.value })} maxLength={80} />
+      </Field>
+      <div className="mt-1.5">
         <Field label={t("sessionTypesAdmin.description")}>
           <TextInput
             value={row.description ?? ""}
@@ -82,7 +85,7 @@ export default function SessionTypeCard({
         showPriceCents={row.requiresPayment}
         onChange={(variants) => handleChange({ variants })}
       />
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="mt-2 flex flex-col gap-1.5">
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={row.active} onChange={(event) => handleChange({ active: event.target.checked })} />
           {t("sessionTypesAdmin.active")}

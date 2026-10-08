@@ -38,6 +38,7 @@ export default function NewSessionTypeForm({
   rooms,
   paymentsReady,
   defaultRequiresValidation = false,
+  bare = false,
   onCreated,
   onError,
 }: {
@@ -47,6 +48,8 @@ export default function NewSessionTypeForm({
   paymentsReady: boolean;
   /** Défaut praticien : pré-remplit la case validation (modifiable par séance). */
   defaultRequiresValidation?: boolean;
+  /** Rendu nu (sans carte externe) pour l'affichage en modale. */
+  bare?: boolean;
   onCreated: (row: SessionTypeRow) => void;
   onError: (message: string | null) => void;
 }) {
@@ -103,11 +106,11 @@ export default function NewSessionTypeForm({
   }
 
   return (
-    <form onSubmit={create} className="mt-2 rounded-2xl border border-dashed border-line bg-card p-3">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Field label={t("sessionTypesAdmin.name")}>
-          <TextInput value={draft.name} onChange={(event) => update({ name: event.target.value })} required maxLength={80} />
-        </Field>
+    <form onSubmit={create} className={bare ? "" : "rounded-2xl border border-dashed border-line bg-card p-3"}>
+      <Field label={t("sessionTypesAdmin.name")}>
+        <TextInput value={draft.name} onChange={(event) => update({ name: event.target.value })} required maxLength={80} />
+      </Field>
+      <div className="mt-1.5">
         <Field label={t("sessionTypesAdmin.description")}>
           <TextInput
             value={draft.description}
@@ -121,7 +124,7 @@ export default function NewSessionTypeForm({
         showPriceCents={draft.requiresPayment}
         onChange={(variants) => update({ variants })}
       />
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="mt-2 flex flex-col gap-1.5">
         <RequiresPaymentField
           checked={draft.requiresPayment}
           paymentsReady={paymentsReady}

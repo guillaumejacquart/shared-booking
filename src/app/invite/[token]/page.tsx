@@ -3,6 +3,7 @@ import Link from "next/link";
 import { services } from "@/lib/container";
 import { getSession } from "@/lib/session";
 import { t } from "@/lib/i18n";
+import AuthShell from "@/components/AuthShell";
 import AcceptInviteButton from "./AcceptInviteButton";
 
 export default async function InvitePage({
@@ -14,15 +15,15 @@ export default async function InvitePage({
   const invite = await services.team.getInvitePublicInfo(token);
   if (!invite) {
     return (
-      <main className="mx-auto w-full max-w-md px-4 py-16 text-center">
-        <p>{t("invite.invalid")}</p>
-      </main>
+      <AuthShell>
+        <p className="text-center">{t("invite.invalid")}</p>
+      </AuthShell>
     );
   }
   const session = await getSession();
 
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-16">
+    <AuthShell>
       <h1 className="text-2xl font-semibold tracking-tight">{invite.officeName}</h1>
       <p className="mt-2 text-sm text-mist">
         {t("invite.for", { email: invite.email })}
@@ -48,6 +49,6 @@ export default async function InvitePage({
           <AcceptInviteButton token={token} />
         )}
       </div>
-    </main>
+    </AuthShell>
   );
 }

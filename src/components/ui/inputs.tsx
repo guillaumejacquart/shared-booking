@@ -3,8 +3,18 @@ import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes 
 const BASE =
   "rounded-xl border border-line bg-card px-3 py-2 text-sm text-ink placeholder:text-faint transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50";
 
-export function TextInput({ className = "", type, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input type={type} className={`${BASE} w-full ${className}`} {...props} />;
+/** Variante dense (lignes de tableau…) : padding et rayon réduits. */
+const COMPACT =
+  "rounded-lg border border-line bg-card px-2 py-1 text-sm text-ink placeholder:text-faint transition-colors focus:border-brand disabled:cursor-not-allowed disabled:opacity-50";
+
+export function TextInput({
+  className = "",
+  compact = false,
+  widthClass = "w-full",
+  type,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { compact?: boolean; widthClass?: string }) {
+  return <input type={type} className={`${compact ? COMPACT : BASE} ${widthClass} ${className}`} {...props} />;
 }
 
 export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -19,15 +29,18 @@ export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSe
 export function NumberInput({
   unit,
   className = "",
+  compact = false,
+  wide = false,
   type: _type,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { unit?: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & { unit?: string; compact?: boolean; wide?: boolean }) {
   void _type;
-  if (!unit)
-    return <input type="number" className={`${BASE} ${className}`} {...props} />;
+  const base = compact ? COMPACT : BASE;
+  if (!unit) return <input type="number" className={`${base} ${className}`} {...props} />;
+  const width = wide ? "w-24" : compact ? "w-14" : "w-20";
   return (
     <span className="inline-flex items-center gap-1">
-      <input type="number" className={`${BASE} w-20 ${className}`} {...props} />
+      <input type="number" className={`${base} ${width} ${className}`} {...props} />
       <span className="text-sm text-mist">{unit}</span>
     </span>
   );

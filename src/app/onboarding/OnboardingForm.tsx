@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
 import { sendJson } from "@/lib/api-client";
+import AuthShell from "@/components/AuthShell";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
 
 export default function OnboardingForm({ userName }: { userName: string }) {
@@ -43,7 +44,7 @@ export default function OnboardingForm({ userName }: { userName: string }) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-md px-4 py-16">
+    <AuthShell>
       <h1 className="text-2xl font-semibold tracking-tight">
         {t("onboarding.title")}, {userName}
       </h1>
@@ -69,6 +70,6 @@ export default function OnboardingForm({ userName }: { userName: string }) {
           {t("onboarding.create")}
         </Button>
       </form>
-    </main>
+    </AuthShell>
   );
 }

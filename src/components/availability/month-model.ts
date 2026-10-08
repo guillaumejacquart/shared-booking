@@ -74,7 +74,7 @@ export type DayAction =
   | { kind: "blocked"; count: number }
   | { kind: "openExtra" }
   | { kind: "cancelPartial"; ranges: string }
-  | { kind: "cancelExtra" }
+  | { kind: "editExtra" }
   | { kind: "close" };
 
 export function dayAction(data: MonthData, key: string): DayAction {
@@ -89,8 +89,25 @@ export function dayAction(data: MonthData, key: string): DayAction {
       .join(", ");
     return { kind: "cancelPartial", ranges };
   }
-  if (!state.regularOpen) return { kind: "cancelExtra" };
+  if (!state.regularOpen) return { kind: "editExtra" };
   return { kind: "close" };
+}
+
+/** Créneaux affichés dans la case d'un jour : effectifs (règles − partielles) + ouvertures. */
+export function daySlots(data: MonthData, key: string): TimeSlot[] {
+  const state = dayState(data, key);
+  if (state.fullOff) return [];
+  const regular = state.regularOpen ? effectiveSlots(data, key) : [];
+  const extras = state.extras
+    .map((exception) => ({
+      startTime: exception.startTime ?? "",
+      endTime: exception.endTime ?? "",
+    }))
+    .filter((slot) => slot.startTime !== "" && slot.startTime < slot.endTime);
+  return [...regular, ...extras].sort(
+    (first, second) =>
+      first.startTime.localeCompare(second.startTime) || first.endTime.localeCompare(second.endTime),
+  );
 }
 
 /** Règles hebdo s'appliquant au jour (couverture habituelle). */
@@ -109,22 +126,79 @@ export function dayCoverage(data: MonthData, key: string): { startTime: string; 
   };
 }
 
+/** Plage horaire simple (lignes de la modale multi-créneaux). */
+export interface TimeSlot {
+  startTime: string;
+  endTime: string;
+}
+
 /**
- * Fermetures partielles à créer pour ramener la couverture à `[start, end]`
- * (changement d'horaires du jour : ne rogne que l'intérieur des plages
- * habituelles, les trous entre deux plages restent intacts). Heures "HH:MM".
+ * Différence ensembliste `base` moins `cuts` (heures "HH:MM" triées en sortie).
+ * Sert aux deux sens : créneaux effectifs (règles − partielles) et
+ * fermetures à créer (règles − créneaux voulus).
  */
-export function trimOffs(
-  rules: Rule[],
-  start: string,
-  end: string,
-): { startTime: string; endTime: string }[] {
-  const offs: { startTime: string; endTime: string }[] = [];
-  for (const rule of rules) {
-    if (start > rule.startTime) offs.push({ startTime: rule.startTime, endTime: start < rule.endTime ? start : rule.endTime });
-    if (end < rule.endTime) offs.push({ startTime: end > rule.startTime ? end : rule.startTime, endTime: rule.endTime });
+function subtract(base: TimeSlot[], cuts: TimeSlot[]): TimeSlot[] {
+  const ordered = [...cuts].sort(
+    (first, second) =>
+      first.startTime.localeCompare(second.startTime) || first.endTime.localeCompare(second.endTime),
+  );
+  const kept: TimeSlot[] = [];
+  for (const interval of base) {
+    let cursor = interval.startTime;
+    for (const cut of ordered) {
+      if (cut.endTime <= cursor) continue;
+      if (cut.startTime >= interval.endTime) break;
+      const cutStart = cut.startTime > cursor ? cut.startTime : cursor;
+      const cutEnd = cut.endTime < interval.endTime ? cut.endTime : interval.endTime;
+      if (cutStart > cursor) kept.push({ startTime: cursor, endTime: cutStart });
+      if (cutEnd > cursor) cursor = cutEnd;
+      if (cursor >= interval.endTime) break;
+    }
+    if (cursor < interval.endTime) kept.push({ startTime: cursor, endTime: interval.endTime });
   }
-  return offs.filter((off) => off.startTime < off.endTime);
+  return kept;
+}
+
+/**
+ * Fermetures partielles à créer pour ramener les règles aux créneaux voulus
+ * (changement d'horaires du jour : les trous entre deux plages restent intacts).
+ */
+export function diffOffs(rules: Rule[], slots: TimeSlot[]): TimeSlot[] {
+  return subtract(rules, slots);
+}
+
+/** Créneaux effectifs d'un jour régulier : règles moins fermetures partielles. */
+export function effectiveSlots(data: MonthData, key: string): TimeSlot[] {
+  const partials = data.exceptions
+    .filter((exception) => exception.date === key && exception.kind === "off" && !exception.fullDay)
+    .map((exception) => ({
+      startTime: exception.startTime ?? "00:00",
+      endTime: exception.endTime ?? "00:00",
+    }))
+    .filter((slot) => slot.startTime < slot.endTime);
+  return subtract(dayRules(data, key), partials);
+}
+
+/** Chaque créneau est-il couvert par les règles (un créneau à cheval sur un trou = non) ? */
+export function slotsWithinRules(rules: Rule[], slots: TimeSlot[]): boolean {
+  const ordered = [...rules].sort((first, second) => first.startTime.localeCompare(second.startTime));
+  return slots.every((slot) => {
+    let need = slot.startTime;
+    for (const rule of ordered) {
+      if (rule.endTime <= need) continue;
+      if (rule.startTime > need) return false;
+      if (rule.endTime > need) need = rule.endTime;
+      if (need >= slot.endTime) return true;
+    }
+    return need >= slot.endTime;
+  });
+}
+
+/** "09:00→12:00, 14:00→18:00" : plages habituelles d'un jour pour les messages. */
+export function habitualRanges(data: MonthData, key: string): string {
+  return dayRules(data, key)
+    .map((rule) => `${rule.startTime}→${rule.endTime}`)
+    .join(", ");
 }
 
 /** Clés calendaires d'une sélection FullCalendar (`end` exclusif). */

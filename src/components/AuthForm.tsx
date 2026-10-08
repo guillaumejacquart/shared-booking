@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/i18n";
+import AuthShell from "@/components/AuthShell";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
@@ -42,7 +43,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-sm px-4 py-16">
+    <AuthShell>
       <h1 className="text-2xl font-semibold tracking-tight">
         {mode === "signup" ? t("auth.signupTitle") : t("auth.loginTitle")}
       </h1>
@@ -80,14 +81,14 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <p className="mt-4 text-center text-sm text-mist">
         {mode === "signup" ? (
           <>
-            {t("auth.haveAccount")} <Link className="underline" href="/login">{t("auth.loginButton")}</Link>
+            {t("auth.haveAccount")}{" "}<Link className="underline" href="/login">{t("auth.loginButton")}</Link>
           </>
         ) : (
           <>
-            {t("auth.noAccount")} <Link className="underline" href="/signup">{t("auth.signupButton")}</Link>
+            {t("auth.noAccount")}{" "}<Link className="underline" href="/signup">{t("auth.signupButton")}</Link>
           </>
         )}
       </p>
-    </main>
+    </AuthShell>
   );
 }

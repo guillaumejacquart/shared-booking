@@ -83,6 +83,17 @@
 .avail-day-top .fc-daygrid-day-number {
   align-self: flex-end;
 }
+/* Créneaux d'ouverture affichés dans la case (lisibles sans code couleur). */
+.avail-day-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--mist);
+  text-align: center;
+}
 .avail-day-action,
 .avail-day-hours {
   pointer-events: none;
@@ -130,4 +141,24 @@
 }
 .avail-day-action[data-kind="blocked"] {
   color: var(--mist);
+}
+
+/* Vue disponibilités : le jour courant est signalé par une pastille sur le
+   numéro plutôt qu'un fond teinté (confusion avec le vert d'ouverture,
+   voire foncé par superposition quand aujourd'hui est ouvert). */
+.avail-month .fc {
+  --fc-today-bg-color: transparent;
+}
+.avail-month .fc .fc-bg-event {
+  border-radius: 12px;
+}
+.avail-month .fc .fc-day-today .avail-day-top > .fc-daygrid-day-number {
+  align-self: flex-end;
+  background: var(--brand);
+  border-radius: 9999px;
+  color: var(--brand-ink);
+  font-weight: 700;
+  min-width: 1.6em;
+  padding: 0 0.3em;
+  text-align: center;
 }

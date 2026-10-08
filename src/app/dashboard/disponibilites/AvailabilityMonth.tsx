@@ -15,17 +15,19 @@ import { TIMEZONE, fromKey, toKey } from "@/lib/calendar";
 import { AVAILABILITIES_CHANGED } from "@/lib/availabilities-events";
 import { Button, FormMessage, Modal } from "@/components/ui";
 import OpeningForm from "@/components/availability/OpeningForm";
-import DayHoursForm, { type DayHours } from "@/components/availability/DayHoursForm";
 import { closeDay, createPartialOff, deleteException, openDay, type Opening } from "@/components/availability/exceptions-api";
 import {
   buildMonthEvents,
   dayAction,
-  dayCoverage,
   dayRules,
+  daySlots,
   dayState,
+  diffOffs,
+  effectiveSlots,
+  habitualRanges,
   openableOnly,
   selectionKeys,
-  trimOffs,
+  slotsWithinRules,
   type DayAction,
   type MonthData,
   type MonthRange,
@@ -57,8 +59,8 @@ function actionLabel(action: DayAction): string {
       return t("availability.reopenDay");
     case "openExtra":
       return t("availability.openExtra");
-    case "cancelExtra":
-      return t("availability.cancelExtra");
+    case "editExtra":
+      return t("availability.editExtra");
     case "cancelPartial":
       return t("availability.cancelPartial", { ranges: action.ranges });
     case "blocked":
@@ -79,8 +81,13 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
   // Erreur affichée dans la modale (validation du formulaire ouvert).
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Sélection fermée en attente d'ouverture exceptionnelle (horaires + salle).
-  const [pendingOpen, setPendingOpen] = useState<string[] | null>(null);
+  // Ouverture en cours de saisie : création (un ou plusieurs jours) ou
+  // édition (un seul jour, `editIds` = ouvertures existantes à recréer).
+  const [pendingOpen, setPendingOpen] = useState<{
+    keys: string[];
+    initial: Opening[];
+    editIds: string[];
+  } | null>(null);
   // Jour ouvert en attente de changement d'horaires (fermetures partielles).
   const [pendingHours, setPendingHours] = useState<string | null>(null);
 
@@ -119,7 +126,6 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
   }, [fetchRange]);
 
   const events = useMemo(() => (data && range ? buildMonthEvents(data, range) : []), [data, range]);
-  const hoursCoverage = pendingHours && data ? dayCoverage(data, pendingHours) : null;
 
   // Pastille d'action explicite révélée au survol + bouton Horaires
   // (cliquable : `stopEvent` en capture bloque la sélection FullCalendar).
@@ -137,11 +143,21 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
       const key = toKey(arg.date);
       const action = dayAction(data, key);
       const state = dayState(data, key);
+      const slots = daySlots(data, key);
       const editableHours =
         state.regularOpen && state.extras.length === 0 && state.bookings.length === 0 && !state.fullOff;
       return (
         <div className="avail-day-top">
           <span className="fc-daygrid-day-number">{arg.dayNumberText}</span>
+          {slots.length > 0 ? (
+            <span className="avail-day-slots" aria-hidden="true">
+              {slots.map((slot) => (
+                <span key={`${slot.startTime}-${slot.endTime}`} className="avail-day-slot">
+                  {slot.startTime}→{slot.endTime}
+                </span>
+              ))}
+            </span>
+          ) : null}
           <span className="avail-day-action" data-kind={action.kind} aria-hidden="true">
             {actionLabel(action)}
           </span>
@@ -191,8 +207,36 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     }
   }
 
-  function startOpening(keys: string[]) {
-    setPendingOpen(keys);
+  /** Créneau par défaut d'une ouverture : reprend les horaires hebdo si présents. */
+  function defaultOpening(monthData: MonthData): Opening {
+    return {
+      startTime: monthData.rules[0]?.startTime ?? "09:00",
+      endTime: monthData.rules[0]?.endTime ?? "18:00",
+      roomId: monthData.rooms[0]?.id ?? "",
+    };
+  }
+
+  function startOpening(monthData: MonthData, keys: string[]) {
+    setPendingOpen({ keys, initial: [defaultOpening(monthData)], editIds: [] });
+    setPendingHours(null);
+    setFormError(null);
+    setHint(null);
+  }
+
+  /** Édition des ouvertures existantes d'un jour (recréées à l'enregistrement). */
+  function startEdit(monthData: MonthData, key: string) {
+    const extras = monthData.exceptions.filter(
+      (exception) => exception.date === key && exception.kind === "extra",
+    );
+    setPendingOpen({
+      keys: [key],
+      initial: extras.map((exception) => ({
+        startTime: exception.startTime ?? "09:00",
+        endTime: exception.endTime ?? "12:00",
+        roomId: exception.roomId ?? monthData.rooms[0]?.id ?? "",
+      })),
+      editIds: extras.map((exception) => exception.id),
+    });
     setPendingHours(null);
     setFormError(null);
     setHint(null);
@@ -219,7 +263,12 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     }
     // Jour hors horaires habituels : propose une ouverture exceptionnelle.
     if (!fullOff && !regularOpen && extras.length === 0) {
-      startOpening([key]);
+      startOpening(monthData, [key]);
+      return;
+    }
+    // Jour déjà ouvert exceptionnellement : édite ses créneaux.
+    if (!fullOff && !regularOpen && extras.length > 0) {
+      startEdit(monthData, key);
       return;
     }
     await withBusy(async () => {
@@ -265,28 +314,59 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     });
   }
 
-  async function createOpenings(monthData: MonthData, keys: string[], opening: Opening) {
+  /** Créneaux saisis valides : heures cohérentes, sans chevauchement (salle si ouverture). */
+  function validateSlots(openings: Opening[], withRoom: boolean): string | null {
+    if (openings.length === 0) return t("availability.invalidHours");
+    for (const opening of openings) {
+      if (!opening.startTime || !opening.endTime || opening.startTime >= opening.endTime) {
+        return t("availability.invalidHours");
+      }
+      if (withRoom && !opening.roomId) return t("availability.needRoom");
+    }
+    const sorted = [...openings].sort((first, second) => first.startTime.localeCompare(second.startTime));
+    for (let index = 1; index < sorted.length; index++) {
+      if ((sorted[index]?.startTime ?? "") < (sorted[index - 1]?.endTime ?? "")) {
+        return t("availability.overlappingSlots");
+      }
+    }
+    return null;
+  }
+
+  async function createOpenings(monthData: MonthData, keys: string[], openings: Opening[], editIds: string[]) {
     setFormError(null);
-    if (opening.startTime >= opening.endTime) {
-      setFormError(t("availability.invalidHours"));
+    const invalid = validateSlots(openings, true);
+    if (invalid) {
+      setFormError(invalid);
       return;
     }
-    if (!opening.roomId) {
-      setFormError(t("availability.needRoom"));
-      return;
+    const sorted = [...openings].sort((first, second) => first.startTime.localeCompare(second.startTime));
+    // Édition : un seul jour dont les ouvertures sont remplacées.
+    const editing = editIds.length > 0 && keys.length === 1;
+    if (editing) {
+      const state = dayState(monthData, keys[0] ?? "");
+      if (state.bookings.length > 0) {
+        setFormError(t("availability.blockedHint", { n: state.bookings.length }));
+        return;
+      }
     }
     await withBusy(async () => {
       let skipped = 0;
       let created = 0;
       for (const key of keys) {
         const { fullOff, bookings, extras } = dayState(monthData, key);
-        if (bookings.length > 0 || extras.length > 0) {
+        if (!editing && (bookings.length > 0 || extras.length > 0)) {
           skipped++;
           continue;
         }
-        // Une fermeture restante continuerait de bloquer les créneaux.
-        if (fullOff) await deleteException(practitionerId, fullOff.id);
-        if (!(await openDay(practitionerId, key, opening))) throw new Error("open failed");
+        if (editing) {
+          for (const id of editIds) await deleteException(practitionerId, id);
+        } else {
+          // Une fermeture restante continuerait de bloquer les créneaux.
+          if (fullOff) await deleteException(practitionerId, fullOff.id);
+        }
+        for (const opening of sorted) {
+          if (!(await openDay(practitionerId, key, opening))) throw new Error("open failed");
+        }
         created++;
       }
       if (skipped > 0 && created === 0) setHint(t("availability.alreadyOpen"));
@@ -296,36 +376,45 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     }, setFormError);
   }
 
+  /** Supprime les ouvertures d'un jour depuis la modale d'édition. */
+  async function deleteOpenings(editIds: string[]) {
+    await withBusy(async () => {
+      for (const id of editIds) await deleteException(practitionerId, id);
+      await refresh();
+      closeOpening();
+    }, setFormError);
+  }
+
+  /** Lignes initiales de la modale horaires : créneaux effectifs, sinon la 1re plage habituelle. */
+  function regularInitial(monthData: MonthData, key: string): Opening[] {
+    const slots = effectiveSlots(monthData, key);
+    const rows = slots.length > 0 ? slots : dayRules(monthData, key).slice(0, 1);
+    return rows.map((slot) => ({ startTime: slot.startTime, endTime: slot.endTime, roomId: "" }));
+  }
+
   /** Change les horaires d'un jour ouvert via des fermetures partielles. */
-  async function applyHours(monthData: MonthData, key: string, hours: DayHours) {
+  async function applyDaySlots(monthData: MonthData, key: string, slots: Opening[]) {
     setFormError(null);
-    if (hours.startTime >= hours.endTime) {
-      setFormError(t("availability.invalidHours"));
+    const invalid = validateSlots(slots, false);
+    if (invalid) {
+      setFormError(invalid);
       return;
     }
-    const coverage = dayCoverage(monthData, key);
-    if (!coverage) {
+    const rules = dayRules(monthData, key);
+    if (rules.length === 0) {
       closeHours();
       return;
     }
     // On ne peut que rogner : élargir passe par les horaires hebdo ci-dessus.
-    if (hours.startTime < coverage.startTime || hours.endTime > coverage.endTime) {
-      setFormError(
-        t("availability.hoursBeyondHabitual", {
-          ranges: `${coverage.startTime}→${coverage.endTime}`,
-        }),
-      );
+    if (!slotsWithinRules(rules, slots)) {
+      setFormError(t("availability.hoursBeyondHabitual", { ranges: habitualRanges(monthData, key) }));
       return;
     }
     await withBusy(async () => {
       // Repart des horaires habituels : remplace les partielles existantes.
       const { partialOffs } = dayState(monthData, key);
       for (const partial of partialOffs) await deleteException(practitionerId, partial.id);
-      const offs = trimOffs(dayRules(monthData, key), hours.startTime, hours.endTime);
-      if (offs.length === 0 && partialOffs.length === 0) {
-        closeHours();
-        return;
-      }
+      const offs = diffOffs(rules, slots);
       for (const off of offs) {
         if (!(await createPartialOff(practitionerId, key, off.startTime, off.endTime))) {
           throw new Error("partial off failed");
@@ -347,7 +436,7 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
     // Plage entièrement hors horaires → ouverture plutôt que fermetures sans effet.
     const toOpen = openableOnly(data, keys);
     if (toOpen) {
-      startOpening(toOpen);
+      startOpening(data, toOpen);
       return;
     }
     setPendingOpen(null);
@@ -386,24 +475,34 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
           <span className="h-2.5 w-6 rounded-full" style={{ backgroundColor: "var(--brand)" }} aria-hidden="true" />
           {t("availability.legendBooking")}
         </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold"
+            style={{ backgroundColor: "var(--brand)", color: "var(--brand-ink)" }}
+            aria-hidden="true"
+          />
+          {t("availability.legendToday")}
+        </span>
       </div>
-      <FullCalendar
-        plugins={[dayGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
-        headerToolbar={{ left: "prev,today,next", center: "title", right: "" }}
-        locales={[frLocale]}
-        locale="fr"
-        timeZone={TIMEZONE}
-        firstDay={1}
-        height="auto"
-        selectable
-        selectMirror
-        unselectAuto
-        select={onSelect}
-        dayCellContent={renderDayContent}
-        datesSet={onDatesSet}
-        events={events}
-      />
+      <div className="avail-month rounded-3xl border border-line bg-card p-2 shadow-soft sm:p-4">
+        <FullCalendar
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={{ left: "prev,today,next", center: "title", right: "" }}
+          locales={[frLocale]}
+          locale="fr"
+          timeZone={TIMEZONE}
+          firstDay={1}
+          height="auto"
+          selectable
+          selectMirror
+          unselectAuto
+          select={onSelect}
+          dayCellContent={renderDayContent}
+          datesSet={onDatesSet}
+          events={events}
+        />
+      </div>
       {busy ? (
         <div className="mt-3">
           <Button size="sm" disabled>
@@ -415,44 +514,56 @@ export default function AvailabilityMonth({ practitionerId }: { practitionerId: 
         <Modal
           open
           onClose={closeOpening}
-          title={`${t("availability.openTitle")} · ${
-            pendingOpen.length === 1
-              ? dayLabel(pendingOpen[0] ?? "")
+          title={`${pendingOpen.editIds.length > 0 ? t("availability.editOpeningTitle") : t("availability.openTitle")} · ${
+            pendingOpen.keys.length === 1
+              ? dayLabel(pendingOpen.keys[0] ?? "")
               : t("availability.openDays", {
-                  first: dayLabel(pendingOpen[0] ?? ""),
-                  last: dayLabel(pendingOpen[pendingOpen.length - 1] ?? ""),
-                  n: pendingOpen.length,
+                  first: dayLabel(pendingOpen.keys[0] ?? ""),
+                  last: dayLabel(pendingOpen.keys[pendingOpen.keys.length - 1] ?? ""),
+                  n: pendingOpen.keys.length,
                 })
           }`}
         >
           <OpeningForm
-            key={pendingOpen.join()}
+            key={`${pendingOpen.keys.join()}+${pendingOpen.editIds.join()}`}
             rooms={data.rooms}
-            initial={{
-              startTime: data.rules[0]?.startTime ?? "09:00",
-              endTime: data.rules[0]?.endTime ?? "18:00",
-              roomId: data.rooms[0]?.id ?? "",
-            }}
+            initial={pendingOpen.initial}
             busy={busy}
             error={formError}
-            onSubmit={(opening) => void createOpenings(data, pendingOpen, opening)}
+            submitLabel={pendingOpen.editIds.length > 0 ? t("availability.hoursApply") : undefined}
+            onSubmit={(openings) => void createOpenings(data, pendingOpen.keys, openings, pendingOpen.editIds)}
             onCancel={closeOpening}
           />
+          {pendingOpen.editIds.length > 0 ? (
+            <div className="mt-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => void deleteOpenings(pendingOpen.editIds)}
+              >
+                {t("availability.cancelExtra")}
+              </Button>
+            </div>
+          ) : null}
         </Modal>
       ) : null}
-      {pendingHours && data && hoursCoverage ? (
+      {pendingHours && data ? (
         <Modal
           open
           onClose={closeHours}
           title={t("availability.hoursTitle", { date: dayLabel(pendingHours) })}
         >
-          <DayHoursForm
+          <OpeningForm
             key={pendingHours}
-            habitual={`${hoursCoverage.startTime} → ${hoursCoverage.endTime}`}
-            initial={{ startTime: hoursCoverage.startTime, endTime: hoursCoverage.endTime }}
+            rooms={[]}
+            initial={regularInitial(data, pendingHours)}
             busy={busy}
             error={formError}
-            onSubmit={(hours) => void applyHours(data, pendingHours, hours)}
+            submitLabel={t("availability.hoursApply")}
+            showRooms={false}
+            note={t("availability.hoursHabitual", { ranges: habitualRanges(data, pendingHours) })}
+            onSubmit={(slots) => void applyDaySlots(data, pendingHours, slots)}
             onCancel={closeHours}
           />
         </Modal>

@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/i18n";
+import AuthShell from "@/components/AuthShell";
 import { Button, Field, TextInput } from "@/components/ui";
 
 export default function ForgotPasswordPage() {
@@ -25,7 +26,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-sm px-4 py-16">
+    <AuthShell>
       <h1 className="text-2xl font-semibold tracking-tight">{t("auth.forgotTitle")}</h1>
       {sent ? (
         <p className="mt-6 text-sm">{t("auth.forgotSent")}</p>
@@ -50,6 +51,6 @@ export default function ForgotPasswordPage() {
           {t("auth.loginButton")}
         </Link>
       </p>
-    </main>
+    </AuthShell>
   );
 }

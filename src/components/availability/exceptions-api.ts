@@ -19,6 +19,31 @@ export interface Opening {
   roomId: string;
 }
 
+function toMinutesOrNull(hhmm: string): number | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function toTime(minutes: number): string {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, minutes));
+  return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
+}
+
+/** Nouveau créneau qui enchaîne `last` : début = fin précédente, même durée et même salle. */
+export function slotAfter(last: Opening): Opening {
+  const startMin = toMinutesOrNull(last.endTime);
+  const prevStartMin = toMinutesOrNull(last.startTime);
+  if (startMin === null || prevStartMin === null || startMin <= prevStartMin) {
+    return { startTime: "09:00", endTime: "12:00", roomId: last.roomId };
+  }
+  const nextEnd = startMin + (startMin - prevStartMin);
+  if (nextEnd > 23 * 60 + 59) {
+    return { startTime: "09:00", endTime: "12:00", roomId: last.roomId };
+  }
+  return { startTime: last.endTime, endTime: toTime(nextEnd), roomId: last.roomId };
+}
+
 export async function openDay(practitionerId: string, date: string, opening: Opening): Promise<boolean> {
   const res = await fetch("/api/exceptions", {
     method: "POST",

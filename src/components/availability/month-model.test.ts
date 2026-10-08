@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dayAction, dayCoverage, dayRules, dayState, openableOnly, selectionKeys, trimOffs, type MonthData } from "./month-model";
+import { dayAction, dayCoverage, dayRules, daySlots, dayState, diffOffs, effectiveSlots, openableOnly, selectionKeys, slotsWithinRules, type MonthData } from "./month-model";
 
 // 2026-09-14 = lundi, 2026-09-19 = samedi.
 const data: MonthData = {
@@ -41,38 +41,95 @@ describe("month-model", () => {
       ],
     };
     expect(dayState(extended, "2026-09-14").partialOffs.map((exception) => exception.id)).toEqual(["part1"]);
-    expect(dayAction(extended, "2026-09-19")).toEqual({ kind: "cancelExtra" });
+    expect(dayAction(extended, "2026-09-19")).toEqual({ kind: "editExtra" });
     expect(dayAction(extended, "2026-09-14")).toEqual({ kind: "cancelPartial", ranges: "09:00→12:00" });
     // La fermeture totale reste rouvrable même avec des RDV.
     expect(dayAction(extended, "2026-09-21")).toEqual({ kind: "reopen" });
   });
 
-  it("dayCoverage + trimOffs : changement d'horaires du jour", () => {
+  it("dayCoverage : couverture habituelle", () => {
     const rules = dayRules(data, "2026-09-14");
     expect(rules).toHaveLength(1);
     expect(dayCoverage(data, "2026-09-14")).toEqual({ startTime: "09:00", endTime: "18:00" });
     expect(dayCoverage(data, "2026-09-19")).toBeNull();
     // Rognage des deux côtés.
-    expect(trimOffs(rules, "10:00", "16:00")).toEqual([
+    expect(diffOffs(rules, [{ startTime: "10:00", endTime: "16:00" }])).toEqual([
       { startTime: "09:00", endTime: "10:00" },
       { startTime: "16:00", endTime: "18:00" },
     ]);
     // Un seul côté + horaires identiques (aucune découpe).
-    expect(trimOffs(rules, "09:00", "12:00")).toEqual([{ startTime: "12:00", endTime: "18:00" }]);
-    expect(trimOffs(rules, "09:00", "18:00")).toEqual([]);
-    // Hors couverture : rien à rogner (l'appelant rejette avant).
-    expect(trimOffs(rules, "08:00", "19:00")).toEqual([]);
+    expect(diffOffs(rules, [{ startTime: "09:00", endTime: "12:00" }])).toEqual([
+      { startTime: "12:00", endTime: "18:00" },
+    ]);
+    expect(diffOffs(rules, [{ startTime: "09:00", endTime: "18:00" }])).toEqual([]);
+    // Hors couverture : la journée entière devient une fermeture (l'appelant rejette avant).
+    expect(diffOffs(rules, [{ startTime: "08:00", endTime: "19:00" }])).toEqual([]);
+    // Plusieurs créneaux : ne reste que le trou entre les deux.
+    expect(
+      diffOffs(rules, [
+        { startTime: "09:00", endTime: "12:00" },
+        { startTime: "14:00", endTime: "18:00" },
+      ]),
+    ).toEqual([{ startTime: "12:00", endTime: "14:00" }]);
   });
 
-  it("trimOffs : respecte les trous entre deux plages", () => {
+  it("diffOffs : respecte les trous entre deux plages", () => {
     const split = [
       { weekday: 1, startTime: "09:00", endTime: "12:00" },
       { weekday: 1, startTime: "14:00", endTime: "18:00" },
     ];
-    expect(trimOffs(split, "10:00", "17:00")).toEqual([
+    expect(diffOffs(split, [{ startTime: "10:00", endTime: "17:00" }])).toEqual([
       { startTime: "09:00", endTime: "10:00" },
       { startTime: "17:00", endTime: "18:00" },
     ]);
+  });
+
+  it("effectiveSlots : règles moins fermetures partielles", () => {
+    const withPartial: MonthData = {
+      ...data,
+      exceptions: [
+        ...data.exceptions,
+        { id: "part1", date: "2026-09-14", kind: "off", startTime: "12:00", endTime: "14:00", fullDay: false, roomId: null },
+      ],
+    };
+    expect(effectiveSlots(withPartial, "2026-09-14")).toEqual([
+      { startTime: "09:00", endTime: "12:00" },
+      { startTime: "14:00", endTime: "18:00" },
+    ]);
+    expect(effectiveSlots(data, "2026-09-14")).toEqual([{ startTime: "09:00", endTime: "18:00" }]);
+  });
+
+  it("slotsWithinRules : un créneau à cheval sur un trou est refusé", () => {
+    const split = [
+      { weekday: 1, startTime: "09:00", endTime: "12:00" },
+      { weekday: 1, startTime: "14:00", endTime: "18:00" },
+    ];
+    expect(slotsWithinRules(split, [{ startTime: "10:00", endTime: "11:00" }])).toBe(true);
+    expect(slotsWithinRules(split, [{ startTime: "09:00", endTime: "18:00" }])).toBe(false);
+    expect(slotsWithinRules(split, [{ startTime: "12:30", endTime: "13:30" }])).toBe(false);
+    expect(slotsWithinRules(split, [{ startTime: "08:00", endTime: "10:00" }])).toBe(false);
+  });
+
+  it("daySlots : créneaux affichés dans la case", () => {
+    const withBoth: MonthData = {
+      ...data,
+      exceptions: [
+        ...data.exceptions,
+        { id: "part1", date: "2026-09-14", kind: "off", startTime: "12:00", endTime: "14:00", fullDay: false, roomId: null },
+        { id: "extra1", date: "2026-09-19", kind: "extra", startTime: "09:00", endTime: "12:00", fullDay: false, roomId: "room-a" },
+      ],
+    };
+    // Jour régulier rogné : créneaux effectifs.
+    expect(daySlots(withBoth, "2026-09-14")).toEqual([
+      { startTime: "09:00", endTime: "12:00" },
+      { startTime: "14:00", endTime: "18:00" },
+    ]);
+    // Jour fermé habituellement : ouvertures exceptionnelles.
+    expect(daySlots(withBoth, "2026-09-19")).toEqual([{ startTime: "09:00", endTime: "12:00" }]);
+    // Fermeture totale : rien, même avec des ouvertures.
+    expect(daySlots(withBoth, "2026-09-21")).toEqual([]);
+    // Jour fermé sans ouverture : rien.
+    expect(daySlots(withBoth, "2026-09-20")).toEqual([]);
   });
 
   it("selectionKeys : fin exclusive", () => {

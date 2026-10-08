@@ -12,7 +12,8 @@ const FOCUSABLE =
 /**
  * Modale du design system : fond assombri, fermeture au clic extérieur,
  * à Échap et au bouton ✕, défilement de la page verrouillé.
- * Rendue en portail sur document.body, avec piège de focus.
+ * Rendue en portail (wrapper thématisé du dashboard si présent, sinon
+ * document.body), avec piège de focus.
  */
 export default function Modal({
   open,
@@ -79,6 +80,10 @@ export default function Modal({
 
   if (!open) return null;
   if (typeof document === "undefined") return null;
+  // Portail dans le wrapper thématisé du dashboard quand il existe : sinon
+  // la modale hérite du `data-mode` de <html> (`system`) et bascule en
+  // vert très sombre sur les appareils en dark mode.
+  const mount = document.getElementById("dashboard-theme") ?? document.body;
 
   return createPortal(
     <div
@@ -108,6 +113,6 @@ export default function Modal({
         {children}
       </div>
     </div>,
-    document.body,
+    mount
   );
 }

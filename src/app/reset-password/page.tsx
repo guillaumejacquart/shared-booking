@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
 import { t } from "@/lib/i18n";
+import AuthShell from "@/components/AuthShell";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
 
 function ResetForm() {
@@ -82,11 +83,11 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="mx-auto w-full max-w-sm px-4 py-16">
+    <AuthShell>
       <h1 className="text-2xl font-semibold tracking-tight">{t("auth.resetTitle")}</h1>
       <Suspense>
         <ResetForm />
       </Suspense>
-    </main>
+    </AuthShell>
   );
 }

@@ -19,9 +19,9 @@ export default function RoomCheckboxes({
     <div className="mt-2">
       <Field
         label={t("sessionTypesAdmin.compatibleRooms")}
-        hintAside={t("sessionTypesAdmin.compatibleRoomsHint")}
+        hint={t("sessionTypesAdmin.compatibleRoomsHint")}
       >
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-1.5">
           {rooms.map((room) => (
             <label key={room.id} className="flex items-center gap-2 text-sm">
               <Checkbox
