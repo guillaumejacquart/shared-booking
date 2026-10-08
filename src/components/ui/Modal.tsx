@@ -28,13 +28,21 @@ export default function Modal({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<Element | null>(null);
+  // `onClose` est souvent une closure inline recréée à chaque rendu du
+  // parent (ex. à chaque frappe dans la modale) : la garder en ref pour que
+  // l'effet ci-dessous (focus initial, piège Tab) ne rejoue qu'à
+  // l'ouverture/fermeture, sinon chaque frappe revolerait le focus sur la ✕.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     previousFocus.current = document.activeElement;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       // Piège Tab : boucle à l'intérieur du dialogue.
@@ -76,7 +84,7 @@ export default function Modal({
       // Restaure le focus précédent à la fermeture.
       if (previousFocus.current instanceof HTMLElement) previousFocus.current.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   if (typeof document === "undefined") return null;

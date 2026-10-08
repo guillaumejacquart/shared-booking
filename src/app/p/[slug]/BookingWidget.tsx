@@ -149,7 +149,7 @@ export default function BookingWidget({
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("booking.chooseSlot")}</h2>
         {!loading && next && !slot ? (
-          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border bg-ok-bg p-4 text-ok">
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-brand-soft p-4 text-ink">
             <p className="text-sm">
               <span className="font-semibold">{t("booking.nextSlot")} : </span>
               {slotLabel(next.startAt)}

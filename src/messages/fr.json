@@ -429,7 +429,10 @@
     "allowed": "Praticiens autorisés (vide = tous)",
     "create": "Créer",
     "delete": "Supprimer",
-    "inUse": "Salle utilisée par des réservations à venir : impossible de la supprimer."
+    "inUse": "Salle utilisée par des réservations à venir : impossible de la supprimer.",
+    "missingAlert": "Aucune salle configurée : la page de réservation ne peut proposer aucun créneau.",
+    "missingCta": "Configurer les salles",
+    "unassignedAlert": "Aucune salle ne vous est attribuée : aucun créneau ne peut être proposé sur votre page de réservation."
   },
   "settings": {
     "title": "Paramètres du cabinet",

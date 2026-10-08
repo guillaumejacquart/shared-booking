@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { confirmationEmail, reminderEmail, type BookingMailPayload } from "./email";
+import { confirmationEmail, mailFrom, reminderEmail, type BookingMailPayload } from "./email";
 import { passwordResetEmail } from "./email";
 
 const MODEL: BookingMailPayload = {
@@ -49,6 +49,15 @@ describe("onsitePayment", () => {
     });
     expect(email.html).toContain("Précision : &lt;script&gt;x&lt;/script&gt;");
     expect(email.html).not.toContain("<script>x</script>");
+  });
+});
+
+describe("mailFrom", () => {
+  it("expéditeur avec nom convivial (Gmail n'affiche plus `contact`)", () => {
+    const from = mailFrom();
+    expect(from.name).toBe("Le Cabinet Partagé");
+    expect(typeof from.address).toBe("string");
+    expect(from.address).toContain("@");
   });
 });
 

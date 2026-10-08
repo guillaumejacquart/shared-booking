@@ -295,6 +295,11 @@ export function rescheduledEmail(to: string, model: BookingMailPayload): Outgoin
   };
 }
 
+/** Expéditeur SMTP avec nom convivial (Gmail affiche le nom, pas `contact`). */
+export function mailFrom(): { name: string; address: string } {
+  return { name: env.EMAIL_FROM_NAME, address: env.EMAIL_FROM };
+}
+
 /** Envoi réel (SMTP) ou journalisation (dev sans SMTP). */
 export function createMailer(): SendEmail {
   if (!isSmtpConfigured) {
@@ -315,7 +320,7 @@ export function createMailer(): SendEmail {
   });
   return async (email) => {
     await transport.sendMail({
-      from: env.EMAIL_FROM,
+      from: mailFrom(),
       to: email.to,
       subject: email.subject,
       text: email.text,

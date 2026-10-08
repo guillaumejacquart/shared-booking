@@ -23,8 +23,14 @@ export default function BookingConfirmation({
     end: new Date(slot.endAt),
   });
   return (
-    <section className="rounded-2xl border bg-ok-bg p-6 text-center text-ok">
-      <h2 className="text-xl font-semibold">{t("booking.successTitle")}</h2>
+    <section className="rounded-2xl border border-line bg-card p-6 text-center shadow-soft">
+      <span
+        aria-hidden="true"
+        className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-ok-bg text-lg font-bold text-ok"
+      >
+        ✓
+      </span>
+      <h2 className="mt-3 text-xl font-semibold">{t("booking.successTitle")}</h2>
       <p className="mt-2 font-medium">
         {sessionName} — {fullFmt.format(start)} à {timeFmt.format(start)}
       </p>

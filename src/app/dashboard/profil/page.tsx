@@ -16,6 +16,7 @@ import GoogleAgendaSettings, {
   type GoogleCalendar,
 } from "@/components/GoogleAgendaSettings";
 import { sortRooms } from "@/services/room-order";
+import RoomsMissingAlert from "@/components/RoomsMissingAlert";
 import StripeConnectSettings from "@/components/StripeConnectSettings";
 import SessionTypesManager from "../seances/SessionTypesManager";
 import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
@@ -141,6 +142,11 @@ export default async function ProfilPage({
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("availability.title")}</h2>
                 <p className="mb-3 text-sm text-mist">{t("availability.regularHint")}</p>
+                {rooms.length === 0 && roomsWithMembers.length > 0 ? (
+                  <div className="mb-3">
+                    <RoomsMissingAlert variant="unassigned" isOwner={ctx.role === "owner"} />
+                  </div>
+                ) : null}
                 <AvailabilityEditor
                   practitionerId={ctx.practitionerId}
                   initial={rules.map((rule) => ({

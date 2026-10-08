@@ -18,6 +18,7 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().default("noreply@localhost"),
+  EMAIL_FROM_NAME: z.string().default("Le Cabinet Partagé"),
 
   // --- Stripe (paiement en ligne) — optionnel : sans STRIPE_SECRET_KEY,
   // les types de séance payants sont rejetés à la réservation.
@@ -54,6 +55,7 @@ export const env = envSchema.parse({
   SMTP_USER: process.env.SMTP_USER,
   SMTP_PASS: process.env.SMTP_PASS,
   EMAIL_FROM: process.env.EMAIL_FROM,
+  EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   STRIPE_APPLICATION_FEE_CENTS: process.env.STRIPE_APPLICATION_FEE_CENTS,

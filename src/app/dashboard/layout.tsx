@@ -1,9 +1,11 @@
 import Link from "next/link";
 
+import * as roomsDal from "@/dal/rooms";
 import { getDashboardContext } from "@/lib/dashboard";
 import { isSubscriptionEnabled } from "@/lib/env";
 import { services } from "@/lib/container";
 import { t } from "@/lib/i18n";
+import RoomsMissingAlert from "@/components/RoomsMissingAlert";
 import DashboardNav from "./DashboardNav";
 
 /**
@@ -25,6 +27,21 @@ async function BillingBanner({ userId }: { userId: string }) {
   );
 }
 
+/**
+ * Bandeau "aucune salle" : sans salle au cabinet, le moteur de créneaux
+ * ne produit rien et la page de réservation reste vide sans explication.
+ * Échec silencieux (jamais de crash du dashboard pour un bandeau).
+ */
+async function RoomsBanner({ officeId, isOwner }: { officeId: string; isOwner: boolean }) {
+  const rooms = await roomsDal.listRooms(officeId).catch(() => null);
+  if (!rooms || rooms.length > 0) return null;
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 pt-4">
+      <RoomsMissingAlert variant="missing" isOwner={isOwner} />
+    </div>
+  );
+}
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -42,6 +59,7 @@ export default async function DashboardLayout({
     >
       <DashboardNav ctx={ctx} />
       <BillingBanner userId={ctx.userId} />
+      <RoomsBanner officeId={ctx.officeId} isOwner={ctx.role === "owner"} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
     </div>
   );
