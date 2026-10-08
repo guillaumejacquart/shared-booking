@@ -56,7 +56,7 @@ export default function ThemePicker({
       {showMode ? (
         <div
           role="group"
-          aria-label={t("theme.appearance")}
+          aria-label={t("theme.modeLabel")}
           className="flex w-fit gap-1 rounded-full border border-line bg-card p-1"
         >
           {THEME_MODES.map((themeMode) => (

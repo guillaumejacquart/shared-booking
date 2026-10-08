@@ -238,7 +238,7 @@ Payments, SMS, patient accounts, recurring bookings (abonnements), group session
 
 ### Reste à faire
 
-1. Validation praticien (UI agenda : valider/refuser les pendings).
+1. ~~Validation praticien (UI agenda : valider/refuser les pendings)~~ — fait : page « Mes réservations » (`/dashboard/reservations`, demandes + à venir, pastille dans la nav) en plus de la modale agenda.
 2. RDV créés par le praticien (téléphone) depuis l'agenda.
 3. Google Agenda inbound (bloquer les créneaux sur les indisponibilités Google).
 4. Déployer sur le VPS et tester avec le cabinet pilote.

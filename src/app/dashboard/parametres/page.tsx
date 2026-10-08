@@ -10,6 +10,7 @@ import { Tabs } from "@/components/ui";
 import BillingSettings from "@/components/BillingSettings";
 import SettingsForm from "./SettingsForm";
 import InviteForm from "../equipe/InviteForm";
+import MemberRoleSelect from "../equipe/MemberRoleSelect";
 import RemoveMemberButton from "../equipe/RemoveMemberButton";
 import RoomsManager from "../salles/RoomsManager";
 
@@ -117,7 +118,11 @@ export default async function ParametresPage({
                     >
                       <span className="font-medium">{memberUser?.name ?? "?"}</span>
                       <span className="text-mist">{memberUser?.email}</span>
-                      <span className="text-mist">{member.role}</span>
+                      <MemberRoleSelect
+                        officeId={ctx.officeId}
+                        memberId={member.id}
+                        currentRole={member.role}
+                      />
                       {member.userId === ctx.userId ? null : (
                         <RemoveMemberButton
                           officeId={ctx.officeId}

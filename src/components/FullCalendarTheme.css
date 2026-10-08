@@ -68,3 +68,66 @@
 .fc a {
   color: inherit;
 }
+
+/* Disponibilités : pastilles d'action explicites par jour, révélées au survol.
+   La pastille d'info est en `pointer-events: none` (le clic traverse vers
+   la case) ; seul le bouton Horaires est cliquable. Pastilles toujours
+   visibles au tactile (`hover: none`), faute de survol. */
+.avail-day-top {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+}
+.avail-day-top .fc-daygrid-day-number {
+  align-self: flex-end;
+}
+.avail-day-action,
+.avail-day-hours {
+  pointer-events: none;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  background: var(--card);
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.12s ease,
+    visibility 0.12s ease;
+}
+.avail-day-hours {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.fc-daygrid-day:hover .avail-day-action,
+.fc-daygrid-day:hover .avail-day-hours {
+  opacity: 1;
+  visibility: visible;
+}
+@media (hover: none) {
+  .avail-day-action,
+  .avail-day-hours {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+.avail-day-action[data-kind="close"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.avail-day-action[data-kind="reopen"],
+.avail-day-action[data-kind="openExtra"] {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.avail-day-action[data-kind="blocked"] {
+  color: var(--mist);
+}

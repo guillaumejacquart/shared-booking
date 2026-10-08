@@ -174,12 +174,76 @@ export async function getSharedCalendar(input: SharedCalendarInput) {
   };
 }
 
+export interface ReservationsInput {
+  userId: string;
+  now: Date;
+}
+
+/** Élément sérialisable de la vue « Mes réservations » (page dashboard). */
+export interface ReservationItem {
+  id: string;
+  sessionName: string;
+  startAt: string;
+  endAt: string;
+  patientName: string;
+  patientEmail: string;
+  patientPhone: string | null;
+  notes: string | null;
+  roomName: string;
+  paymentStatus: string;
+  cancelToken: string;
+}
+
+function toReservationItem(
+  row: Booking,
+  roomName: string,
+): ReservationItem {
+  return {
+    id: row.id,
+    sessionName: row.sessionNameSnapshot,
+    startAt: row.startAt.toISOString(),
+    endAt: row.endAt.toISOString(),
+    patientName: `${row.patientFirstName} ${row.patientLastName}`,
+    patientEmail: row.patientEmail,
+    patientPhone: row.patientPhone,
+    notes: row.notes,
+    roomName,
+    paymentStatus: row.paymentStatus,
+    cancelToken: row.cancelToken,
+  };
+}
+
+/**
+ * Vue centralisée des réservations du praticien connecté : demandes en
+ * attente de validation + confirmées à venir (triées par horaire).
+ * Passé et annulés restent sur l'agenda (historique).
+ */
+export async function getReservations(input: ReservationsInput): Promise<{
+  pending: ReservationItem[];
+  upcoming: ReservationItem[];
+}> {
+  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
+  if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
+  const [pending, upcoming, rooms] = await Promise.all([
+    bookingsDal.listPendingValidationForPractitioner(prac.id),
+    bookingsDal.listUpcomingConfirmedForPractitioner(prac.id, input.now),
+    roomsDal.listRooms(prac.officeId),
+  ]);
+  const roomById = new Map(rooms.map((room) => [room.id, room.name]));
+  const roomNameOf = (roomId: string): string => roomById.get(roomId) ?? "";
+  return {
+    pending: pending.map((row) => toReservationItem(row, roomNameOf(row.roomId))),
+    upcoming: upcoming.map((row) => toReservationItem(row, roomNameOf(row.roomId))),
+  };
+}
+
 /** Surface du service calendrier (utilisée par les routes via le container). */
 export interface CalendarService {
   agenda: typeof getAgendaEvents;
   shared: typeof getSharedCalendar;
+  reservations: typeof getReservations;
 }
 
 export function createCalendarService(): CalendarService {
-  return { agenda: getAgendaEvents, shared: getSharedCalendar };
+  return { agenda: getAgendaEvents, shared: getSharedCalendar, reservations: getReservations };
 }

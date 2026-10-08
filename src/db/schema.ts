@@ -137,19 +137,6 @@ export const office = sqliteTable("office", {
   ...timestamps,
 });
 
-/**
- * Préférences d'apparence par utilisateur (dashboard). Table dédiée pour
- * laisser la table `user` de better-auth intacte.
- */
-export const userPreferences = sqliteTable("user_preferences", {
-  userId: text("user_id")
-    .primaryKey()
-    .references(() => user.id, { onDelete: "cascade" }),
-  palette: text("palette").notNull().default("sauge"),
-  mode: text("mode").notNull().default("system"), // 'light' | 'dark' | 'system'
-  ...timestamps,
-});
-
 export const member = sqliteTable(
   "member",
   {

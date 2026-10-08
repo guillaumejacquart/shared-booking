@@ -44,6 +44,8 @@ export interface DayState {
   bookings: MonthBooking[];
   regularOpen: boolean;
   extras: Exception[];
+  /** Fermetures partielles (ex. matinée) : gérées au clic comme les extras. */
+  partialOffs: Exception[];
 }
 
 /** 0 = dimanche … 6 = samedi, vu à Paris. */
@@ -62,7 +64,67 @@ export function dayState(data: MonthData, key: string): DayState {
     ),
     regularOpen: data.rules.some((rule) => rule.weekday === weekday),
     extras: onDay.filter((exception) => exception.kind === "extra"),
+    partialOffs: onDay.filter((exception) => exception.kind === "off" && !exception.fullDay),
   };
+}
+
+/** Action explicite proposée au survol d'un jour (miroir de `toggleDay`). */
+export type DayAction =
+  | { kind: "reopen" }
+  | { kind: "blocked"; count: number }
+  | { kind: "openExtra" }
+  | { kind: "cancelPartial"; ranges: string }
+  | { kind: "cancelExtra" }
+  | { kind: "close" };
+
+export function dayAction(data: MonthData, key: string): DayAction {
+  const state = dayState(data, key);
+  // Un jour fermé reste rouvrable même avec des RDV (passés ou à venir).
+  if (state.fullOff) return { kind: "reopen" };
+  if (state.bookings.length > 0) return { kind: "blocked", count: state.bookings.length };
+  if (!state.regularOpen && state.extras.length === 0) return { kind: "openExtra" };
+  if (state.partialOffs.length > 0) {
+    const ranges = state.partialOffs
+      .map((exception) => `${exception.startTime ?? ""}→${exception.endTime ?? ""}`)
+      .join(", ");
+    return { kind: "cancelPartial", ranges };
+  }
+  if (!state.regularOpen) return { kind: "cancelExtra" };
+  return { kind: "close" };
+}
+
+/** Règles hebdo s'appliquant au jour (couverture habituelle). */
+export function dayRules(data: MonthData, key: string): Rule[] {
+  const weekday = weekdayParis(fromKey(key));
+  return data.rules.filter((rule) => rule.weekday === weekday);
+}
+
+/** Couverture habituelle du jour ([min, max]) ou null si jour fermé. */
+export function dayCoverage(data: MonthData, key: string): { startTime: string; endTime: string } | null {
+  const rules = dayRules(data, key);
+  if (rules.length === 0) return null;
+  return {
+    startTime: rules.reduce((min, rule) => (rule.startTime < min ? rule.startTime : min), rules[0].startTime),
+    endTime: rules.reduce((max, rule) => (rule.endTime > max ? rule.endTime : max), rules[0].endTime),
+  };
+}
+
+/**
+ * Fermetures partielles à créer pour ramener la couverture à `[start, end]`
+ * (changement d'horaires du jour : ne rogne que l'intérieur des plages
+ * habituelles, les trous entre deux plages restent intacts). Heures "HH:MM".
+ */
+export function trimOffs(
+  rules: Rule[],
+  start: string,
+  end: string,
+): { startTime: string; endTime: string }[] {
+  const offs: { startTime: string; endTime: string }[] = [];
+  for (const rule of rules) {
+    if (start > rule.startTime) offs.push({ startTime: rule.startTime, endTime: start < rule.endTime ? start : rule.endTime });
+    if (end < rule.endTime) offs.push({ startTime: end > rule.startTime ? end : rule.startTime, endTime: rule.endTime });
+  }
+  return offs.filter((off) => off.startTime < off.endTime);
 }
 
 /** Clés calendaires d'une sélection FullCalendar (`end` exclusif). */

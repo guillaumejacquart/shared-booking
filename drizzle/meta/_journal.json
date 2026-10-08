@@ -71,6 +71,13 @@
       "when": 1791407569368,
       "tag": "0009_furry_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791453819750,
+      "tag": "0010_gifted_leader",
+      "breakpoints": true
     }
   ]
 }

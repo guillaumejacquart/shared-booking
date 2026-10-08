@@ -10,7 +10,6 @@ import {
 import { createBookingsService, type BookingsService } from "@/services/bookings";
 import { createCalendarService, type CalendarService } from "@/services/calendar";
 import { createGoogleService, type GoogleService } from "@/services/google";
-import { createPreferencesService, type PreferencesService } from "@/services/preferences";
 import { createBillingService, type BillingService } from "@/services/billing";
 import { createStripeConnectService, type StripeConnectService } from "@/services/stripe-connect";
 import { createRemindersService, type RemindersService } from "@/services/reminders";
@@ -48,7 +47,6 @@ export interface Services {
   schedule: ScheduleService;
   google: GoogleService;
   calendar: CalendarService;
-  preferences: PreferencesService;
 }
 
 export function makeServices(overrides: Partial<Ports> = {}): Services {
@@ -69,7 +67,6 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
     schedule: createScheduleService(ports),
     google: createGoogleService(ports),
     calendar: createCalendarService(),
-    preferences: createPreferencesService(),
   };
 }
 

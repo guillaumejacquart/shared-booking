@@ -8,6 +8,7 @@ import * as usersDal from "@/dal/users";
 import type { Ports } from "@/lib/ports";
 import type {
   AcceptInviteInput,
+  ChangeMemberRoleInput,
   CreateInviteInput,
   CreateOfficeInput,
   RemoveMemberInput,
@@ -228,6 +229,28 @@ export async function removeMember(input: RemoveMemberInput): Promise<void> {
   await membersDal.deactivateMember(target.id);
 }
 
+/**
+ * Change le rôle d'un membre existant (owner uniquement). La promotion est
+ * toujours possible ; la rétrogradation d'un responsable est refusée s'il est
+ * le dernier responsable actif (sinon le cabinet serait orphelin).
+ */
+export async function changeMemberRole(input: ChangeMemberRoleInput): Promise<void> {
+  await assertOwner(input.officeId, input.requesterUserId);
+
+  const target = await membersDal.getMembershipById(input.memberId);
+  if (!target || target.officeId !== input.officeId || !target.active) {
+    throw new NotFoundError("Membre introuvable");
+  }
+  if (target.role === input.role) return; // idempotent
+  if (target.role === "owner" && input.role !== "owner") {
+    const owners = await membersDal.countActiveOwners(input.officeId);
+    if (owners <= 1) {
+      throw new ValidationError("Impossible : le cabinet doit garder au moins un responsable");
+    }
+  }
+  await membersDal.updateMemberRole(target.id, input.role);
+}
+
 /** Surface du service équipe (utilisée par les routes via le container). */
 export interface TeamService {
   createOffice: typeof createOffice;
@@ -236,6 +259,7 @@ export interface TeamService {
   getInvitePublicInfo(token: string): ReturnType<typeof getInvitePublicInfo>;
   listPendingInvites: typeof listPendingInvites;
   removeMember: typeof removeMember;
+  changeMemberRole: typeof changeMemberRole;
 }
 
 export function createTeamService(ports: Ports): TeamService {
@@ -246,5 +270,6 @@ export function createTeamService(ports: Ports): TeamService {
     getInvitePublicInfo: (token) => getInvitePublicInfo(ports, token),
     listPendingInvites,
     removeMember,
+    changeMemberRole,
   };
 }

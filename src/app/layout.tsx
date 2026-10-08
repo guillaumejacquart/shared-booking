@@ -1,14 +1,8 @@
-import { cookies } from "next/headers";
 import Script from "next/script";
 import type { Metadata } from "next";
 import { Fraunces, Work_Sans } from "next/font/google";
 import "./globals.css";
-import {
-  COOKIE_MODE,
-  COOKIE_PALETTE,
-  parseMode,
-  parsePalette,
-} from "@/lib/theme";
+import { DEFAULT_MODE, DEFAULT_PALETTE } from "@/lib/theme";
 
 const display = Fraunces({
   variable: "--font-display",
@@ -30,16 +24,14 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Thème lu côté serveur (cookies) : pas de flash au chargement.
-  // Les pages publiques surchargent via leur propre wrapper (ambiance).
-  const store = await cookies();
-  const palette = parsePalette(store.get(COOKIE_PALETTE)?.value);
-  const mode = parseMode(store.get(COOKIE_MODE)?.value);
+  // Thème par défaut (pages hors cabinet : login, onboarding…).
+  // Le dashboard et les pages publiques appliquent l'ambiance du cabinet
+  // via leur propre wrapper (thème unique).
   return (
     <html
       lang="fr"
-      data-palette={palette}
-      data-mode={mode}
+      data-palette={DEFAULT_PALETTE}
+      data-mode={DEFAULT_MODE}
       className={`${display.variable} ${sans.variable} h-full antialiased`}
     >
       <body className="font-sans min-h-full flex flex-col">

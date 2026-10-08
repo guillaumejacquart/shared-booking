@@ -232,6 +232,7 @@
   },
   "dashboard": {
     "agenda": "Mon agenda",
+    "reservations": "Mes réservations",
     "calendar": "Calendrier",
     "profile": "Profil",
     "settings": "Paramètres",
@@ -271,6 +272,20 @@
     "cancelledStatus": "Annulé",
     "confirmCancel": "Annuler cette réservation ? Le patient sera notifié par email."
   },
+  "reservations": {
+    "title": "Mes réservations",
+    "pendingTitle": "En attente de validation",
+    "pendingEmpty": "Aucune demande en attente.",
+    "upcomingTitle": "À venir",
+    "upcomingEmpty": "Aucune réservation à venir.",
+    "colWhen": "Date",
+    "colSession": "Séance",
+    "colPatient": "Patient",
+    "colRoom": "Salle",
+    "colStatus": "Statut",
+    "colActions": "Actions",
+    "paid": "Payé en ligne"
+  },
   "sharedCalendar": {
     "title": "Calendrier partagé",
     "booked": "Réservé",
@@ -280,7 +295,11 @@
     "title": "Mes disponibilités hebdo",
     "regularHint": "Vos plages d'accueil habituelles, répétées chaque semaine. La salle est attribuée automatiquement à la réservation (première salle disponible).",
     "calTitle": "Vue calendrier",
-    "calHint": "Cliquez un jour ouvert pour le fermer, un jour fermé pour l'ouvrir. Glissez sur plusieurs jours pour fermer une période (ou ouvrir si tout est fermé).",
+    "calHint": "Survolez un jour pour voir l'action possible (fermer, horaires, rouvrir, ouvrir…), puis cliquez. Glissez sur plusieurs jours pour fermer une période (ou ouvrir si tout est fermé).",
+    "legendOpen": "Jour ouvert",
+    "legendClosed": "Jour fermé",
+    "legendPartial": "Fermeture partielle",
+    "legendBooking": "RDV",
     "closed": "Fermé",
     "reopen": "Rouvrir",
     "closeRange": "Fermer {n} jours",
@@ -288,11 +307,23 @@
     "rangeClosedSkipped": "{n} jour(s) déjà fermé(s) ignoré(s).",
     "alreadyOpen": "Jours déjà ouverts.",
     "openTitle": "Ouverture exceptionnelle",
+    "openDays": "{first} → {last} ({n} j)",
     "createOpening": "Ouvrir",
     "cancel": "Annuler",
     "invalidHours": "L'heure de fin doit être après le début.",
     "needRoom": "Aucune salle disponible pour ouvrir.",
-    "hasBookings": "{n} RDV",
+    "closeDay": "Fermer ce jour",
+    "reopenDay": "Rouvrir ce jour",
+    "openExtra": "Ouvrir exceptionnellement",
+    "cancelExtra": "Annuler l'ouverture",
+    "cancelPartial": "Annuler la fermeture {ranges}",
+    "dayBlocked": "{n} RDV — fermeture impossible",
+    "editHours": "Changer les horaires",
+    "hoursTitle": "Horaires du {date}",
+    "hoursHabitual": "Horaires habituels : {ranges}",
+    "hoursApply": "Appliquer",
+    "hoursBeyondHabitual": "Horaires hors de vos horaires habituels ({ranges}) : ajustez vos horaires hebdo ci-dessus pour élargir.",
+    "blockedHint": "{n} RDV ce jour : annulez ou déplacez d'abord les RDV pour modifier ce jour.",
     "extra": "Ouverture exceptionnelle",
     "add": "Ajouter",
     "room": "Salle",
@@ -327,7 +358,10 @@
     "pending": "Invitations en attente",
     "members": "Membres",
     "remove": "Retirer",
-    "removeConfirm": "Retirer {name} du cabinet ?"
+    "removeConfirm": "Retirer {name} du cabinet ?",
+    "role": "Rôle",
+    "roleOwner": "Responsable",
+    "rolePractitioner": "Praticien"
   },
   "rooms": {
     "title": "Salles",
@@ -419,8 +453,7 @@
     "law": "Les présentes mentions sont soumises au droit français. En cas de litige, les tribunaux français compétents seront saisis."
   },
   "theme": {
-    "appearance": "Apparence",
-    "followingOffice": "Vous suivez l'ambiance du cabinet. Choisissez une palette pour personnaliser votre tableau de bord.",
+    "modeLabel": "Mode d'affichage",
     "palette": {
       "sauge": "Sauge",
       "brume": "Brume",

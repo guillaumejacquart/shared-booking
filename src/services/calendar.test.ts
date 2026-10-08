@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { getAgendaEvents, getSharedCalendar } from "@/services/calendar";
+import { getAgendaEvents, getReservations, getSharedCalendar } from "@/services/calendar";
 import { ForbiddenError, NotFoundError } from "@/services/errors";
 
 let db: Db;
@@ -134,5 +134,98 @@ describe("getSharedCalendar", () => {
     await expect(
       getSharedCalendar({ userId: "u9", start: START, end: END }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe("getReservations", () => {
+  it("sépare demandes à valider et confirmées à venir, triées par horaire", async () => {
+    const schema = await import("@/db/schema");
+    await db.insert(schema.booking).values([
+      {
+        id: "b3",
+        officeId: "o1",
+        practitionerId: "p1",
+        roomId: "room-a",
+        sessionTypeId: "st1",
+        sessionNameSnapshot: "Séance",
+        durationMinSnapshot: 60,
+        bufferAfterMinSnapshot: 0,
+        startAt: new Date("2026-09-14T12:00:00Z"),
+        endAt: new Date("2026-09-14T13:00:00Z"),
+        patientFirstName: "Paul",
+        patientLastName: "Durand",
+        patientEmail: "paul@example.com",
+        status: "pending",
+        paymentStatus: "none",
+        validationRequired: true,
+        cancelToken: "ct3",
+        rescheduleToken: "rt3",
+      },
+      {
+        id: "b4",
+        officeId: "o1",
+        practitionerId: "p1",
+        roomId: "room-a",
+        sessionTypeId: "st1",
+        sessionNameSnapshot: "Séance",
+        durationMinSnapshot: 60,
+        bufferAfterMinSnapshot: 0,
+        startAt: new Date("2026-09-13T08:00:00Z"),
+        endAt: new Date("2026-09-13T09:00:00Z"),
+        patientFirstName: "Vieux",
+        patientLastName: "Passé",
+        patientEmail: "vieux@example.com",
+        status: "confirmed",
+        paymentStatus: "none",
+        cancelToken: "ct4",
+        rescheduleToken: "rt4",
+      },
+    ]);
+    const result = await getReservations({
+      userId: "u1",
+      now: new Date("2026-09-14T00:00:00Z"),
+    });
+    // b3 seule demande ; b4 (passé confirmé) exclu des à venir.
+    expect(result.pending.map((item) => item.id)).toEqual(["b3"]);
+    expect(result.upcoming.map((item) => item.id)).toEqual(["b1"]);
+    expect(result.pending[0].roomName).toBe("Salle A");
+    expect(result.pending[0].patientName).toBe("Paul Durand");
+  });
+
+  it("ignore les autres praticiens et les pendings sans validation", async () => {
+    const schema = await import("@/db/schema");
+    await db.insert(schema.booking).values({
+      id: "b5",
+      officeId: "o1",
+      practitionerId: "p1",
+      roomId: "room-a",
+      sessionTypeId: "st1",
+      sessionNameSnapshot: "Séance",
+      durationMinSnapshot: 60,
+      bufferAfterMinSnapshot: 0,
+      startAt: new Date("2026-09-14T12:00:00Z"),
+      endAt: new Date("2026-09-14T13:00:00Z"),
+      patientFirstName: "Paye",
+      patientLastName: "PlusTard",
+      patientEmail: "paye@example.com",
+      status: "pending",
+      paymentStatus: "pending",
+      validationRequired: false,
+      cancelToken: "ct5",
+      rescheduleToken: "rt5",
+    });
+    const result = await getReservations({
+      userId: "u2",
+      now: new Date("2026-09-14T00:00:00Z"),
+    });
+    // Bob ne voit que son confirmé ; le pending paiement d'Alice n'apparaît nulle part.
+    expect(result.pending).toEqual([]);
+    expect(result.upcoming.map((item) => item.id)).toEqual(["b2"]);
+  });
+
+  it("404 si pas de praticien", async () => {
+    await expect(
+      getReservations({ userId: "nobody", now: new Date() }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

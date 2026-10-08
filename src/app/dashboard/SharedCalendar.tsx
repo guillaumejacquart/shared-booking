@@ -175,6 +175,7 @@ export default function SharedCalendar() {
         firstDay={1}
         slotMinTime="07:00:00"
         slotMaxTime="21:00:00"
+        allDaySlot={false}
         nowIndicator
         height="auto"
         noEventsText={t("agenda.empty")}

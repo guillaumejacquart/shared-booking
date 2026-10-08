@@ -14,7 +14,13 @@ const copy = STR.landing;
 
 export default function LandingPage() {
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-surface text-ink">
+    // Page vitrine : toujours claire (sauge), quel que soit le mode de
+    // l'appareil — même pattern que les wrappers d'ambiance des cabinets.
+    <div
+      data-palette="sauge"
+      data-mode="light"
+      className="flex min-h-full flex-1 flex-col bg-surface text-ink"
+    >
       <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur">
         <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/" className="font-display text-lg font-semibold tracking-tight">

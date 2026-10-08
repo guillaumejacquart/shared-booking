@@ -47,6 +47,22 @@ export async function listMembersWithUsers(officeId: string) {
   return result;
 }
 
+/** Change le rôle d'un membre actif (`owner` | `practitioner`). */
+export async function updateMemberRole(memberId: string, role: "owner" | "practitioner"): Promise<void> {
+  const conn = getConnection();
+  await conn.update(member).set({ role }).where(eq(member.id, memberId));
+}
+
+/** Nombre de responsables actifs d'un cabinet (garde anti-orphelin). */
+export async function countActiveOwners(officeId: string): Promise<number> {
+  const conn = getConnection();
+  const rows = await conn
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.officeId, officeId), eq(member.active, true), eq(member.role, "owner")));
+  return rows.length;
+}
+
 /**
  * Retire un membre : l'appartenance et le praticien sont désactivés (SPEC.md
  * §F2 « deactivate, not delete »). Réservations et historique conservés.

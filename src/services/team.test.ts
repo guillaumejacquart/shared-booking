@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { acceptInvite, createInvite, listPendingInvites, removeMember } from "@/services/team";
+import { acceptInvite, changeMemberRole, createInvite, listPendingInvites, removeMember } from "@/services/team";
 import {
   ConflictError,
   ForbiddenError,
@@ -252,6 +252,53 @@ describe("removeMember", () => {
   it("404 sur membre inconnu", async () => {
     await expect(
       removeMember({ officeId: "o1", memberId: "nope", requesterUserId: "owner1" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("changeMemberRole", () => {
+  async function roleOf(memberId: string) {
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db.select().from(s.member).where(eq(s.member.id, memberId));
+    return rows[0]?.role;
+  }
+
+  it("le owner promeut un praticien en responsable", async () => {
+    await changeMemberRole({ officeId: "o1", memberId: "m2", requesterUserId: "owner1", role: "owner" });
+    expect(await roleOf("m2")).toBe("owner");
+  });
+
+  it("le owner rétrograde un responsable quand un autre reste", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.user).values([{ id: "owner2", name: "Second", email: "second@example.com" }]);
+    await db.insert(s.member).values([{ id: "m3", officeId: "o1", userId: "owner2", role: "owner" }]);
+    await changeMemberRole({ officeId: "o1", memberId: "m3", requesterUserId: "owner1", role: "practitioner" });
+    expect(await roleOf("m3")).toBe("practitioner");
+  });
+
+  it("refuse de rétrograder le dernier responsable", async () => {
+    await expect(
+      changeMemberRole({ officeId: "o1", memberId: "m1", requesterUserId: "owner1", role: "practitioner" }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(await roleOf("m1")).toBe("owner");
+  });
+
+  it("est idempotent (même rôle)", async () => {
+    await expect(
+      changeMemberRole({ officeId: "o1", memberId: "m2", requesterUserId: "owner1", role: "practitioner" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("un non-owner ne peut pas changer un rôle", async () => {
+    await expect(
+      changeMemberRole({ officeId: "o1", memberId: "m2", requesterUserId: "other", role: "owner" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("404 sur membre inconnu ou d'un autre cabinet", async () => {
+    await expect(
+      changeMemberRole({ officeId: "o1", memberId: "nope", requesterUserId: "owner1", role: "owner" }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

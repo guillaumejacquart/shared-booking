@@ -8,30 +8,24 @@ import type { Opening } from "./exceptions-api";
 
 /** Horaires + salle d'une ouverture exceptionnelle sur les jours sélectionnés. */
 export default function OpeningForm({
-  dayKeys,
   rooms,
   initial,
   busy,
+  error,
   onSubmit,
   onCancel,
 }: {
-  dayKeys: string[];
   rooms: { id: string; name: string }[];
   initial: Opening;
   busy: boolean;
+  error: string | null;
   onSubmit: (opening: Opening) => void;
   onCancel: () => void;
 }) {
   const [opening, setOpening] = useState<Opening>(initial);
-  const first = dayKeys[0];
-  const last = dayKeys[dayKeys.length - 1];
 
   return (
-    <div className="mt-3 rounded-2xl border border-line bg-card p-3 shadow-soft">
-      <p className="mb-2 text-sm font-medium">
-        {t("availability.openTitle")} ·{" "}
-        {dayKeys.length === 1 ? first : `${first} → ${last} (${dayKeys.length} j)`}
-      </p>
+    <div>
       {rooms.length === 0 ? (
         <FormMessage tone="error">{t("availability.needRoom")}</FormMessage>
       ) : (
@@ -72,6 +66,7 @@ export default function OpeningForm({
           </Button>
         </div>
       )}
+      <FormMessage tone="error">{error ?? ""}</FormMessage>
     </div>
   );
 }

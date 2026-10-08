@@ -210,6 +210,20 @@
   --brand-ink: #241c12;
 }
 
+/* -- Mode clair explicite : réaffirme les valeurs claires quand un ancêtre
+   (ex. <html data-mode="system"> sur un appareil en sombre) impose le
+   sombre par héritage. Les surfaces viennent des blocs palette. -- */
+[data-mode="light"] {
+  color-scheme: light;
+
+  --ok: #37693f;
+  --ok-bg: #e3f0e5;
+  --warn: #8a5e10;
+  --warn-bg: #f6ecd1;
+  --danger: #a83e2c;
+  --danger-bg: #f6e2dc;
+}
+
 /* -- Mode système : le média choisit la déclinaison sombre -- */
 @media (prefers-color-scheme: dark) {
   [data-mode="system"] {

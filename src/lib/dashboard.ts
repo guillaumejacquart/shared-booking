@@ -1,10 +1,10 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 
+import * as bookingsDal from "@/dal/bookings";
 import * as membersDal from "@/dal/members";
 import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
-import * as preferencesDal from "@/dal/preferences";
 import { getSession } from "@/lib/session";
 import { parseMode, parsePalette } from "@/lib/theme";
 
@@ -13,10 +13,8 @@ import { parseMode, parsePalette } from "@/lib/theme";
  * Non connecté → /login ; sans cabinet → /onboarding.
  * MVP : premier cabinet d'appartenance (sélecteur multi-cabinet plus tard).
  *
- * Thème effectif du backoffice = choix personnel (`userPalette`/`userMode`,
- * null si jamais choisi) sinon ambiance du cabinet (`officePalette`, mode
- * `system`). L'ambiance donne donc une identité cohérente à toute l'équipe,
- * chacun pouvant la surcharger via « Apparence ».
+ * Thème unique : le backoffice suit l'ambiance du cabinet
+ * (`officePalette`/`officeThemeMode`), comme les pages publiques.
  */
 export interface DashboardContext {
   userId: string;
@@ -27,11 +25,11 @@ export interface DashboardContext {
   officeName: string;
   officeTimezone: string;
   officePalette: string;
+  officeThemeMode: string;
   role: string;
   practitionerId: string;
   practitionerSlug: string;
-  userPalette: string | null;
-  userMode: string | null;
+  pendingCount: number;
 }
 
 export const getDashboardContext = cache(async (): Promise<DashboardContext> => {
@@ -43,7 +41,7 @@ export const getDashboardContext = cache(async (): Promise<DashboardContext> => 
   const office = await officesDal.getOfficeById(membership.officeId);
   const prac = await practitionersDal.getPractitionerByUserId(session.user.id);
   if (!office || !prac || !prac.active) redirect("/onboarding");
-  const prefs = await preferencesDal.getPreferences(session.user.id);
+  const pendingCount = await bookingsDal.countPendingValidationForPractitioner(prac.id);
   return {
     userId: session.user.id,
     userName: session.user.name,
@@ -53,11 +51,10 @@ export const getDashboardContext = cache(async (): Promise<DashboardContext> => 
     officeName: office.name,
     officeTimezone: office.timezone,
     officePalette: parsePalette(office.themePalette),
+    officeThemeMode: parseMode(office.themeMode),
     role: membership.role,
     practitionerId: prac.id,
     practitionerSlug: prac.slug,
-    // null = jamais choisi → le client retombe sur l'ambiance du cabinet.
-    userPalette: prefs ? parsePalette(prefs.palette) : null,
-    userMode: prefs ? parseMode(prefs.mode) : null,
+    pendingCount,
   };
 });

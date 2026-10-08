@@ -1,6 +1,6 @@
 import { getConnection } from "./connection";
 
-import { and, eq, gte, lt, lte, or, isNull } from "drizzle-orm";
+import { and, asc, eq, gte, lt, lte, or, isNull } from "drizzle-orm";
 
 import { booking, office, practitioner } from "@/db/schema";
 import type { Booking, BookingDetail, DbOrTx, NewBooking } from "./types";
@@ -370,6 +370,59 @@ export async function listBookingsForPractitioner(practitionerId: string,
         lt(booking.startAt, to),
       ),
     );
+}
+
+/** Demandes en attente de validation d'un praticien (triées par horaire). */
+export async function listPendingValidationForPractitioner(practitionerId: string) {
+  const conn = getConnection();
+  return conn
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        eq(booking.status, "pending"),
+        eq(booking.validationRequired, true),
+      ),
+    )
+    .orderBy(asc(booking.startAt));
+}
+
+/** Nombre de demandes en attente de validation (pastille de navigation). */
+export async function countPendingValidationForPractitioner(
+  practitionerId: string,
+): Promise<number> {
+  const conn = getConnection();
+  const rows = await conn
+    .select({ id: booking.id })
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        eq(booking.status, "pending"),
+        eq(booking.validationRequired, true),
+      ),
+    );
+  return rows.length;
+}
+
+/** Réservations confirmées à venir d'un praticien (triées par horaire). */
+export async function listUpcomingConfirmedForPractitioner(
+  practitionerId: string,
+  now: Date,
+) {
+  const conn = getConnection();
+  return conn
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        eq(booking.status, "confirmed"),
+        gte(booking.startAt, now),
+      ),
+    )
+    .orderBy(asc(booking.startAt));
 }
 
 /** Réservations non annulées d'un cabinet (calendrier partagé). */

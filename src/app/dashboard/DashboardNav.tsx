@@ -5,13 +5,18 @@ import { usePathname } from "next/navigation";
 
 import type { DashboardContext } from "@/lib/dashboard";
 import { t } from "@/lib/i18n";
+import { Badge } from "@/components/ui";
 import SignOutButton from "./SignOutButton";
-import ThemeSwitcher from "./ThemeSwitcher";
 
 export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
   const pathname = usePathname();
-  const links = [
+  const links: { href: string; label: string; exact?: boolean; count?: number }[] = [
     { href: "/dashboard", label: t("dashboard.agenda"), exact: true },
+    {
+      href: "/dashboard/reservations",
+      label: t("dashboard.reservations"),
+      count: ctx.pendingCount,
+    },
     { href: "/dashboard/calendrier", label: t("dashboard.calendar") },
     { href: "/dashboard/profil", label: t("dashboard.profile") },
     ...(ctx.role === "owner"
@@ -27,18 +32,22 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
         </div>
         <nav className="flex flex-wrap items-center gap-1 text-sm">
           {links.map((link) => {
-            const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
+            const active = link.exact
+              ? pathname === link.href
+              : pathname.startsWith(link.href);
+            const count = link.count ?? 0;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-full px-3 py-1.5 transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors ${
                   active
                     ? "bg-brand font-medium text-brand-ink shadow-soft"
                     : "text-mist hover:bg-wash hover:text-ink"
                 }`}
               >
                 {link.label}
+                {count > 0 ? <Badge tone="amber">{count}</Badge> : null}
               </Link>
             );
           })}
@@ -51,14 +60,6 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
         >
           {t("dashboard.publicPage")}
         </Link>
-        {/* Remonté quand le contexte thème change (ambiance ou choix) :
-            l'état local repart de la valeur effective. */}
-        <ThemeSwitcher
-          key={`${ctx.officePalette}/${ctx.userPalette ?? "-"}/${ctx.userMode ?? "-"}`}
-          officePalette={ctx.officePalette}
-          userPalette={ctx.userPalette}
-          userMode={ctx.userMode}
-        />
         <SignOutButton />
       </div>
     </header>

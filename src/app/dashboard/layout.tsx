@@ -30,7 +30,14 @@ export default async function DashboardLayout({
 }) {
   const ctx = await getDashboardContext();
   return (
-    <div className="flex min-h-full flex-col">
+    // Thème unique : le backoffice suit l'ambiance du cabinet, comme les
+    // pages publiques (sélecteurs CSS `[data-palette]` / `[data-mode]`).
+    <div
+      id="dashboard-theme"
+      data-palette={ctx.officePalette}
+      data-mode={ctx.officeThemeMode}
+      className="flex min-h-full flex-1 flex-col bg-surface text-ink"
+    >
       <DashboardNav ctx={ctx} />
       <BillingBanner userId={ctx.userId} />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>

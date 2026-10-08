@@ -27,3 +27,18 @@ export async function openDay(practitionerId: string, date: string, opening: Ope
   });
   return res.ok;
 }
+
+/** Fermeture partielle (ex. matinée) : rogne les horaires habituels du jour. */
+export async function createPartialOff(
+  practitionerId: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+): Promise<boolean> {
+  const res = await fetch("/api/exceptions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ practitionerId, date, kind: "off", fullDay: false, startTime, endTime }),
+  });
+  return res.ok;
+}

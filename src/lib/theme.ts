@@ -1,13 +1,9 @@
 /**
- * Thèmes d'apparence : palettes bien-être + mode clair/sombre/système.
- *
- * Deux portées :
- * - personnelle (dashboard) : chaque utilisateur choisit palette + mode,
- *   persistés en base (`user_preferences`) et en cookies pour un rendu
- *   sans flash dès le HTML initial ;
- * - cabinet (pages publiques) : le responsable choisit l'« ambiance »
- *   (`office.themePalette`) ; le mode suit toujours l'appareil du patient
- *   (`system`), jamais imposé par le cabinet.
+ * Thème d'apparence unique : l'« ambiance » du cabinet (palette +
+ * mode clair/sombre/système, `office.themePalette` / `office.themeMode`)
+ * s'applique au backoffice comme aux pages publiques. Le responsable la
+ * choisit dans Paramètres ; les pages la reçoivent via un wrapper
+ * `data-palette` / `data-mode` (sélecteurs CSS génériques).
  */
 
 export const PALETTES = [
@@ -22,9 +18,6 @@ export type PaletteId = (typeof PALETTES)[number];
 
 export const THEME_MODES = ["light", "dark", "system"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
-
-export const COOKIE_PALETTE = "sb-palette";
-export const COOKIE_MODE = "sb-mode";
 
 export const DEFAULT_PALETTE: PaletteId = "sauge";
 export const DEFAULT_MODE: ThemeMode = "system";

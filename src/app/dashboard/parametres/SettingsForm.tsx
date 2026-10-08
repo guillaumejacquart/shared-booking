@@ -44,8 +44,10 @@ export default function SettingsForm({
   }
 
   /** Aperçu immédiat : le tableau de bord suit l'ambiance enregistrée. */
-  function applyOfficePalette(palette: PaletteId) {
-    document.documentElement.dataset.palette = palette;
+  function applyOfficeTheme(palette: PaletteId, mode: ThemeMode) {
+    const root = document.getElementById("dashboard-theme") ?? document.documentElement;
+    root.dataset.palette = palette;
+    root.dataset.mode = mode;
   }
 
   async function save(event: React.FormEvent) {
@@ -55,19 +57,8 @@ export default function SettingsForm({
     try {
       const result = await sendJson(`/api/offices/${officeId}`, "PATCH", { ...form, address: form.address || null });
       if (!result.ok) throw new Error(result.error);
-      // L'ambiance choisie devient aussi celle du tableau de bord du
-      // responsable (son choix personnel suit, mode inchangé).
-      try {
-        const currentMode = parseMode(document.documentElement.dataset.mode);
-        applyOfficePalette(form.themePalette);
-        await fetch("/api/preferences", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ palette: form.themePalette, mode: currentMode }),
-        });
-      } catch {
-        // Ambiance cabinet enregistrée ; seule la synchro locale a échoué.
-      }
+      // Thème unique : le tableau de bord suit l'ambiance (aperçu immédiat).
+      applyOfficeTheme(form.themePalette, form.themeMode);
       setMessage({ ok: true, text: t("settings.saved") });
     } catch (err) {
       setMessage({ ok: false, text: err instanceof Error ? err.message : t("booking.errorGeneric") });
