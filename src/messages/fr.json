@@ -293,7 +293,28 @@
     "colRoom": "Salle",
     "colStatus": "Statut",
     "colActions": "Actions",
-    "paid": "Payé en ligne"
+    "paid": "Payé en ligne",
+    "newBooking": "Nouvelle réservation"
+  },
+  "manualBooking": {
+    "title": "Réserver à la main",
+    "session": "Séance",
+    "variant": "Durée",
+    "date": "Date",
+    "time": "Heure",
+    "room": "Salle",
+    "roomOccupied": "occupée",
+    "roomTakenError": "Cette salle est occupée à cet horaire — choisis-en une autre.",
+    "patient": "Patient",
+    "practitionerBusy": "Tu es déjà occupé à cet horaire.",
+    "offWarning": "Ce créneau chevauche un congé{reason}. La réservation sera refusée sauf override.",
+    "overrideOff": "Forcer malgré le congé",
+    "checking": "Vérification des disponibilités…",
+    "submit": "Créer la réservation",
+    "submitting": "Création…",
+    "created": "Réservation créée, le patient a reçu la confirmation.",
+    "noSessionTypes": "Crée d'abord un type de séance dans ton profil.",
+    "selectSlotHint": "Sélectionne une plage vide du calendrier pour pré-remplir la date et l'heure."
   },
   "sharedCalendar": {
     "title": "Calendrier",

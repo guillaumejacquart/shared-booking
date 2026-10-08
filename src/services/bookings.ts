@@ -9,11 +9,14 @@ import type {
   BookingResult,
   CancelInput,
   CreateBookingInput,
+  ManualBookingInput,
   RescheduleInput,
+  RoomAvailabilityInput,
   SlotsInput,
   ValidateInput,
 } from "@/lib/schemas/bookings";
 import { createBooking } from "./bookings/create";
+import { createManualBooking, getManualFormData, getRoomAvailability, type ManualFormData, type RoomAvailability } from "./bookings/manual";
 import {
   applyPaymentCompleted,
   getBookingStatusByStripeSession,
@@ -50,6 +53,8 @@ export {
   type PublicSlot,
 } from "./bookings/slots";
 export { createBooking } from "./bookings/create";
+export { createManualBooking, getManualFormData, getRoomAvailability } from "./bookings/manual";
+export type { ManualFormData, RoomAvailability } from "./bookings/manual";
 export {
   applyPaymentCompleted,
   finalizeBookingIfReady,
@@ -61,6 +66,9 @@ export { cancelBooking, rescheduleBooking, validateBooking } from "./bookings/ma
 /** Surface du service réservation (utilisée par les routes via le container). */
 export interface BookingsService {
   create(input: CreateBookingInput): Promise<BookingResult>;
+  createManual(input: ManualBookingInput): Promise<BookingResult>;
+  roomAvailability(input: RoomAvailabilityInput): Promise<RoomAvailability>;
+  manualFormData(requesterUserId: string): Promise<ManualFormData>;
   cancel(input: CancelInput): Promise<{ id: string; status: string }>;
   reschedule(input: RescheduleInput): Promise<BookingResult>;
   validate(input: ValidateInput): Promise<{ id: string; status: string }>;
@@ -73,6 +81,9 @@ export interface BookingsService {
 export function createBookingsService(ports: Ports): BookingsService {
   return {
     create: (input) => createBooking(ports, input),
+    createManual: (input) => createManualBooking(ports, input),
+    roomAvailability: (input) => getRoomAvailability(ports, input),
+    manualFormData: (requesterUserId) => getManualFormData(requesterUserId),
     cancel: (input) => cancelBooking(ports, input),
     reschedule: (input) => rescheduleBooking(ports, input),
     validate: (input) => validateBooking(ports, input),

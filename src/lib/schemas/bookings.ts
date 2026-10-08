@@ -84,3 +84,35 @@ export const applyPaymentSchema = z.object({
   paymentIntentId: z.string().nullable(),
 });
 export type ApplyPaymentInput = z.infer<typeof applyPaymentSchema>;
+
+/**
+ * Réservation manuelle (saisie praticien depuis le dashboard).
+ * Pas de `consent` (pas de parcours patient), pas de `practitionerSlug`
+ * (le praticien est déduit de `requesterUserId`, pour soi uniquement) ;
+ * l'email patient reste obligatoire (confirmation, rappels, annulation).
+ * `overrideOff` ne force que les congés, jamais un vrai chevauchement.
+ */
+export const manualBookingSchema = z.object({
+  requesterUserId: z.string().min(1),
+  sessionTypeId: z.string().min(1),
+  /** Déclinaison réservée ; défaut = première variante (ordre d'affichage). */
+  sessionVariantId: z.string().min(1).optional(),
+  startAt: z.string().datetime(),
+  roomId: z.string().min(1),
+  patientFirstName: nameSchema,
+  patientLastName: nameSchema,
+  patientEmail: emailSchema,
+  patientPhone: z.string().trim().max(30).optional(),
+  notes: z.string().trim().max(500).optional(),
+  overrideOff: z.boolean().default(false),
+});
+export type ManualBookingInput = z.infer<typeof manualBookingSchema>;
+
+/** Contrôle live des salles pour le formulaire manuel. */
+export const roomAvailabilityQuerySchema = z.object({
+  requesterUserId: z.string().min(1),
+  sessionTypeId: z.string().min(1),
+  sessionVariantId: z.string().min(1).optional(),
+  startAt: z.string().datetime(),
+});
+export type RoomAvailabilityInput = z.infer<typeof roomAvailabilityQuerySchema>;

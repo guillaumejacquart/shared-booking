@@ -407,6 +407,9 @@ export const booking = sqliteTable(
     pendingExpiresAt: integer("pending_expires_at", { mode: "timestamp" }),
     cancelToken: text("cancel_token").notNull().unique(),
     rescheduleToken: text("reschedule_token").notNull().unique(),
+    // Origine de la réservation : 'public' (parcours patient) ou 'manual'
+    // (saisie praticien depuis le dashboard). Défaut 'public' (historique).
+    origin: text("origin").notNull().default("public"),
     reminderSentAt: integer("reminder_sent_at", { mode: "timestamp" }),
     cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
     cancelReason: text("cancel_reason"),

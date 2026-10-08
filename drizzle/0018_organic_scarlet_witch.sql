@@ -1,0 +1,1 @@
+ALTER TABLE `booking` ADD `origin` text DEFAULT 'public' NOT NULL;

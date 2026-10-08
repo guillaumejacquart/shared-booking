@@ -60,4 +60,6 @@ export interface NewBooking {
   stripeSessionId?: string | null;
   validationRequired?: boolean;
   pendingExpiresAt?: Date | null;
+  /** Origine : 'public' (parcours patient) ou 'manual' (saisie praticien). */
+  origin?: string;
 }

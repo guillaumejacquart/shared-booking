@@ -7,13 +7,15 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import frLocale from "@fullcalendar/core/locales/fr";
-import type { EventClickArg, EventContentArg, EventSourceFunc } from "@fullcalendar/core";
+import type { DateSelectArg, EventClickArg, EventContentArg, EventSourceFunc } from "@fullcalendar/core";
 
 import "@/components/FullCalendarTheme.css";
 
 import { t } from "@/lib/i18n";
 import { fullFmt, timeFmt } from "@/lib/format";
-import { Badge, Modal } from "@/components/ui";
+import type { ManualFormData } from "@/services/bookings";
+import ManualBookingModal from "@/components/booking/ManualBookingModal";
+import { Badge, Button, Modal } from "@/components/ui";
 import CancelBookingButton from "./CancelBookingButton";
 import ValidateButtons from "./ValidateButtons";
 
@@ -95,10 +97,12 @@ function statusLabel(status: string): string {
  * (titre "Réservé", voir service `shared`). Clic : détail en modale.
  * `ssr: false` via import dynamique (voir page).
  */
-export default function SharedCalendar() {
+export default function SharedCalendar({ formData }: { formData: ManualFormData }) {
   const [practitioners, setPractitioners] = useState<PractitionerLegend[]>([]);
   const [rooms, setRooms] = useState<RoomLegend[]>([]);
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualStart, setManualStart] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>("me");
   const [hiddenPractitioners, setHiddenPractitioners] = useState<string[]>([]);
   const [hiddenRooms, setHiddenRooms] = useState<string[]>([]);
@@ -164,6 +168,13 @@ export default function SharedCalendar() {
     [],
   );
 
+  function onSelect(info: DateSelectArg) {
+    // Sélection d'une plage vide : pré-remplit la saisie manuelle.
+    setManualStart(info.start.toISOString());
+    setManualOpen(true);
+    info.view.calendar.unselect();
+  }
+
   function onEventClick(info: EventClickArg) {
     const props = info.event.extendedProps as Omit<Selected, "id" | "start" | "end">;
     setSelected({
@@ -207,6 +218,9 @@ export default function SharedCalendar() {
   return (
     <div className="shared-calendar flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" onClick={() => { setManualStart(null); setManualOpen(true); }}>
+          {t("reservations.newBooking")}
+        </Button>
         {showScope ? (
           <div
             role="group"
@@ -300,10 +314,23 @@ export default function SharedCalendar() {
           height="auto"
           noEventsText={t("agenda.empty")}
           events={fetchEvents}
+          selectable
+          selectMirror
+          select={onSelect}
           eventClick={onEventClick}
           eventContent={renderEvent}
         />
       </div>
+      <ManualBookingModal
+        formData={formData}
+        open={manualOpen}
+        initialStartAt={manualStart}
+        onClose={() => setManualOpen(false)}
+        onCreated={() => {
+          setManualOpen(false);
+          ref.current?.getApi().refetchEvents();
+        }}
+      />
       <Modal
         open={selected !== null}
         onClose={() => setSelected(null)}

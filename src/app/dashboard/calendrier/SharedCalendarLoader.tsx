@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 
+import type { ManualFormData } from "@/services/bookings";
+
 const SharedCalendar = dynamic(() => import("../SharedCalendar"), {
   ssr: false,
   loading: () => <CalendarSkeleton />,
@@ -16,6 +18,6 @@ function CalendarSkeleton() {
   );
 }
 
-export default function SharedCalendarLoader() {
-  return <SharedCalendar />;
+export default function SharedCalendarLoader({ formData }: { formData: ManualFormData }) {
+  return <SharedCalendar formData={formData} />;
 }

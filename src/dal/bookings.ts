@@ -244,6 +244,7 @@ export async function tryInsertBooking(data: NewBooking): Promise<{ conflict: tr
       pendingExpiresAt: data.pendingExpiresAt ?? null,
       cancelToken: data.cancelToken,
       rescheduleToken: data.rescheduleToken,
+      origin: data.origin ?? "public",
     })
     .returning({ id: booking.id });
   return { conflict: false as const, id: ids[0].id };
