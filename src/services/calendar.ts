@@ -4,7 +4,6 @@ import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import type { Booking } from "@/dal/types";
 import { practitionerColor } from "@/lib/calendar-colors";
-import { sortRooms } from "@/services/room-order";
 import { ForbiddenError, NotFoundError } from "./errors";
 
 /**
@@ -13,76 +12,6 @@ import { ForbiddenError, NotFoundError } from "./errors";
  * ici, les routes ne font que valider la fenêtre temporelle et sérialiser.
  */
 
-export interface AgendaInput {
-  userId: string;
-  start: Date;
-  end: Date;
-}
-
-/** Événements de l'agenda du praticien connecté (tous statuts). */
-export async function getAgendaEvents(input: AgendaInput) {
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
-  if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
-  const [bookings, roomsWithMembers] = await Promise.all([
-    bookingsDal.listBookingsForPractitioner(prac.id, input.start, input.end),
-    roomsDal.listRoomsWithMembers(prac.officeId),
-  ]);
-  // Résolution sur toutes les salles (une réservation peut précéder un
-  // changement d'allowlist) ; la légende n'expose que les salles utilisables.
-  const roomById = new Map(roomsWithMembers.map((entry) => [entry.room.id, entry.room]));
-  return {
-    rooms: sortRooms(
-      roomsWithMembers.filter(
-        (entry) => entry.practitionerIds.length === 0 || entry.practitionerIds.includes(prac.id),
-      ),
-    ).map((entry) => ({ id: entry.room.id, name: entry.room.name, color: entry.room.color })),
-    events: bookings.map((booking) => {
-      const room = roomById.get(booking.roomId);
-      return {
-        id: booking.id,
-        title: `${booking.sessionNameSnapshot} — ${booking.patientFirstName} ${booking.patientLastName}`,
-        start: booking.startAt.toISOString(),
-        end: booking.endAt.toISOString(),
-        // Paires fond doux / texte soutenu : lisibles en clair comme en
-        // sombre (tokens résolus côté client par FullCalendar).
-        backgroundColor:
-          booking.status === "confirmed"
-            ? "var(--brand-soft)"
-            : booking.status === "pending"
-              ? "var(--warn-bg)"
-              : "var(--wash)",
-        borderColor:
-          booking.status === "confirmed"
-            ? "var(--brand-soft)"
-            : booking.status === "pending"
-              ? "var(--warn-bg)"
-              : "var(--wash)",
-        textColor:
-          booking.status === "confirmed"
-            ? "var(--brand-deep)"
-            : booking.status === "pending"
-              ? "var(--warn)"
-              : booking.status === "cancelled"
-                ? "var(--faint)"
-                : "var(--mist)",
-        extendedProps: {
-          status: booking.status,
-          paymentStatus: booking.paymentStatus,
-          validationRequired: booking.validationRequired,
-          sessionName: booking.sessionNameSnapshot,
-          roomName: room?.name ?? "",
-          roomColor: room?.color ?? null,
-          patientName: `${booking.patientFirstName} ${booking.patientLastName}`,
-          patientEmail: booking.patientEmail,
-          patientPhone: booking.patientPhone,
-          notes: booking.notes,
-          cancelToken: booking.cancelToken,
-        },
-      };
-    }),
-  };
-}
-
 export interface SharedCalendarInput {
   userId: string;
   start: Date;
@@ -90,9 +19,9 @@ export interface SharedCalendarInput {
 }
 
 /**
- * Données patient d'un événement partagé : masquées sauf pour le praticien
- * concerné (`mine`) ou le owner (`visible`), qui voient aussi le lien de
- * gestion quand le RDV est confirmé.
+ * Données sensibles d'un événement partagé : masquées sauf pour le
+ * praticien concerné (`mine`) ou le owner (`visible`), qui voient aussi
+ * le lien de gestion quand le RDV est confirmé.
  */
 function patientProps(
   booking: Booking,
@@ -102,19 +31,51 @@ function patientProps(
   patientName: string | null;
   patientEmail: string | null;
   patientPhone: string | null;
+  notes: string | null;
+  paymentStatus: string | null;
   cancelToken: string | null;
 } {
   return {
     patientName: visible ? `${booking.patientFirstName} ${booking.patientLastName}` : null,
     patientEmail: visible ? booking.patientEmail : null,
     patientPhone: visible ? (booking.patientPhone ?? null) : null,
+    notes: visible ? (booking.notes ?? null) : null,
+    paymentStatus: visible ? booking.paymentStatus : null,
     cancelToken: mine && booking.status === "confirmed" ? booking.cancelToken : null,
   };
 }
 
+/** Couleurs FullCalendar selon le statut (fond doux / texte soutenu). */
+function statusColors(status: string): {
+  backgroundColor: string;
+  borderColor: string;
+  textColor: string;
+} {
+  if (status === "confirmed")
+    return {
+      backgroundColor: "var(--brand-soft)",
+      borderColor: "var(--brand-soft)",
+      textColor: "var(--brand-deep)",
+    };
+  if (status === "pending")
+    return {
+      backgroundColor: "var(--warn-bg)",
+      borderColor: "var(--warn-bg)",
+      textColor: "var(--warn)",
+    };
+  if (status === "cancelled")
+    return {
+      backgroundColor: "var(--wash)",
+      borderColor: "var(--wash)",
+      textColor: "var(--faint)",
+    };
+  return { backgroundColor: "var(--wash)", borderColor: "var(--wash)", textColor: "var(--mist)" };
+}
+
 /**
- * Calendrier partagé du cabinet. Noms des patients masqués sauf pour soi
- * et le owner (SPEC.md §F10). Couleur = praticien.
+ * Calendrier du cabinet (vue unifiée : filtre Moi / Tout le cabinet côté
+ * client). Données patients masquées sauf pour soi et le owner (SPEC.md
+ * §F10). Couleur des événements = statut du RDV.
  */
 export async function getSharedCalendar(input: SharedCalendarInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
@@ -145,24 +106,22 @@ export async function getSharedCalendar(input: SharedCalendarInput) {
       const room = roomById.get(booking.roomId);
       const mine = booking.practitionerId === prac.id;
       const visible = mine || isOwner;
-      const color = colorOf(booking.practitionerId);
       return {
         id: booking.id,
-        // Le praticien est identifié par sa couleur + ses initiales
-        // (rendu personnalisé) ; le titre reste court.
+        // Le praticien est identifié par ses initiales (rendu
+        // personnalisé) ; le titre reste court.
         title: visible
           ? `${booking.sessionNameSnapshot} — ${booking.patientFirstName} ${booking.patientLastName}`
           : "Réservé",
         start: booking.startAt.toISOString(),
         end: booking.endAt.toISOString(),
-        backgroundColor: color,
-        borderColor: color,
-        textColor: "#fafafa",
+        // Couleur = statut (tokens résolus côté client par FullCalendar).
+        ...statusColors(booking.status),
         extendedProps: {
           status: booking.status,
           validationRequired: booking.validationRequired,
           practitionerName: bookingPrac?.displayName ?? "",
-          practitionerColor: color,
+          practitionerColor: colorOf(booking.practitionerId),
           roomName: room?.name ?? "",
           roomColor: room?.color ?? null,
           sessionName: booking.sessionNameSnapshot,
@@ -239,11 +198,10 @@ export async function getReservations(input: ReservationsInput): Promise<{
 
 /** Surface du service calendrier (utilisée par les routes via le container). */
 export interface CalendarService {
-  agenda: typeof getAgendaEvents;
   shared: typeof getSharedCalendar;
   reservations: typeof getReservations;
 }
 
 export function createCalendarService(): CalendarService {
-  return { agenda: getAgendaEvents, shared: getSharedCalendar, reservations: getReservations };
+  return { shared: getSharedCalendar, reservations: getReservations };
 }

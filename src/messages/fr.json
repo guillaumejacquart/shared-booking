@@ -232,7 +232,6 @@
     "accept": "Rejoindre le cabinet"
   },
   "dashboard": {
-    "agenda": "Mon agenda",
     "reservations": "Mes réservations",
     "calendar": "Calendrier",
     "profile": "Profil praticien",
@@ -262,7 +261,6 @@
     "slotStepOption": "Toutes les {n} min"
   },
   "agenda": {
-    "title": "Mon agenda",
     "empty": "Aucune réservation sur cette période.",
     "cancel": "Annuler",
     "reason": "Motif d'annulation",
@@ -295,7 +293,11 @@
     "paid": "Payé en ligne"
   },
   "sharedCalendar": {
-    "title": "Calendrier partagé",
+    "title": "Calendrier",
+    "subtitle": "Vos rendez-vous, et ceux du cabinet en vue partagée. Les informations des autres praticiens restent masquées.",
+    "scopeLabel": "Périmètre du calendrier",
+    "scopeMine": "Moi",
+    "scopeAll": "Cabinet",
     "booked": "Réservé",
     "masked": "Détails masqués (confidentialité du cabinet)."
   },

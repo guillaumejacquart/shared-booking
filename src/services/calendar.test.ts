@@ -4,7 +4,7 @@ import { createMemoryDb } from "@/test/memory-db";
 import { seedSingleVariant } from "@/test/session-types";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { getAgendaEvents, getReservations, getSharedCalendar } from "@/services/calendar";
+import { getReservations, getSharedCalendar } from "@/services/calendar";
 import { ForbiddenError, NotFoundError } from "@/services/errors";
 
 let db: Db;
@@ -48,8 +48,10 @@ async function seed() {
       patientFirstName: "Jean",
       patientLastName: "Dupont",
       patientEmail: "jean@example.com",
+      patientPhone: "0600000001",
+      notes: "Préfère le matin",
       status: "confirmed",
-      paymentStatus: "none",
+      paymentStatus: "paid",
       cancelToken: "ct1",
       rescheduleToken: "rt1",
     },
@@ -80,32 +82,6 @@ beforeEach(async () => {
   await seed();
 });
 
-describe("getAgendaEvents", () => {
-  it("retourne les RDV du praticien connecté", async () => {
-    const { events } = await getAgendaEvents({ userId: "u1", start: START, end: END });
-    expect(events).toHaveLength(1);
-    expect(events[0].title).toContain("Jean Dupont");
-  });
-
-  it("expose les salles (légende) et la salle de chaque RDV", async () => {
-    const { events, rooms } = await getAgendaEvents({ userId: "u1", start: START, end: END });
-    expect(rooms.map((r) => r.id).sort()).toEqual(["room-a", "room-x"]);
-    expect(events[0].extendedProps.roomName).toBe("Salle A");
-  });
-
-  it("la légende ne contient que les salles utilisables par le praticien", async () => {
-    // room-x est réservée à Alice : Bob ne voit que room-a.
-    const { rooms } = await getAgendaEvents({ userId: "u2", start: START, end: END });
-    expect(rooms.map((r) => r.id)).toEqual(["room-a"]);
-  });
-
-  it("404 si pas de praticien", async () => {
-    await expect(
-      getAgendaEvents({ userId: "nobody", start: START, end: END }),
-    ).rejects.toBeInstanceOf(NotFoundError);
-  });
-});
-
 describe("getSharedCalendar", () => {
   it("le owner voit les noms des patients de tous", async () => {
     const cal = await getSharedCalendar({ userId: "u1", start: START, end: END });
@@ -122,6 +98,40 @@ describe("getSharedCalendar", () => {
     expect(alice.title).toBe("Réservé");
     expect(alice.extendedProps.patientName).toBeNull();
     expect(bob.title).toContain("Marie Martin");
+  });
+
+  it("notes, paiement et gestion visibles pour soi/owner, masqués pour les autres", async () => {
+    const owner = await getSharedCalendar({ userId: "u1", start: START, end: END });
+    const bob = owner.events.find((e) => e.id === "b2")!;
+    // Owner : tout visible, mais pas de lien de gestion sur le RDV d'autrui.
+    expect(bob.extendedProps.patientEmail).toBe("marie@example.com");
+    expect(bob.extendedProps.cancelToken).toBeNull();
+
+    const alice = (await getSharedCalendar({ userId: "u1", start: START, end: END })).events.find(
+      (e) => e.id === "b1",
+    )!;
+    expect(alice.extendedProps.notes).toBe("Préfère le matin");
+    expect(alice.extendedProps.paymentStatus).toBe("paid");
+    expect(alice.extendedProps.cancelToken).toBe("ct1");
+
+    const other = await getSharedCalendar({ userId: "u2", start: START, end: END });
+    const masked = other.events.find((e) => e.id === "b1")!;
+    expect(masked.extendedProps.patientEmail).toBeNull();
+    expect(masked.extendedProps.patientPhone).toBeNull();
+    expect(masked.extendedProps.notes).toBeNull();
+    expect(masked.extendedProps.paymentStatus).toBeNull();
+    expect(masked.extendedProps.cancelToken).toBeNull();
+    // … mais ses propres données restent complètes.
+    const mine = other.events.find((e) => e.id === "b2")!;
+    expect(mine.extendedProps.paymentStatus).toBe("none");
+    expect(mine.extendedProps.cancelToken).toBe("ct2");
+  });
+
+  it("la couleur des événements suit le statut du RDV", async () => {
+    const cal = await getSharedCalendar({ userId: "u1", start: START, end: END });
+    const confirmed = cal.events.find((e) => e.id === "b1")!;
+    expect(confirmed.backgroundColor).toBe("var(--brand-soft)");
+    expect(confirmed.textColor).toBe("var(--brand-deep)");
   });
 
   it("403 si pas membre du cabinet", async () => {

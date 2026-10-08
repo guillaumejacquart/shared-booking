@@ -147,8 +147,7 @@ States: `confirmed → cancelled | completed`. (`pending` not needed — no paym
 * All emails contain: practitioner, session type, date/time (Europe/Paris, e.g. "mardi 16 sept. à 9h00"), office address (add `address` field to office — needed for patients), room is **not** shown to patient (internal detail), cancel/reschedule links.
 
 ### F10 — Calendars (authenticated)
-* **My agenda** (practitioner): day/week view, color by session type, click → booking detail drawer (patient info, notes, cancel, email again).
-* **Shared office calendar** (all members): week view, one row/lane per practitioner + room badges (color dot + "Salle A"). Read-only for others' bookings except: owner sees patient names; non-owner practitioners see **masked** patient names for others (e.g. "Réservé — P2") to preserve privacy in a shared cabinet. Owner sees all.
+* **Calendrier unifié** (`/dashboard/calendrier`, page d'arrivée, `/dashboard` redirige) : filtre Moi / Cabinet (masqué en solo), couleur des événements = statut du RDV, initiales praticien en mode cabinet + pastilles salles, clic → détail (patient, notes, valider/annuler pour ses propres RDV). Données patients **masquées** pour les RDV d'autrui (titre « Réservé », nom/email/tél/notes/paiement à null, pas de lien de gestion), sauf owner qui voit tout.
   * Decision to validate: masking is cheap and avoids gossip. Keep it.
 * Block time: practitioner can create an Unavailable exception directly from calendar ("Bloquer ce créneau").
 
@@ -201,7 +200,7 @@ Overlap checks must be done in a transaction (SQLite: `BEGIN IMMEDIATE`) checkin
 
 ## 8. UX notes (keep light for MVP)
 
-* Authenticated: single sidebar (Mon agenda / Calendrier partagé / Disponibilités / Types de séances / Salles (owner) / Paramètres (owner)).
+* Authenticated: single sidebar (Calendrier / Mes réservations / Statistiques, profil via le menu utilisateur).
 * Public: mobile-first, 3 steps max, no login wall, FR copy with well-being disclaimer.
 * Shared calendar: week grid, practitioner lanes, room color dots. No drag-and-drop in MVP (click to view, form to edit).
 
@@ -248,7 +247,7 @@ Payments, SMS, patient accounts, recurring bookings (abonnements), group session
 
 ### Reste à faire
 
-1. ~~Validation praticien (UI agenda : valider/refuser les pendings)~~ — fait : page « Mes réservations » (`/dashboard/reservations`, demandes + à venir, pastille dans la nav) en plus de la modale agenda.
-2. RDV créés par le praticien (téléphone) depuis l'agenda.
+1. ~~Validation praticien (valider/refuser les pendings)~~ — fait : page « Mes réservations » (`/dashboard/reservations`, demandes + à venir, pastille dans la nav) en plus de la modale calendrier.
+2. RDV créés par le praticien (téléphone) depuis le calendrier.
 3. Google Agenda inbound (bloquer les créneaux sur les indisponibilités Google).
 4. Déployer sur le VPS et tester avec le cabinet pilote.

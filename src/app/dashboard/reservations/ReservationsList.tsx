@@ -71,8 +71,8 @@ export default function ReservationsList({
               <th scope="col" className="px-4 py-2.5 font-medium">
                 {t("reservations.colStatus")}
               </th>
-              <th scope="col" className="px-4 py-2.5 font-medium">
-                <span className="sr-only">{t("reservations.colActions")}</span>
+              <th scope="col" className="whitespace-nowrap px-4 py-2.5 text-right font-medium">
+                {t("reservations.colActions")}
               </th>
             </tr>
           </thead>
@@ -102,12 +102,14 @@ export default function ReservationsList({
                     <Badge tone="blue">{t("reservations.paid")}</Badge>
                   ) : null}
                 </td>
-                <td className="px-4 py-2.5">
-                  {actionable === "validate" ? (
-                    <ValidateButtons bookingId={item.id} onDone={refresh} />
-                  ) : (
-                    <CancelBookingButton cancelToken={item.cancelToken} onDone={refresh} />
-                  )}
+                <td className="px-4 py-2.5 text-right">
+                  <div className="flex justify-end">
+                    {actionable === "validate" ? (
+                      <ValidateButtons bookingId={item.id} onDone={refresh} />
+                    ) : (
+                      <CancelBookingButton cancelToken={item.cancelToken} onDone={refresh} />
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -19,6 +19,8 @@ import ValidateButtons from "./ValidateButtons";
 
 const TZ = "Europe/Paris";
 
+type Scope = "me" | "all";
+
 interface PractitionerLegend {
   id: string;
   displayName: string;
@@ -34,6 +36,7 @@ interface RoomLegend {
 interface Selected {
   id: string;
   status: string;
+  paymentStatus: string | null;
   validationRequired: boolean;
   practitionerName: string;
   practitionerColor: string;
@@ -46,6 +49,7 @@ interface Selected {
   patientName: string | null;
   patientEmail: string | null;
   patientPhone: string | null;
+  notes: string | null;
   cancelToken: string | null;
 }
 
@@ -57,16 +61,50 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+function statusTone(status: string): "green" | "zinc" | "red" | "amber" {
+  return status === "confirmed"
+    ? "green"
+    : status === "pending"
+      ? "amber"
+      : status === "completed"
+        ? "zinc"
+        : "red";
+}
+
+function statusLabel(status: string): string {
+  return status === "confirmed"
+    ? t("agenda.confirmed")
+    : status === "pending"
+      ? t("agenda.pending")
+      : status === "completed"
+        ? t("agenda.completed")
+        : t("agenda.cancelledStatus");
+}
+
 /**
- * Calendrier partagé : couleur = praticien (légende), pastille = salle,
- * noms masqués hors owner/soi. Clic : détail en modale.
+ * Calendrier unifié : filtre Moi / Tout le cabinet (masqué en solo),
+ * couleur des événements = statut du RDV, initiales = praticien (mode
+ * cabinet), pastille = salle. Données patients masquées hors soi/owner
+ * (titre "Réservé", voir service `shared`). Clic : détail en modale.
  * `ssr: false` via import dynamique (voir page).
  */
 export default function SharedCalendar() {
   const [practitioners, setPractitioners] = useState<PractitionerLegend[]>([]);
   const [rooms, setRooms] = useState<RoomLegend[]>([]);
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [scope, setScope] = useState<Scope>("me");
+  const scopeRef = useRef<Scope>("me");
   const ref = useRef<FullCalendar | null>(null);
+
+  // Cabinet multi-praticiens : propose le filtre. En solo tout est à soi.
+  const showScope = practitioners.length > 1;
+  const cabinetMode = showScope && scope === "all";
+
+  function changeScope(next: Scope) {
+    scopeRef.current = next;
+    setScope(next);
+    ref.current?.getApi().refetchEvents();
+  }
 
   // Identité stable : sinon FullCalendar voit une nouvelle source d'événements
   // à chaque rendu et recharge en boucle.
@@ -86,7 +124,10 @@ export default function SharedCalendar() {
           setRooms((prev) =>
             JSON.stringify(prev) === JSON.stringify(data.rooms ?? []) ? prev : (data.rooms ?? []),
           );
-          successCallback(data.events ?? []);
+          const events = (data.events ?? []) as { extendedProps?: { mine?: boolean } }[];
+          successCallback(
+            scopeRef.current === "all" ? events : events.filter((event) => event.extendedProps?.mine),
+          );
         })
         .catch(() => failureCallback(new Error("chargement impossible")));
     },
@@ -108,15 +149,17 @@ export default function SharedCalendar() {
     const inList = arg.view.type.startsWith("list");
     return (
       <span className="flex min-w-0 items-center gap-1">
-        <span
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
-          style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
-          title={props.practitionerName ?? ""}
-        >
-          {initials(props.practitionerName ?? "?")}
-        </span>
+        {cabinetMode ? (
+          <span
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
+            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+            title={props.practitionerName ?? ""}
+          >
+            {initials(props.practitionerName ?? "?")}
+          </span>
+        ) : null}
         <span className="truncate">{arg.event.title}</span>
-        {inList && props.practitionerName ? (
+        {inList && cabinetMode && props.practitionerName ? (
           <span className="shrink-0 opacity-80">· {props.practitionerName}</span>
         ) : null}
         {props.roomColor ? (
@@ -126,42 +169,68 @@ export default function SharedCalendar() {
             title={props.roomName ?? ""}
           />
         ) : null}
+        {inList && props.roomName ? <span className="shrink-0 opacity-80">· {props.roomName}</span> : null}
       </span>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {practitioners.length > 0 || rooms.length > 0 ? (
-        <div className="flex flex-col gap-2 text-sm">
-          {practitioners.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
-              {practitioners.map((prac) => (
-                <span key={prac.id} className="inline-flex items-center gap-1.5">
-                  <span
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    style={{ backgroundColor: prac.color }}
-                  >
-                    {initials(prac.displayName)}
-                  </span>
-                  {prac.displayName}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          {rooms.length > 0 ? (
-            <div className="flex flex-wrap gap-3">
-              {rooms.map((room) => (
-                <span key={room.id} className="inline-flex items-center gap-1.5">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: room.color ?? "var(--faint)" }}
-                  />
-                  {room.name}
-                </span>
-              ))}
-            </div>
-          ) : null}
+      <div className="flex flex-wrap items-center gap-3">
+        {showScope ? (
+          <div
+            role="group"
+            aria-label={t("sharedCalendar.scopeLabel")}
+            className="inline-flex rounded-full border border-line bg-wash p-0.5 text-sm"
+          >
+            {(["me", "all"] as Scope[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={scope === option}
+                onClick={() => changeScope(option)}
+                className={`rounded-full px-3 py-1 transition-colors ${
+                  scope === option ? "bg-card font-medium shadow-soft" : "text-mist hover:text-ink"
+                }`}
+              >
+                {option === "me" ? t("sharedCalendar.scopeMine") : t("sharedCalendar.scopeAll")}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="green">{t("agenda.confirmed")}</Badge>
+          <Badge tone="amber">{t("agenda.pending")}</Badge>
+          <Badge tone="zinc">{t("agenda.completed")}</Badge>
+          <Badge tone="red">{t("agenda.cancelledStatus")}</Badge>
+        </div>
+      </div>
+      {cabinetMode && practitioners.length > 0 ? (
+        <div className="flex flex-wrap gap-3 text-sm">
+          {practitioners.map((prac) => (
+            <span key={prac.id} className="inline-flex items-center gap-1.5">
+              <span
+                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ backgroundColor: prac.color }}
+              >
+                {initials(prac.displayName)}
+              </span>
+              {prac.displayName}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {rooms.length > 0 ? (
+        <div className="flex flex-wrap gap-3 text-sm">
+          {rooms.map((room) => (
+            <span key={room.id} className="inline-flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: room.color ?? "var(--faint)" }}
+              />
+              {room.name}
+            </span>
+          ))}
         </div>
       ) : null}
       <FullCalendar
@@ -194,14 +263,23 @@ export default function SharedCalendar() {
               {selected.start ? fullFmt.format(new Date(selected.start)) : ""}
             </p>
             <p>
-              <span
-                className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                style={{ backgroundColor: selected.practitionerColor }}
-              >
-                {initials(selected.practitionerName)}
-              </span>{" "}
-              <span className="font-medium">{selected.practitionerName}</span>
+              <Badge tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Badge>{" "}
+              {selected.paymentStatus === "paid" ? (
+                <Badge tone="blue">{t("agenda.paid")}</Badge>
+              ) : null}{" "}
+              {selected.mine ? <Badge tone="zinc">{t("agenda.mine")}</Badge> : null}
             </p>
+            {cabinetMode ? (
+              <p>
+                <span
+                  className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                  style={{ backgroundColor: selected.practitionerColor }}
+                >
+                  {initials(selected.practitionerName)}
+                </span>{" "}
+                <span className="font-medium">{selected.practitionerName}</span>
+              </p>
+            ) : null}
             {selected.roomName ? (
               <p>
                 {selected.roomColor ? (
@@ -214,19 +292,17 @@ export default function SharedCalendar() {
               </p>
             ) : null}
             {selected.patientName ? (
-              <p>
-                {selected.patientName}
-                {selected.patientEmail ? ` · ${selected.patientEmail}` : ""}
-                {selected.patientPhone ? ` · ${selected.patientPhone}` : ""}
-              </p>
+              <>
+                <p>
+                  {selected.patientName}
+                  {selected.patientEmail ? ` · ${selected.patientEmail}` : ""}
+                  {selected.patientPhone ? ` · ${selected.patientPhone}` : ""}
+                </p>
+                {selected.notes ? <p className="text-mist">{selected.notes}</p> : null}
+              </>
             ) : (
               <p className="text-mist">{t("sharedCalendar.masked")}</p>
             )}
-            {selected.mine ? (
-              <p>
-                <Badge tone="zinc">{t("agenda.mine")}</Badge>
-              </p>
-            ) : null}
             {selected.mine && selected.status === "pending" && selected.validationRequired ? (
               <ValidateButtons
                 bookingId={selected.id}

@@ -94,14 +94,13 @@ function PublicPageLink({ ctx }: { ctx: DashboardContext }) {
 
 export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
   const pathname = usePathname();
-  const links: { href: string; label: string; exact?: boolean; count?: number }[] = [
-    { href: "/dashboard", label: t("dashboard.agenda"), exact: true },
+  const links: { href: string; label: string; count?: number }[] = [
+    { href: "/dashboard/calendrier", label: t("dashboard.calendar") },
     {
       href: "/dashboard/reservations",
       label: t("dashboard.reservations"),
       count: ctx.pendingCount,
     },
-    { href: "/dashboard/calendrier", label: t("dashboard.calendar") },
     { href: "/dashboard/statistiques", label: t("dashboard.statistics") },
   ];
   return (
@@ -113,9 +112,7 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
         </div>
         <nav className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
           {links.map((link) => {
-            const active = link.exact
-              ? pathname === link.href
-              : pathname.startsWith(link.href);
+            const active = pathname.startsWith(link.href);
             const count = link.count ?? 0;
             return (
               <Link

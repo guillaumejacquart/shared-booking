@@ -13,7 +13,7 @@ const VARIANTS: Record<Variant, string> = {
     "bg-brand text-brand-ink shadow-soft hover:bg-brand-deep hover:shadow-lift",
   secondary:
     "border border-line bg-card text-ink hover:bg-wash",
-  danger: "bg-danger-bg text-danger hover:bg-danger hover:text-white",
+  danger: "border border-danger/30 bg-danger-bg text-danger hover:bg-danger hover:text-white",
   ghost: "text-mist hover:bg-wash hover:text-ink",
 };
 
