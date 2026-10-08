@@ -84,11 +84,12 @@ export default function VariantsEditor({
                 }
               />
             </Field>
-            <Field label={t("sessionTypesAdmin.price")}>
+            <Field label={t("sessionTypesAdmin.price")} hint={t("sessionTypesAdmin.priceHint")}>
               <TextInput
                 value={variant.priceDisplay ?? ""}
                 onChange={(event) => patch(index, { priceDisplay: event.target.value })}
                 maxLength={30}
+                required
               />
             </Field>
             <div className="flex items-end gap-2">

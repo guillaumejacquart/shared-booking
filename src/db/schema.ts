@@ -265,7 +265,8 @@ export const sessionTypeVariant = sqliteTable(
       .references(() => sessionType.id, { onDelete: "cascade" }),
     durationMin: integer("duration_min").notNull(),
     bufferAfterMin: integer("buffer_after_min").notNull().default(0),
-    priceDisplay: text("price_display"), // affichage seul, aucun paiement
+    // Prix affiché obligatoire ("0" = tarif à définir) : backfill 0016 pour l'existant.
+    priceDisplay: text("price_display").notNull().default("0"), // affichage seul, aucun paiement
     priceCents: integer("price_cents"), // débité si la séance requiresPayment
     sortOrder: integer("sort_order").notNull().default(0),
     ...timestamps,

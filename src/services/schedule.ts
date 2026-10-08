@@ -97,17 +97,22 @@ function buildVariantPayload(
   return {
     durationMin: variant.durationMin,
     bufferAfterMin: variant.bufferAfterMin,
-    priceDisplay: variant.priceDisplay || null,
+    priceDisplay: variant.priceDisplay,
     priceCents: input.requiresPayment ? (variant.priceCents ?? null) : null,
     sortOrder,
   };
 }
 
-/** Durées distinctes + prix requis sur chaque déclinaison si payant. */
+/** Durées distinctes + prix affiché requis sur chaque déclinaison (payante ou non). */
 function assertValidVariants(input: SaveSessionTypeInput): void {
   const durations = input.variants.map((variant) => variant.durationMin);
   if (new Set(durations).size !== durations.length) {
     throw new ValidationError("Deux déclinaisons ont la même durée");
+  }
+  for (const variant of input.variants) {
+    if (!variant.priceDisplay?.trim()) {
+      throw new ValidationError("Un prix affiché est requis pour chaque déclinaison (0 si tarif à définir)");
+    }
   }
   if (input.requiresPayment) {
     for (const variant of input.variants) {

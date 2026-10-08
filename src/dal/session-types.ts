@@ -91,7 +91,7 @@ export async function createVariant(data: {
   sessionTypeId: string;
   durationMin: number;
   bufferAfterMin: number;
-  priceDisplay: string | null;
+  priceDisplay: string;
   priceCents: number | null;
   sortOrder?: number;
 }) {
@@ -105,7 +105,7 @@ export async function updateVariant(
   data: Partial<{
     durationMin: number;
     bufferAfterMin: number;
-    priceDisplay: string | null;
+    priceDisplay: string;
     priceCents: number | null;
     sortOrder: number;
   }>,

@@ -43,7 +43,8 @@ export async function seedSessionType(
       sessionTypeId: data.id,
       durationMin: variant.durationMin,
       bufferAfterMin: variant.bufferAfterMin ?? 0,
-      priceDisplay: variant.priceDisplay ?? null,
+      // Fixtures directes (hors validation service) : "0" = tarif à définir.
+      priceDisplay: variant.priceDisplay ?? "0",
       priceCents: variant.priceCents ?? null,
       sortOrder: index,
     });

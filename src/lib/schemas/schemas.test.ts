@@ -74,20 +74,30 @@ describe("schedule schemas", () => {
   });
 
   it("saveSessionType exige au moins une déclinaison valide", () => {
-    const base = { ...req, name: "X", variants: [{ durationMin: 45, bufferAfterMin: 5 }] };
+    const base = {
+      ...req,
+      name: "X",
+      variants: [{ durationMin: 45, bufferAfterMin: 5, priceDisplay: "60 €" }],
+    };
     expect(saveSessionTypeSchema.parse(base)).toBeDefined();
     expect(() =>
       saveSessionTypeSchema.parse({
         ...base,
-        variants: [{ durationMin: 0, bufferAfterMin: 5 }],
+        variants: [{ durationMin: 0, bufferAfterMin: 5, priceDisplay: "60 €" }],
       }),
     ).toThrowError(/durationMin/);
     expect(() =>
       saveSessionTypeSchema.parse({
         ...base,
-        variants: [{ durationMin: 45, bufferAfterMin: 999 }],
+        variants: [{ durationMin: 45, bufferAfterMin: 999, priceDisplay: "60 €" }],
       }),
     ).toThrowError(/bufferAfterMin/);
+    expect(() =>
+      saveSessionTypeSchema.parse({
+        ...base,
+        variants: [{ durationMin: 45, bufferAfterMin: 5 }],
+      }),
+    ).toThrowError(/priceDisplay/);
     expect(() => saveSessionTypeSchema.parse({ ...req, name: "X", variants: [] })).toThrowError(
       /variants/,
     );

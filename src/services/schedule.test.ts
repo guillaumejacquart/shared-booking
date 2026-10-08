@@ -106,13 +106,13 @@ describe("saveSessionType / deleteSessionType", () => {
     const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p2", ...bob,
       name: "Suivi",
-      variants: [{ durationMin: 45, bufferAfterMin: 5 }],
+      variants: [{ durationMin: 45, bufferAfterMin: 5, priceDisplay: "60 €" }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     const { id: id2 } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p2", ...bob, id,
       name: "Suivi long", active: false,
-      variants: [{ durationMin: 60, bufferAfterMin: 5 }],
+      variants: [{ durationMin: 60, bufferAfterMin: 5, priceDisplay: "70 €" }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     expect(id2).toBe(id);
@@ -156,8 +156,8 @@ describe("saveSessionType / deleteSessionType", () => {
         practitionerId: "p2", ...bob,
         name: "Doublon",
         variants: [
-          { durationMin: 60, bufferAfterMin: 0 },
-          { durationMin: 60, bufferAfterMin: 10 },
+          { durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" },
+          { durationMin: 60, bufferAfterMin: 10, priceDisplay: "80 €" },
         ],
         requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
       }),
@@ -171,8 +171,8 @@ describe("saveSessionType / deleteSessionType", () => {
       practitionerId: "p1", ...alice,
       name: "Massage",
       variants: [
-        { durationMin: 60, bufferAfterMin: 0 },
-        { durationMin: 90, bufferAfterMin: 0 },
+        { durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" },
+        { durationMin: 90, bufferAfterMin: 0, priceDisplay: "80 €" },
       ],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
@@ -191,7 +191,7 @@ describe("saveSessionType / deleteSessionType", () => {
       saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
         practitionerId: "p1", ...alice, id,
         name: "Massage",
-        variants: [{ id: sixty.id, durationMin: 60, bufferAfterMin: 0 }],
+        variants: [{ id: sixty.id, durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" }],
         requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
       }),
     ).rejects.toBeInstanceOf(ValidationError);
@@ -202,7 +202,7 @@ describe("saveSessionType / deleteSessionType", () => {
     const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", ...alice,
       name: "Massage",
-      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+      variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
     });
     expect(await listCompatibleRoomIds(id)).toEqual(["room-x"]);
@@ -210,7 +210,7 @@ describe("saveSessionType / deleteSessionType", () => {
     await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", ...alice, id,
       name: "Massage",
-      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+      variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     expect(await listCompatibleRoomIds(id)).toEqual([]);
@@ -220,7 +220,7 @@ describe("saveSessionType / deleteSessionType", () => {
     const base = {
       practitionerId: "p2", ...bob,
       name: "Soin",
-      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+      variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" }],
       requiresPayment: false, requiresValidation: false,
     };
     await expect(
@@ -386,7 +386,7 @@ describe("saveRoom / deleteRoom", () => {
     const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", requesterUserId: "u1",
       name: "Massage",
-      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+      variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: ["room-x"],
     });
     await expect(
@@ -396,7 +396,7 @@ describe("saveRoom / deleteRoom", () => {
     await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
       practitionerId: "p1", requesterUserId: "u1", id,
       name: "Massage",
-      variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+      variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "60 €" }],
       requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
     });
     await deleteRoom(testPorts({ clock: fixedClock(NOW) }), { officeId: "o1", requesterUserId: "u1", id: "room-x" });
@@ -434,7 +434,7 @@ describe("saveSessionType paiement/validation", () => {
     const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
         practitionerId: "p2", requesterUserId: "u2",
         name: "Payante",
-        variants: [{ durationMin: 60, bufferAfterMin: 0, priceCents: 5000 }],
+        variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "50 €", priceCents: 5000 }],
         requiresPayment: true, requiresValidation: true, compatibleRoomIds: [],
       },
     );
@@ -454,7 +454,7 @@ describe("saveSessionType paiement/validation", () => {
       saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
           practitionerId: "p2", requesterUserId: "u2",
           name: "Sans prix",
-          variants: [{ durationMin: 60, bufferAfterMin: 0 }],
+          variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "50 €" }],
           requiresPayment: true,
           requiresValidation: false, compatibleRoomIds: [],
         },
@@ -470,12 +470,43 @@ describe("saveSessionType paiement/validation", () => {
         practitionerId: "p2", requesterUserId: "u2",
         name: "Partiellement tarifée",
         variants: [
-          { durationMin: 60, bufferAfterMin: 0, priceCents: 5000 },
-          { durationMin: 90, bufferAfterMin: 0 },
+          { durationMin: 60, bufferAfterMin: 0, priceDisplay: "50 €", priceCents: 5000 },
+          { durationMin: 90, bufferAfterMin: 0, priceDisplay: "70 €" },
         ],
         requiresPayment: true, requiresValidation: false, compatibleRoomIds: [],
       }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe("saveSessionType prix affiché obligatoire", () => {
+  it("exige un prix affiché par déclinaison, 0 accepté", async () => {
+    const { saveSessionType } = await import("@/services/schedule");
+    const { ValidationError } = await import("@/services/errors");
+    // "0" = tarif à définir : accepté, même sans paiement en ligne.
+    const { id } = await saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+        practitionerId: "p2", requesterUserId: "u2",
+        name: "Tarif à définir",
+        variants: [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "0" }],
+        requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+      },
+    );
+    expect(typeof id).toBe("string");
+    // Manquant ou vide : refusé (payante ou non).
+    for (const variants of [
+      [{ durationMin: 60, bufferAfterMin: 0 }],
+      [{ durationMin: 60, bufferAfterMin: 0, priceDisplay: "   " }],
+    ]) {
+      await expect(
+        saveSessionType(testPorts({ clock: fixedClock(NOW) }), {
+          practitionerId: "p2", requesterUserId: "u2",
+          name: "Sans prix affiché",
+          // @ts-expect-error prix volontairement omis/vide
+          variants,
+          requiresPayment: false, requiresValidation: false, compatibleRoomIds: [],
+        }),
+      ).rejects.toBeInstanceOf(ValidationError);
+    }
   });
 });
 

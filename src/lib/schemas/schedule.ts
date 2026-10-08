@@ -55,7 +55,8 @@ export const saveSessionTypeSchema = scopeSchema.merge(requesterSchema).extend({
         id: z.string().min(1).optional(),
         durationMin: z.number().int().min(5).max(480),
         bufferAfterMin: z.number().int().min(0).max(480),
-        priceDisplay: z.string().trim().max(30).nullish(),
+        // Prix affiché obligatoire ("0" = tarif à définir, pas de "Gratuit" implicite).
+        priceDisplay: z.string().trim().min(1).max(30),
         priceCents: z.number().int().min(1).max(999999).nullish(),
       }),
     )
