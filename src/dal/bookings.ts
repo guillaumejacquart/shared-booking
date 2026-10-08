@@ -1,6 +1,6 @@
 import { getConnection } from "./connection";
 
-import { and, asc, eq, gte, lt, lte, or, isNull } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, lt, lte, or, isNull } from "drizzle-orm";
 
 import { booking, office, practitioner } from "@/db/schema";
 import type { Booking, BookingDetail, DbOrTx, NewBooking } from "./types";
@@ -544,4 +544,105 @@ export async function listGoogleSyncDueForPractitioner(
       ),
     )
     .limit(limit);
+}
+
+/**
+ * Réservations avec un miroir Google (ou un push en attente/échec) :
+ * base du déplacement lors d'un changement d'agenda de destination.
+ */
+export async function listGoogleMirrorsForPractitioner(
+  practitionerId: string,
+  limit = 100,
+) {
+  const conn = getConnection();
+  return conn
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        or(
+          eq(booking.status, "confirmed"),
+          eq(booking.status, "pending"),
+          eq(booking.status, "cancelled"),
+        ),
+        or(
+          isNotNull(booking.googleEventId),
+          eq(booking.googleSyncStatus, "pending"),
+          eq(booking.googleSyncStatus, "error"),
+        ),
+      ),
+    )
+    .limit(limit);
+}
+
+export interface GoogleSyncIssue {
+  bookingId: string;
+  sessionName: string;
+  startAt: Date;
+  bookingStatus: string;
+  error: string | null;
+}
+
+export interface GoogleSyncOverview {
+  counts: { ok: number; pending: number; error: number };
+  /** Échecs les plus proches (à venir d'abord), pour le panneau dashboard. */
+  recentErrors: GoogleSyncIssue[];
+}
+
+/**
+ * Vue synchro d'un praticien : compteurs par statut + derniers échecs.
+ * Deux requêtes légères (colonne statut seule, puis lignes en erreur).
+ */
+export async function getGoogleSyncOverviewForPractitioner(
+  practitionerId: string,
+  errorLimit = 5,
+): Promise<GoogleSyncOverview> {
+  const conn = getConnection();
+  const statusRows = await conn
+    .select({ status: booking.googleSyncStatus })
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        or(
+          eq(booking.googleSyncStatus, "ok"),
+          eq(booking.googleSyncStatus, "pending"),
+          eq(booking.googleSyncStatus, "error"),
+        ),
+      ),
+    );
+  const counts = { ok: 0, pending: 0, error: 0 };
+  for (const statusRow of statusRows) {
+    if (statusRow.status === "ok") counts.ok += 1;
+    else if (statusRow.status === "pending") counts.pending += 1;
+    else if (statusRow.status === "error") counts.error += 1;
+  }
+  const errorRows = await conn
+    .select({
+      id: booking.id,
+      sessionName: booking.sessionNameSnapshot,
+      startAt: booking.startAt,
+      bookingStatus: booking.status,
+      error: booking.googleSyncError,
+    })
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        eq(booking.googleSyncStatus, "error"),
+      ),
+    )
+    .orderBy(asc(booking.startAt))
+    .limit(errorLimit);
+  return {
+    counts,
+    recentErrors: errorRows.map((errorRow) => ({
+      bookingId: errorRow.id,
+      sessionName: errorRow.sessionName,
+      startAt: errorRow.startAt,
+      bookingStatus: errorRow.bookingStatus,
+      error: errorRow.error,
+    })),
+  };
 }

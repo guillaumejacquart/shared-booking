@@ -7,8 +7,13 @@ import { createMemoryDb } from "@/test/memory-db";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
 import { seedSingleVariant } from "@/test/session-types";
-import type { CalendarClient } from "@/lib/google-calendar";
-import { buildGoogleEvent, syncBookingToGoogle, syncMany } from "./google-sync";
+import { GoogleCalendarError, type CalendarClient } from "@/lib/google-calendar";
+import {
+  buildGoogleEvent,
+  moveGoogleMirrorsToCalendar,
+  syncBookingToGoogle,
+  syncMany,
+} from "./google-sync";
 
 let db: Db;
 
@@ -204,6 +209,39 @@ describe("syncBookingToGoogle", () => {
     expect(await syncMany(offline, ["b1"])).toEqual({ ok: 0, failed: 1 });
   });
 
+  it("miroir supprimé côté Google (patch 404) → recréé via insert", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(s.booking)
+      .set({ googleEventId: "evt-gone", googleSyncStatus: "pending" })
+      .where(eq(s.booking.id, "b1"));
+    const client = fakeClient();
+    client.patchEvent = async () => {
+      throw new GoogleCalendarError("not-found", "HTTP 404");
+    };
+    await syncBookingToGoogle(testPorts({ googleCalendar: { forUser: async () => client } }), "b1");
+    expect(client.calls).toEqual([{ kind: "insert", calendarId: "primary" }]);
+    const row = await bookingsDal.getBookingRowById("b1");
+    expect(row?.googleSyncStatus).toBe("ok");
+    expect(row?.googleEventId).toBe("evt-123");
+  });
+
+  it("échec persistant → lastError convivial sur le praticien", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
+    const client = fakeClient();
+    client.insertEvent = async () => {
+      throw new GoogleCalendarError("auth", "HTTP 401");
+    };
+    await syncBookingToGoogle(testPorts({ googleCalendar: { forUser: async () => client } }), "b1");
+    const row = await bookingsDal.getBookingRowById("b1");
+    expect(row?.googleSyncStatus).toBe("error");
+    const { getGooglePrefs } = await import("@/dal/practitioner-google");
+    expect((await getGooglePrefs("p1"))?.lastError).toContain("reconnectez");
+  });
+
   it("lastSyncAt suit l'horloge injectée", async () => {
     const s = await import("@/db/schema");
     await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true });
@@ -215,5 +253,61 @@ describe("syncBookingToGoogle", () => {
     );
     const { getGooglePrefs } = await import("@/dal/practitioner-google");
     expect((await getGooglePrefs("p1"))?.lastSyncAt?.getTime()).toBe(at.getTime());
+  });
+});
+
+describe("moveGoogleMirrorsToCalendar", () => {
+  beforeEach(async () => {
+    db = createMemoryDb();
+    setConnection(db);
+    await seedBooking();
+  });
+
+  it("RDV passé : supprimé de l'ancien agenda, pas recréé", async () => {
+    const s = await import("@/db/schema");
+    // prefs pointent déjà vers le nouvel agenda (save préalable).
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true, calendarId: "new-cal" });
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(s.booking)
+      .set({ googleEventId: "evt-old", googleSyncStatus: "ok" })
+      .where(eq(s.booking.id, "b1"));
+    const client = fakeClient();
+    // b1 (oct. 2026) est passé à l'horloge système : nettoyage seul.
+    const result = await moveGoogleMirrorsToCalendar(
+      testPorts({ googleCalendar: { forUser: async () => client } }),
+      "p1",
+      "old-cal",
+    );
+    expect(result).toEqual({ moved: 0, failed: 0, cleaned: 1 });
+    expect(client.calls).toEqual([{ kind: "delete", calendarId: "old-cal", eventId: "evt-old" }]);
+    const row = await bookingsDal.getBookingRowById("b1");
+    expect(row?.googleSyncStatus).toBe("none");
+    expect(row?.googleEventId).toBeNull();
+  });
+
+  it("RDV à venir : supprimé de l'ancien + recréé dans le nouveau", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.practitionerGoogle).values({ practitionerId: "p1", syncEnabled: true, calendarId: "new-cal" });
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(s.booking)
+      .set({ googleEventId: "evt-old", googleSyncStatus: "ok" })
+      .where(eq(s.booking.id, "b1"));
+    const client = fakeClient();
+    const before = new Date("2026-09-01T10:00:00.000Z");
+    const result = await moveGoogleMirrorsToCalendar(
+      testPorts({ clock: fixedClock(before), googleCalendar: { forUser: async () => client } }),
+      "p1",
+      "old-cal",
+    );
+    expect(result).toEqual({ moved: 1, failed: 0, cleaned: 0 });
+    expect(client.calls).toEqual([
+      { kind: "delete", calendarId: "old-cal", eventId: "evt-old" },
+      { kind: "insert", calendarId: "new-cal" },
+    ]);
+    const row = await bookingsDal.getBookingRowById("b1");
+    expect(row?.googleSyncStatus).toBe("ok");
+    expect(row?.googleEventId).toBe("evt-123");
   });
 });

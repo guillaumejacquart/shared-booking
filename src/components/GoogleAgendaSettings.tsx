@@ -112,8 +112,22 @@ export default function GoogleAgendaSettings({
       const body = await res.json().catch(() => null);
       if (!res.ok)
         throw new Error((body?.error as string) || t("booking.errorGeneric"));
-      applyStatus(body as GoogleStatus);
-      setMessage({ ok: true, text: t("dashboard.saved") });
+      const next = (body?.status ?? body) as GoogleStatus;
+      applyStatus(next);
+      const migration = body?.migration as
+        | { moved: number; failed: number; cleaned: number }
+        | null
+        | undefined;
+      setMessage({
+        ok: (migration?.failed ?? 0) === 0,
+        text: migration
+          ? t("google.migrated", {
+              moved: migration.moved,
+              failed: migration.failed,
+              cleaned: migration.cleaned,
+            })
+          : t("dashboard.saved"),
+      });
     } catch (error) {
       showError(error);
     } finally {
@@ -179,8 +193,49 @@ export default function GoogleAgendaSettings({
     );
   }
 
+  const needsReconnect = status.tokenValid === false;
+  const tokenUnknown = status.tokenValid === null;
+
   return (
     <div className="flex max-w-xl flex-col gap-4">
+      {needsReconnect ? (
+        <div className="flex flex-col gap-2">
+          <FormMessage tone="error">{t("google.statusReconnect")}</FormMessage>
+          <Button onClick={connect} disabled={busy} className="w-fit">
+            {t("google.connect")}
+          </Button>
+        </div>
+      ) : tokenUnknown ? (
+        <FormMessage tone="error">{t("google.statusUnknown")}</FormMessage>
+      ) : (
+        <FormMessage tone="ok">{t("google.statusOk")}</FormMessage>
+      )}
+      {status.sync.error > 0 ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-ember">
+            {t("google.errorsTitle", { count: status.sync.error })}
+          </p>
+          <ul className="flex flex-col gap-1">
+            {status.recentErrors.map((issue) => (
+              <li key={issue.bookingId} className="text-sm text-mist">
+                {issue.sessionName} —{" "}
+                {new Date(issue.startAt).toLocaleString("fr-FR", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                {issue.error ? ` — ${issue.error.slice(0, 120)}` : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {status.sync.pending > 0 ? (
+        <p className="text-sm text-mist">
+          {t("google.pendingTitle", { count: status.sync.pending })}
+        </p>
+      ) : null}
       <Field label={t("google.calendar")}>
         <Select
           value={calendarId}

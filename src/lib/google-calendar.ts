@@ -31,21 +31,90 @@ export interface CalendarClient {
   listCalendars(): Promise<{ id: string; summary: string; primary?: boolean }[]>;
 }
 
+/** Cause d'échec d'un appel Google Agenda (diagnostic + décision de retry). */
+export type GoogleCalendarErrorCode =
+  | "auth" // jeton révoqué/expiré, accès refusé → reconnecter, pas de retry
+  | "not-found" // agenda/événement supprimé côté Google → pas de retry
+  | "rate-limited" // quota Google → retry différé
+  | "unavailable"; // réseau / 5xx / requête invalide → retry selon cas
+
+export class GoogleCalendarError extends Error {
+  code: GoogleCalendarErrorCode;
+  status: number | null;
+  retryable: boolean;
+  constructor(
+    code: GoogleCalendarErrorCode,
+    message: string,
+    opts: { status?: number | null; retryable?: boolean } = {},
+  ) {
+    super(message);
+    this.name = "GoogleCalendarError";
+    this.code = code;
+    this.status = opts.status ?? null;
+    this.retryable = opts.retryable ?? false;
+  }
+}
+
+export function isGoogleCalendarError(
+  error: unknown,
+  code?: GoogleCalendarErrorCode,
+): error is GoogleCalendarError {
+  return error instanceof GoogleCalendarError && (code === undefined || error.code === code);
+}
+
+/** Message affichable (FR) pour une erreur Google : jamais de JSON brut. */
+export function friendlyGoogleErrorMessage(error: unknown): string {
+  if (error instanceof GoogleCalendarError) {
+    switch (error.code) {
+      case "auth":
+        return "Compte Google déconnecté ou accès révoqué — reconnectez votre agenda.";
+      case "not-found":
+        return "Agenda ou événement introuvable côté Google (supprimé ou agenda changé).";
+      case "rate-limited":
+        return "Quota Google Agenda dépassé — nouvel essai automatique dans quelques minutes.";
+      case "unavailable":
+        return "Google Agenda injoignable — nouvel essai automatique plus tard.";
+    }
+  }
+  const raw = error instanceof Error ? error.message : String(error);
+  return `Synchronisation Google impossible : ${raw.slice(0, 160)}`;
+}
+
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+/** Délai max d'un appel Google : une panne ne doit jamais bloquer une réservation. */
+const GOOGLE_TIMEOUT_MS = 15_000;
+
+const RATE_LIMIT_REASONS = new Set([
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+  "quotaExceeded",
+  "dailyLimitExceeded",
+  "calendarUsageLimits",
+]);
 
 export function createCalendarClient(accessToken: string): CalendarClient {
   async function req(
     path: string,
     init: RequestInit,
   ): Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> {
-    const res = await fetch(`${CALENDAR_API}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        ...(init.headers ?? {}),
-      },
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${CALENDAR_API}${path}`, {
+        ...init,
+        signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS),
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+        },
+      });
+    } catch (networkError) {
+      throw new GoogleCalendarError(
+        "unavailable",
+        `Google Agenda injoignable (réseau/timeout) : ${networkError instanceof Error ? networkError.message : String(networkError)}`,
+        { retryable: true },
+      );
+    }
     return {
       ok: res.ok,
       status: res.status,
@@ -54,8 +123,29 @@ export function createCalendarClient(accessToken: string): CalendarClient {
   }
   async function throwIfError(res: { ok: boolean; status: number; json: () => Promise<unknown> }, action: string) {
     if (res.ok) return;
-    const body = await res.json().catch(() => null);
-    throw new Error(`Google Calendar ${action} impossible (HTTP ${res.status}): ${JSON.stringify(body)?.slice(0, 200)}`);
+    const body = (await res.json().catch(() => null)) as {
+      error?: { message?: string; errors?: { reason?: string }[] };
+    } | null;
+    const reason = body?.error?.errors?.[0]?.reason ?? "";
+    const detail = body?.error?.message ?? JSON.stringify(body)?.slice(0, 200) ?? "";
+    const technical = `Google Calendar ${action} impossible (HTTP ${res.status}): ${detail}`;
+    if (res.status === 401 || res.status === 403) {
+      if (RATE_LIMIT_REASONS.has(reason)) {
+        throw new GoogleCalendarError("rate-limited", technical, { status: res.status, retryable: true });
+      }
+      throw new GoogleCalendarError("auth", technical, { status: res.status, retryable: false });
+    }
+    if (res.status === 404 || res.status === 410) {
+      throw new GoogleCalendarError("not-found", technical, { status: res.status, retryable: false });
+    }
+    if (res.status === 429 || res.status >= 500) {
+      throw new GoogleCalendarError(
+        res.status === 429 ? "rate-limited" : "unavailable",
+        technical,
+        { status: res.status, retryable: true },
+      );
+    }
+    throw new GoogleCalendarError("unavailable", technical, { status: res.status, retryable: false });
   }
   return {
     async insertEvent(calendarId, event) {
@@ -94,7 +184,11 @@ export function createCalendarClient(accessToken: string): CalendarClient {
   };
 }
 
-/** Access token Google frais via le refresh token stocké par Better Auth. */
+/**
+ * Access token Google frais via le refresh token stocké par Better Auth.
+ * Lève `GoogleCalendarError("auth")` si le refresh échoue (token révoqué) :
+ * l'appelant doit proposer une reconnexion, pas un retry.
+ */
 export async function getGoogleAccessToken(
   userId: string,
 ): Promise<string | null> {
@@ -106,6 +200,14 @@ export async function getGoogleAccessToken(
     env.GOOGLE_CLIENT_SECRET,
   );
   client.setCredentials({ refresh_token: tokens.refreshToken });
-  const { token } = await client.getAccessToken();
-  return token ?? null;
+  try {
+    const { token } = await client.getAccessToken();
+    return token ?? null;
+  } catch (refreshError) {
+    throw new GoogleCalendarError(
+      "auth",
+      `Refresh token Google rejeté : ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
+      { retryable: false },
+    );
+  }
 }

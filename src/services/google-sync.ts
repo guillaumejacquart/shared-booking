@@ -1,9 +1,15 @@
 import * as bookingsDal from "@/dal/bookings";
 import * as practitionerGoogleDal from "@/dal/practitioner-google";
+import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import type { Booking, BookingDetail, PractitionerGoogle } from "@/dal/types";
 import { isGoogleConfigured } from "@/lib/env";
-import type { CalendarClient, GoogleEvent } from "@/lib/google-calendar";
+import {
+  friendlyGoogleErrorMessage,
+  isGoogleCalendarError,
+  type CalendarClient,
+  type GoogleEvent,
+} from "@/lib/google-calendar";
 import type { Ports } from "@/lib/ports";
 
 /**
@@ -74,11 +80,30 @@ export async function syncBookingToGoogle(
   try {
     await runSync(ports, bookingId);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[google-sync] échec", { bookingId, error: message });
-    await bookingsDal
-      .setGoogleSync(bookingId, { status: "error", error: message })
-      .catch(() => {});
+    await recordSyncFailure(bookingId, error);
+  }
+}
+
+/**
+ * Échec persisté à deux niveaux : technique sur la réservation (diagnostic),
+ * convivial sur le praticien (panneau dashboard). Ne lève jamais.
+ */
+async function recordSyncFailure(bookingId: string, error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("[google-sync] échec", { bookingId, error: message });
+  await bookingsDal
+    .setGoogleSync(bookingId, { status: "error", error: message })
+    .catch(() => {});
+  try {
+    const detail = await bookingsDal.getBookingById(bookingId);
+    if (!detail) return;
+    const prefs = await practitionerGoogleDal.getGooglePrefs(detail.practitioner.id);
+    if (!prefs) return;
+    await practitionerGoogleDal.saveGooglePrefs(detail.practitioner.id, {
+      lastError: friendlyGoogleErrorMessage(error),
+    });
+  } catch {
+    // La réservation porte déjà l'erreur : rien de plus à faire.
   }
 }
 
@@ -127,8 +152,13 @@ async function upsertEvent(
     showPatientName: prefs.showPatientName,
   });
   if (booking.googleEventId) {
-    await calendar.patchEvent(prefs.calendarId, booking.googleEventId, event);
-    return booking.googleEventId;
+    try {
+      await calendar.patchEvent(prefs.calendarId, booking.googleEventId, event);
+      return booking.googleEventId;
+    } catch (patchError) {
+      // Événement miroir supprimé à la main côté Google → on le recrée.
+      if (!isGoogleCalendarError(patchError, "not-found")) throw patchError;
+    }
   }
   const { id } = await calendar.insertEvent(prefs.calendarId, event);
   return id;
@@ -161,6 +191,84 @@ export async function syncMany(
     else failed++;
   }
   return { ok, failed };
+}
+
+/** Résultat d'un déplacement de miroirs vers un nouvel agenda. */
+export interface CalendarMigration {
+  /** Événements à venir recréés dans le nouvel agenda. */
+  moved: number;
+  /** Repush en échec (détail dans `googleSyncError` + panneau dashboard). */
+  failed: number;
+  /** Miroirs passés supprimés de l'ancien agenda, non recréés. */
+  cleaned: number;
+}
+
+/**
+ * Déplace les miroirs Google d'un praticien vers son nouvel agenda
+ * (les prefs pointent déjà vers la destination) : suppression best-effort
+ * dans l'ancien agenda, puis repush des RDV à venir. Les RDV passés sont
+ * nettoyés de l'ancien agenda sans être recréés. Ne lève jamais.
+ */
+export async function moveGoogleMirrorsToCalendar(
+  ports: Ports,
+  practitionerId: string,
+  fromCalendarId: string,
+): Promise<CalendarMigration> {
+  const empty: CalendarMigration = { moved: 0, failed: 0, cleaned: 0 };
+  try {
+    const practitioner = await practitionersDal.getPractitionerById(practitionerId);
+    if (!practitioner) return empty;
+    const calendar =
+      (await ports.googleCalendar
+        ?.forUser(practitioner.userId)
+        .catch(() => null)) ?? null;
+    const now = ports.clock.now();
+    const mirrors = await bookingsDal.listGoogleMirrorsForPractitioner(practitionerId);
+    const upcomingIds: string[] = [];
+    let cleaned = 0;
+    for (const mirror of mirrors) {
+      await deleteMirrorFromOldCalendar(calendar, fromCalendarId, mirror.id, mirror.googleEventId);
+      if (mirror.endAt < now) {
+        await bookingsDal
+          .setGoogleSync(mirror.id, { status: "none", eventId: null, error: null })
+          .catch(() => {});
+        cleaned += 1;
+      } else {
+        await bookingsDal
+          .setGoogleSync(mirror.id, { status: "pending", eventId: null })
+          .catch(() => {});
+        upcomingIds.push(mirror.id);
+      }
+    }
+    const pushed = await syncMany(ports, upcomingIds);
+    return { moved: pushed.ok, failed: pushed.failed, cleaned };
+  } catch (migrationError) {
+    console.error("[google-sync] migration", {
+      practitionerId,
+      error: migrationError instanceof Error ? migrationError.message : String(migrationError),
+    });
+    return empty;
+  }
+}
+
+/** Suppression best-effort d'un miroir dans l'ancien agenda (jamais bloquante). */
+async function deleteMirrorFromOldCalendar(
+  calendar: CalendarClient | null,
+  fromCalendarId: string,
+  bookingId: string,
+  eventId: string | null,
+): Promise<void> {
+  if (!calendar || !eventId) return;
+  try {
+    await calendar.deleteEvent(fromCalendarId, eventId);
+  } catch (deleteError) {
+    // Ancien agenda supprimé ou événement déjà parti : on continue.
+    if (isGoogleCalendarError(deleteError, "not-found")) return;
+    console.error("[google-sync] suppression ancien agenda", {
+      bookingId,
+      error: deleteError instanceof Error ? deleteError.message : String(deleteError),
+    });
+  }
 }
 
 /** Retry cron : rejoue les push en `pending`/`error`. */

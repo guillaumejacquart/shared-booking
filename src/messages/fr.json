@@ -426,7 +426,13 @@
     "privacyHint": "Par défaut, les événements sont anonymisés (« Réservé ») : ni nom, ni contact, ni notes. N'activez l'affichage des noms que si votre agenda Google est strictement privé.",
     "lastSync": "Dernière synchronisation : {when}.",
     "resync": "Resynchroniser",
-    "resyncDone": "{ok} synchronisée(s), {failed} en échec."
+    "resyncDone": "{ok} synchronisée(s), {failed} en échec.",
+    "statusOk": "Connecté — accès Google vérifié à l'instant.",
+    "statusReconnect": "Compte lié, mais Google refuse l'accès — reconnectez votre agenda.",
+    "statusUnknown": "Compte lié — vérification impossible (Google injoignable).",
+    "errorsTitle": "{count} réservation(s) en échec de synchronisation",
+    "pendingTitle": "{count} réservation(s) en attente de synchronisation",
+    "migrated": "Agenda changé : {moved} événement(s) déplacé(s), {failed} en échec, {cleaned} passé(s) nettoyé(s)."
   },
   "onsite": {
     "title": "Paiement sur place",
