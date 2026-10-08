@@ -16,8 +16,11 @@ export default function RoomCheckboxes({
     onChange(checked ? [...selected, roomId] : selected.filter((id) => id !== roomId));
   }
   return (
-    <div className="mt-3">
-      <Field label={t("sessionTypesAdmin.compatibleRooms")} hint={t("sessionTypesAdmin.compatibleRoomsHint")}>
+    <div className="mt-2">
+      <Field
+        label={t("sessionTypesAdmin.compatibleRooms")}
+        hintAside={t("sessionTypesAdmin.compatibleRoomsHint")}
+      >
         <div className="flex flex-wrap gap-3">
           {rooms.map((room) => (
             <label key={room.id} className="flex items-center gap-2 text-sm">

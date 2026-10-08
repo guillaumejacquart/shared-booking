@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getDashboardContext } from "@/lib/dashboard";
+import { isSubscriptionEnabled } from "@/lib/env";
 import { services } from "@/lib/container";
 import { t } from "@/lib/i18n";
 import DashboardNav from "./DashboardNav";
@@ -10,6 +11,7 @@ import DashboardNav from "./DashboardNav";
  * quand la facturation est configurée mais l'abonnement inactif.
  */
 async function BillingBanner({ userId }: { userId: string }) {
+  if (!isSubscriptionEnabled) return null;
   const status = await services.billing.getBillingStatus(userId).catch(() => null);
   if (!status || !status.configured || !status.priceConfigured) return null;
   if (!status.isOwner || status.active) return null;

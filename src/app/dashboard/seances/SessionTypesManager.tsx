@@ -14,10 +14,13 @@ export default function SessionTypesManager({
   practitionerId,
   initial,
   rooms,
+  paymentsReady,
 }: {
   practitionerId: string;
   initial: SessionTypeRow[];
   rooms: Room[];
+  /** Compte Stripe du praticien prêt à encaisser (`charges_enabled`). */
+  paymentsReady: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<SessionTypeRow[]>(initial);
@@ -59,19 +62,20 @@ export default function SessionTypesManager({
 
   return (
     <div>
-      <div className="grid gap-3">
+      <div className="grid gap-2">
         {rows.map((row) => (
           <SessionTypeCard
             key={row.id}
             row={row}
             rooms={rooms}
+            paymentsReady={paymentsReady}
             onChange={(data) => patch(row.id, data)}
             onSave={() => void save(row)}
             onDelete={() => void remove(row.id)}
           />
         ))}
       </div>
-      <NewSessionTypeForm practitionerId={practitionerId} rooms={rooms} onCreated={onCreated} onError={setError} />
+      <NewSessionTypeForm practitionerId={practitionerId} rooms={rooms} paymentsReady={paymentsReady} onCreated={onCreated} onError={setError} />
       <div className="mt-2 flex flex-col gap-1">
         <FormMessage tone="error">{error ?? ""}</FormMessage>
         {saved ? <FormMessage tone="ok">{t("dashboard.saved")}</FormMessage> : null}

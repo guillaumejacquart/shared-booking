@@ -330,8 +330,9 @@ export const booking = sqliteTable(
       .notNull()
       .references(() => room.id, { onDelete: "restrict" }),
     sessionTypeId: text("session_type_id")
-      .notNull()
-      .references(() => sessionType.id, { onDelete: "restrict" }),
+      // Traçabilité : la suppression d'un type met les références à NULL
+      // (pas de cascade) ; l'affichage utilise les snapshots ci-dessous.
+      .references(() => sessionType.id, { onDelete: "set null" }),
     // Snapshots au moment de la réservation (les types peuvent changer après).
     sessionNameSnapshot: text("session_name_snapshot").notNull(),
     durationMinSnapshot: integer("duration_min_snapshot").notNull(),

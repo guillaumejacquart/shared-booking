@@ -11,6 +11,7 @@ export function testPorts(overrides: Partial<Ports> = {}): Ports {
     stripeClient: null,
     googleCalendar: null,
     subscriptionPriceId: null,
+    subscriptionEnabled: false,
     ...overrides,
   };
 }

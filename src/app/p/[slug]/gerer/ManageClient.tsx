@@ -13,7 +13,8 @@ export interface ManageData {
   sessionName: string;
   startAt: string;
   status: string;
-  sessionTypeId: string;
+  /** Null quand le type a été supprimé (historique conservé via snapshots). */
+  sessionTypeId: string | null;
   practitionerSlug: string;
   rescheduleToken: string;
   cancelToken: string;
@@ -33,7 +34,7 @@ export default function ManageClient({
 
   const { byDay, availableDays, loading } = useAvailableSlots(
     data.practitionerSlug,
-    data.sessionTypeId,
+    data.sessionTypeId ?? "",
     28,
   );
   const [day, setDay] = useState<string | null>(null);
@@ -129,7 +130,10 @@ export default function ManageClient({
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("manage.rescheduleTitle")}</h2>
-        <SlotPicker
+        {!data.sessionTypeId ? (
+          <p className="text-sm text-mist">{t("manage.sessionTypeDeleted")}</p>
+        ) : (
+          <SlotPicker
           availableDays={availableDays}
           day={day}
           slots={daySlots.map((daySlot) => daySlot.startAt)}
@@ -141,6 +145,7 @@ export default function ManageClient({
           }}
           onSelectSlot={setNewSlot}
         />
+        )}
         {newSlot ? (
           <Button disabled={busy} onClick={reschedule} className="mt-3">
             {t("manage.rescheduleButton")} — {timeFmt.format(new Date(newSlot))}

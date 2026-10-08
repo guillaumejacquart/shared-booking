@@ -15,6 +15,8 @@ import { ForbiddenError, NotFoundError, ValidationError } from "./errors";
 const ACTIVE_STATUSES = new Set(["trialing", "active"]);
 
 export interface BillingStatus {
+  /** Feature flag : false = abonnement masqué, service complet sans paiement. */
+  enabled: boolean;
   configured: boolean;
   priceConfigured: boolean;
   isOwner: boolean;
@@ -47,6 +49,7 @@ function toStatus(
 ): BillingStatus {
   const priceConfigured = Boolean(ports.subscriptionPriceId);
   return {
+    enabled: ports.subscriptionEnabled,
     configured: isStripeConfigured,
     priceConfigured,
     isOwner,
@@ -71,6 +74,9 @@ export async function startSubscriptionCheckout(
   ports: Ports,
   requesterUserId: string,
 ): Promise<{ url: string }> {
+  if (!ports.subscriptionEnabled) {
+    throw new ValidationError("Abonnement désactivé sur ce serveur");
+  }
   const stripe = ports.stripeClient;
   const priceId = ports.subscriptionPriceId;
   if (!stripe || !priceId) {
@@ -111,6 +117,9 @@ export async function createPortalSession(
   ports: Ports,
   requesterUserId: string,
 ): Promise<{ url: string }> {
+  if (!ports.subscriptionEnabled) {
+    throw new ValidationError("Abonnement désactivé sur ce serveur");
+  }
   const stripe = ports.stripeClient;
   if (!stripe) throw new ValidationError("Abonnement non configuré sur ce serveur");
   const office = await requireOwner(requesterUserId);
@@ -129,6 +138,9 @@ export async function refreshBillingStatus(
   ports: Ports,
   requesterUserId: string,
 ): Promise<BillingStatus> {
+  if (!ports.subscriptionEnabled) {
+    throw new ValidationError("Abonnement désactivé sur ce serveur");
+  }
   const stripe = ports.stripeClient;
   if (!stripe) throw new ValidationError("Abonnement non configuré sur ce serveur");
   const office = await requireOwner(requesterUserId);

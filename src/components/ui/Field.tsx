@@ -1,5 +1,7 @@
 import { cloneElement, isValidElement, useId } from "react";
 
+import InfoTooltip from "./InfoTooltip";
+
 /**
  * Champ de formulaire : label + contrôle + aide/erreur.
  * Garantit que chaque input a un vrai label (accessibilité + clarté).
@@ -7,12 +9,20 @@ import { cloneElement, isValidElement, useId } from "react";
 export default function Field({
   label,
   hint,
+  hintAside,
+  tooltip,
+  tooltipAlign,
   error,
   htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
+  /** Aide affichée à droite du label (même ligne) au lieu d'en dessous. */
+  hintAside?: string;
+  /** Infobulle ⓘ après le contrôle (remplace `hint` quand la place manque). */
+  tooltip?: string;
+  tooltipAlign?: "center" | "right";
   error?: string | null;
   htmlFor?: string;
   children: React.ReactNode;
@@ -42,10 +52,20 @@ export default function Field({
 
   return (
     <div className="flex flex-col gap-1.5 text-sm">
-      <label htmlFor={id} className="font-medium">
-        {label}
-      </label>
-      {control}
+      <span className="flex flex-wrap items-baseline gap-x-2">
+        <label htmlFor={id} className="font-medium">
+          {label}
+        </label>
+        {hintAside ? <span className="text-xs text-mist">{hintAside}</span> : null}
+      </span>
+      {tooltip ? (
+        <span className="flex items-center gap-1.5">
+          {control}
+          <InfoTooltip text={tooltip} align={tooltipAlign} />
+        </span>
+      ) : (
+        control
+      )}
       {hint && !error ? (
         <span id={hintId} className="text-xs text-mist">
           {hint}

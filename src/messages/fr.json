@@ -172,6 +172,7 @@
     "rescheduled": "Votre rendez-vous est reporté. Un email de confirmation vient de vous être envoyé.",
     "deadlinePassed": "L'annulation ou le report en ligne n'est plus possible pour ce rendez-vous. Merci de contacter directement le praticien.",
     "alreadyCancelled": "Ce rendez-vous est déjà annulé.",
+  "sessionTypeDeleted": "Ce type de séance n'existe plus : le report en ligne n'est pas possible, contactez directement le praticien.",
     "completed": "Ce rendez-vous est passé. Merci de votre visite !"
   },
   "merci": {
@@ -341,6 +342,7 @@
     "bufferHint": "Temps bloqué après chaque rendez-vous (aération, notes), non réservable.",
     "price": "Prix affiché (optionnel)",
     "requiresPayment": "Paiement en ligne requis",
+    "requiresPaymentLockedHint": "Liez votre compte Stripe dans Profil → Paiements pour proposer le paiement en ligne.",
     "priceCents": "Prix à débiter",
     "priceCentsHint": "Montant prélevé via Stripe à la réservation (compte à lier dans Profil → Paiements).",
     "requiresValidation": "Validation manuelle par le praticien",

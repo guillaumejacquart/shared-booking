@@ -1,24 +1,28 @@
 import { t } from "@/lib/i18n";
 import { Button, Checkbox, Field, NumberInput, TextInput } from "@/components/ui";
 import RoomCheckboxes from "./RoomCheckboxes";
+import RequiresPaymentField from "./RequiresPaymentField";
 import type { Room, SessionTypeRow } from "./types";
 
 export default function SessionTypeCard({
   row,
   rooms,
+  paymentsReady,
   onChange,
   onSave,
   onDelete,
 }: {
   row: SessionTypeRow;
   rooms: Room[];
+  /** Compte Stripe prêt à encaisser ; sinon on ne peut (ré)activer le paiement. */
+  paymentsReady: boolean;
   onChange: (patch: Partial<SessionTypeRow>) => void;
   onSave: () => void;
   onDelete: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-card p-4 shadow-soft">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="rounded-2xl border border-line bg-card p-3 shadow-soft">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <Field label={t("sessionTypesAdmin.name")}>
           <TextInput value={row.name} onChange={(event) => onChange({ name: event.target.value })} maxLength={80} />
         </Field>
@@ -38,7 +42,11 @@ export default function SessionTypeCard({
             onChange={(event) => onChange({ durationMin: Number(event.target.value) })}
           />
         </Field>
-        <Field label={t("sessionTypesAdmin.buffer")} hint={t("sessionTypesAdmin.bufferHint")}>
+        <Field
+          label={t("sessionTypesAdmin.buffer")}
+          tooltip={t("sessionTypesAdmin.bufferHint")}
+          tooltipAlign="right"
+        >
           <NumberInput
             unit="min"
             value={row.bufferAfterMin}
@@ -48,18 +56,16 @@ export default function SessionTypeCard({
           />
         </Field>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={row.active} onChange={(event) => onChange({ active: event.target.checked })} />
           {t("sessionTypesAdmin.active")}
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={row.requiresPayment}
-            onChange={(event) => onChange({ requiresPayment: event.target.checked })}
-          />
-          {t("sessionTypesAdmin.requiresPayment")}
-        </label>
+        <RequiresPaymentField
+          checked={row.requiresPayment}
+          paymentsReady={paymentsReady}
+          onChange={(requiresPayment) => onChange({ requiresPayment })}
+        />
         <label className="flex items-center gap-2 text-sm">
           <Checkbox
             checked={row.requiresValidation}
@@ -67,17 +73,9 @@ export default function SessionTypeCard({
           />
           {t("sessionTypesAdmin.requiresValidation")}
         </label>
-        <span className="ml-auto flex gap-2">
-          <Button size="sm" onClick={onSave}>
-            {t("sessionTypesAdmin.save")}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onDelete}>
-            {t("sessionTypesAdmin.delete")}
-          </Button>
-        </span>
       </div>
       {row.requiresPayment ? (
-        <div className="mt-3 max-w-xs">
+        <div className="mt-2 max-w-56">
           <Field label={t("sessionTypesAdmin.priceCents")} hint={t("sessionTypesAdmin.priceCentsHint")}>
             <NumberInput
               unit="€"
@@ -97,6 +95,14 @@ export default function SessionTypeCard({
         selected={row.compatibleRoomIds}
         onChange={(compatibleRoomIds) => onChange({ compatibleRoomIds })}
       />
+      <div className="mt-2 flex justify-start gap-1.5">
+        <Button size="sm" onClick={onSave}>
+          {t("sessionTypesAdmin.save")}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDelete}>
+          {t("sessionTypesAdmin.delete")}
+        </Button>
+      </div>
     </div>
   );
 }

@@ -78,7 +78,7 @@ export default function BillingSettings({
     }
   }
 
-  if (!status.configured || !status.priceConfigured) {
+  if (!status.enabled || !status.configured || !status.priceConfigured) {
     return <p className="text-sm text-mist">{t("billing.notConfigured")}</p>;
   }
 

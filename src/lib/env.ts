@@ -27,6 +27,10 @@ const envSchema = z.object({
   // Abonnement SaaS (1 par cabinet) : prix mensuel Stripe (`price_...`).
   // Sans prix, la facturation est désactivée (bandeau masqué).
   STRIPE_SUBSCRIPTION_PRICE_ID: z.string().optional(),
+  // Feature flag abonnement : à "true", le bandeau + l'onglet Abonnement
+  // sont visibles et le checkout/portal Stripe actifs. À "false" (défaut),
+  // tout le monde utilise le service sans restriction ni paiement.
+  SUBSCRIPTION_ENABLED: z.enum(["true", "false"]).optional().default("false"),
 
   // --- Google (push agenda praticien) — optionnel : sans GOOGLE_CLIENT_*,
   // la connexion Google est désactivée et les réservations restent locales.
@@ -47,12 +51,14 @@ export const env = envSchema.parse({
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   STRIPE_APPLICATION_FEE_CENTS: process.env.STRIPE_APPLICATION_FEE_CENTS,
   STRIPE_SUBSCRIPTION_PRICE_ID: process.env.STRIPE_SUBSCRIPTION_PRICE_ID,
+  SUBSCRIPTION_ENABLED: process.env.SUBSCRIPTION_ENABLED,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
 });
 
 export const isSmtpConfigured = Boolean(env.SMTP_HOST);
 export const isStripeConfigured = Boolean(env.STRIPE_SECRET_KEY);
+export const isSubscriptionEnabled = env.SUBSCRIPTION_ENABLED === "true";
 export const isGoogleConfigured = Boolean(
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET,
 );

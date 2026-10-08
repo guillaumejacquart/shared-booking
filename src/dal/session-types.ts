@@ -1,6 +1,6 @@
 import { getConnection } from "./connection";
 
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, inArray } from "drizzle-orm";
 
 import { booking, sessionType, sessionTypeRoom } from "@/db/schema";
 
@@ -106,13 +106,16 @@ export async function countSessionTypesByRoom(roomId: string): Promise<number> {
 export async function countFutureBookingsBySessionType(sessionTypeId: string,
   now: Date): Promise<number> {
   const conn = getConnection();
+  // Bloque la suppression tant qu'une réservation non effectuée subsiste :
+  // confirmée à venir ou en attente de paiement (créneau tenu 30 min).
+  // Annulées / effectuées : la suppression met la référence à NULL (SET NULL).
   const rows = await conn
     .select({ id: booking.id })
     .from(booking)
     .where(
       and(
         eq(booking.sessionTypeId, sessionTypeId),
-        eq(booking.status, "confirmed"),
+        inArray(booking.status, ["confirmed", "pending"]),
         gte(booking.startAt, now),
       ),
     );

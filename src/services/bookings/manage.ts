@@ -151,7 +151,7 @@ async function moveBookingToNewSlot(args: {
     const dateStr = dateStrInTz(newStart, tz);
     const engineFrom = now;
     const horizonEnd = new Date(newStart.getTime() + 86_400_000);
-    const context = await loadSlotContext(prac.id, office.id, engineFrom, horizonEnd, tz, booking.id, booking.sessionTypeId);
+    const context = await loadSlotContext(prac.id, office.id, engineFrom, horizonEnd, tz, booking.id, booking.sessionTypeId ?? undefined);
     const allSlots = generateSlots({
       timezone: tz,
       ...context,

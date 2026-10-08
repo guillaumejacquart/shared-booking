@@ -160,6 +160,50 @@ describe("saveSessionType / deleteSessionType", () => {
       ValidationError,
     );
   });
+
+  it("refuse aussi avec une réservation en attente de paiement", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.booking).values({
+      id: "b1", officeId: "o1", practitionerId: "p1", roomId: "room-a", sessionTypeId: "st1",
+      sessionNameSnapshot: "Séance", durationMinSnapshot: 60, bufferAfterMinSnapshot: 0,
+      startAt: new Date("2026-09-20T07:00:00Z"), endAt: new Date("2026-09-20T08:00:00Z"),
+      patientFirstName: "J", patientLastName: "D", patientEmail: "j@example.com",
+      status: "pending", paymentStatus: "pending", cancelToken: "c1", rescheduleToken: "r1",
+    });
+    await expect(deleteSessionType(testPorts({ clock: fixedClock(NOW) }), { id: "st1", ...alice, practitionerId: "p1" })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
+
+  it("suppression OK avec uniquement du passé : historique conservé (SET NULL, pas de cascade)", async () => {
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db.insert(s.booking).values([
+      {
+        id: "b-past", officeId: "o1", practitionerId: "p1", roomId: "room-a", sessionTypeId: "st1",
+        sessionNameSnapshot: "Séance", durationMinSnapshot: 60, bufferAfterMinSnapshot: 0,
+        startAt: new Date("2026-09-01T07:00:00Z"), endAt: new Date("2026-09-01T08:00:00Z"),
+        patientFirstName: "J", patientLastName: "D", patientEmail: "j@example.com",
+        status: "completed", cancelToken: "c-past", rescheduleToken: "r-past",
+      },
+      {
+        id: "b-cancelled", officeId: "o1", practitionerId: "p1", roomId: "room-a", sessionTypeId: "st1",
+        sessionNameSnapshot: "Séance", durationMinSnapshot: 60, bufferAfterMinSnapshot: 0,
+        startAt: new Date("2026-09-20T07:00:00Z"), endAt: new Date("2026-09-20T08:00:00Z"),
+        patientFirstName: "A", patientLastName: "B", patientEmail: "a@example.com",
+        status: "cancelled", cancelToken: "c-can", rescheduleToken: "r-can",
+      },
+    ]);
+    await deleteSessionType(testPorts({ clock: fixedClock(NOW) }), { id: "st1", ...alice, practitionerId: "p1" });
+    // Type supprimé, réservations conservées avec référence neutralisée.
+    expect(await db.select().from(s.sessionType).where(eq(s.sessionType.id, "st1"))).toHaveLength(0);
+    const kept = await db.select().from(s.booking);
+    expect(kept).toHaveLength(2);
+    for (const row of kept) {
+      expect(row.sessionTypeId).toBeNull();
+      expect(row.sessionNameSnapshot).toBe("Séance");
+    }
+  });
 });
 
 describe("createException / deleteException", () => {

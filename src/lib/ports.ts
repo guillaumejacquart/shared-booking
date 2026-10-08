@@ -79,4 +79,6 @@ export interface Ports {
   googleCalendar: GoogleCalendarPort | null;
   /** Prix mensuel de l'abonnement cabinet (`price_...`, null = facturation off). */
   subscriptionPriceId: string | null;
+  /** Feature flag abonnement : false = service complet sans paiement. */
+  subscriptionEnabled: boolean;
 }

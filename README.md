@@ -63,12 +63,19 @@ ses séances payantes sont rejetées proprement (400).
 Annuler un RDV payé ne rembourse pas : remboursement manuel via le dashboard
 Stripe (à terme : bouton praticien via `refunds.create`).
 
-## Abonnement SaaS (Stripe Billing, optionnel)
+## Abonnement SaaS (Stripe Billing, derrière feature flag)
 
 1 abonnement par cabinet (10 €/mois), payé par le owner via
 **Paramètres → Abonnement** (checkout `mode: subscription` + portail Stripe
 pour factures/résiliation). Non bloquant : sans abonnement actif, un bandeau
 le rappelle dans le dashboard, les réservations restent possibles.
+
+Feature flag `SUBSCRIPTION_ENABLED` (voir `.env.example`, défaut `false`) :
+à `false`, le bandeau et l'onglet Abonnement sont masqués, le
+checkout/portail/refresh renvoient 400 et tout le monde utilise le service
+sans restriction ni paiement. À `true`, le comportement ci-dessus s'applique.
+Le webhook `customer.subscription.*` persiste le statut dans tous les cas
+(réactivation sans perte d'état).
 
 1. Prix `STRIPE_SUBSCRIPTION_PRICE_ID` (voir `.env.example` ; prix test 10 €/mois
 déjà créé : `price_1UO27KB5HdKRRKyHy9ERmyeo`). Sans prix, la facturation est

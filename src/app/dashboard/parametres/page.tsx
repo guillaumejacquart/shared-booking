@@ -5,6 +5,7 @@ import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import { services } from "@/lib/container";
 import { getDashboardContext } from "@/lib/dashboard";
+import { isSubscriptionEnabled } from "@/lib/env";
 import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
 import BillingSettings from "@/components/BillingSettings";
@@ -28,8 +29,13 @@ export default async function ParametresPage({
   }
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "general";
-  const initial: SettingsTab = rawTab === "team" || rawTab === "rooms" || rawTab === "abonnement" ? rawTab : "general";
-  const backFromCheckout = sp.abo === "ok";
+  // Onglet Abonnement masqué quand le feature flag est off : toute URL
+  // `?tab=abonnement` retombe sur l'onglet général.
+  const initial: SettingsTab =
+    rawTab === "team" || rawTab === "rooms" || (rawTab === "abonnement" && isSubscriptionEnabled)
+      ? rawTab
+      : "general";
+  const backFromCheckout = sp.abo === "ok" && isSubscriptionEnabled;
 
   const [office, members, pending, rooms, pracs, billingStatus] = await Promise.all([
     officesDal.getOfficeById(ctx.officeId),
@@ -37,13 +43,16 @@ export default async function ParametresPage({
     invitesDal.listPendingInvites(ctx.officeId),
     roomsDal.listRoomsWithMembers(ctx.officeId),
     practitionersDal.listPractitionersByOffice(ctx.officeId),
-    services.billing.getBillingStatus(ctx.userId),
+    isSubscriptionEnabled
+      ? services.billing.getBillingStatus(ctx.userId)
+      : Promise.resolve(null),
   ]);
   if (!office) return null;
   // Retour du checkout : re-synchronise le statut depuis Stripe (best-effort).
-  const billing = backFromCheckout
-    ? await services.billing.refreshBillingStatus(ctx.userId).catch(() => billingStatus)
-    : billingStatus;
+  const billing =
+    backFromCheckout && billingStatus
+      ? await services.billing.refreshBillingStatus(ctx.userId).catch(() => billingStatus)
+      : billingStatus;
 
   return (
     <div>
@@ -55,7 +64,9 @@ export default async function ParametresPage({
           { key: "general", label: t("settings.tabGeneral") },
           { key: "team", label: t("settings.tabTeam") },
           { key: "rooms", label: t("settings.tabRooms") },
-          { key: "abonnement", label: t("settings.tabBilling") },
+          ...(isSubscriptionEnabled
+            ? [{ key: "abonnement" as SettingsTab, label: t("settings.tabBilling") }]
+            : []),
         ]}
       >
         {{
@@ -148,14 +159,14 @@ export default async function ParametresPage({
               practitioners={pracs.map((prac) => ({ id: prac.id, displayName: prac.displayName }))}
             />
           ),
-          abonnement: (
+          abonnement: billing ? (
             <div className="flex flex-col gap-4">
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("settings.tabBilling")}</h2>
                 <BillingSettings initialStatus={billing} />
               </section>
             </div>
-          ),
+          ) : null,
         }}
       </Tabs>
     </div>

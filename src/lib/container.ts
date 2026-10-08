@@ -1,4 +1,4 @@
-import { env, isStripeConfigured } from "@/lib/env";
+import { env, isStripeConfigured, isSubscriptionEnabled } from "@/lib/env";
 import { createMailer } from "@/lib/email";
 import { createCalendarClient, getGoogleAccessToken } from "@/lib/google-calendar";
 import {
@@ -55,6 +55,7 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
     sendEmail: createMailer(),
     stripeClient: realStripe(),
     subscriptionPriceId: env.STRIPE_SUBSCRIPTION_PRICE_ID ?? null,
+    subscriptionEnabled: isSubscriptionEnabled,
     googleCalendar: realGoogleCalendar,
     ...overrides,
   };

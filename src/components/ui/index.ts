@@ -6,6 +6,7 @@ export { default as ColorPicker } from "./ColorPicker";
 export { default as ConfirmButton } from "./ConfirmButton";
 export { default as Field } from "./Field";
 export { default as FormMessage } from "./FormMessage";
+export { default as InfoTooltip } from "./InfoTooltip";
 export { default as Modal } from "./Modal";
 export { default as OptionCard } from "./OptionCard";
 export { default as Tabs } from "./Tabs";

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { STR } from "@/lib/i18n";
+import { isSubscriptionEnabled } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Mentions légales & CGV — Le Cabinet Partagé",
@@ -15,7 +16,11 @@ const sections: { title: string; text: string }[] = [
   { title: copy.editorTitle, text: copy.editor },
   { title: copy.hostingTitle, text: copy.hosting },
   { title: copy.serviceTitle, text: copy.service },
-  { title: copy.subscriptionTitle, text: copy.subscription },
+  // Section tarifaire affichée uniquement quand l'abonnement est activé
+  // (feature flag) : sans abonnement, le service est gratuit sans restriction.
+  ...(isSubscriptionEnabled
+    ? [{ title: copy.subscriptionTitle, text: copy.subscription }]
+    : []),
   { title: copy.sessionsTitle, text: copy.sessions },
   { title: copy.privacyTitle, text: copy.privacy },
   { title: copy.analyticsTitle, text: copy.analytics },

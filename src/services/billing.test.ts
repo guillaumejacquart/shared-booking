@@ -68,6 +68,7 @@ function ports() {
     clock: fixedClock(NOW),
     stripeClient: fakeStripe,
     subscriptionPriceId: PRICE,
+    subscriptionEnabled: true,
   });
 }
 
@@ -99,7 +100,7 @@ beforeEach(async () => {
 describe("billing", () => {
   it("statut initial : inactif, owner détecté", async () => {
     const status = await getBillingStatus(ports(), "u1");
-    expect(status).toMatchObject({ active: false, isOwner: true, status: null });
+    expect(status).toMatchObject({ enabled: true, active: false, isOwner: true, status: null });
     const other = await getBillingStatus(ports(), "u2");
     expect(other.isOwner).toBe(false);
   });
@@ -123,7 +124,11 @@ describe("billing", () => {
   });
 
   it("start sans prix configuré → 400 propre", async () => {
-    const noPrice = testPorts({ clock: fixedClock(NOW), stripeClient: fakeStripe });
+    const noPrice = testPorts({
+      clock: fixedClock(NOW),
+      stripeClient: fakeStripe,
+      subscriptionEnabled: true,
+    });
     await expect(startSubscriptionCheckout(noPrice, "u1")).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -167,5 +172,19 @@ describe("billing", () => {
     await handleSubscriptionCheckout({ officeId: "o1", customerId: "cus_test_123", subscriptionId: "sub_123" });
     const status = await refreshBillingStatus(ports(), "u1");
     expect(status).toMatchObject({ active: true, status: "active" });
+  });
+
+  it("flag désactivé : statut masqué, checkout/portail/refresh refusés", async () => {
+    const off = testPorts({
+      clock: fixedClock(NOW),
+      stripeClient: fakeStripe,
+      subscriptionPriceId: PRICE,
+    });
+    const status = await getBillingStatus(off, "u1");
+    expect(status.enabled).toBe(false);
+    await expect(startSubscriptionCheckout(off, "u1")).rejects.toBeInstanceOf(ValidationError);
+    await expect(createPortalSession(off, "u1")).rejects.toBeInstanceOf(ValidationError);
+    await expect(refreshBillingStatus(off, "u1")).rejects.toBeInstanceOf(ValidationError);
+    expect(checkoutCalls).toHaveLength(0);
   });
 });

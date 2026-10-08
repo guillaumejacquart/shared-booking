@@ -100,6 +100,7 @@ export default async function ProfilPage({
           seances: (
             <SessionTypesManager
               practitionerId={ctx.practitionerId}
+              paymentsReady={stripeStatus.ready}
               initial={types.map((s) => ({
                 id: s.id,
                 name: s.name,

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Fond sauge (couleur marque de l'app) -->
+  <rect width="64" height="64" rx="14" fill="#4e7a5b"/>
+  <!-- Feuille arrière : le cabinet partagé -->
+  <rect x="21" y="13" width="30" height="30" rx="7" fill="#f3f6f2"/>
+  <!-- Calendrier au premier plan -->
+  <rect x="13" y="21" width="32" height="29" rx="7" fill="#ffffff"/>
+  <!-- Bandeau supérieur -->
+  <path d="M13 29.5V28a7 7 0 0 1 7-7h18a7 7 0 0 1 7 7v1.5Z" fill="#3a5f45"/>
+  <!-- Coche de confirmation -->
+  <path d="M22.5 39.5l6.5 6.5L37 33.5" fill="none" stroke="#4e7a5b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
