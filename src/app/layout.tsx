@@ -2,6 +2,7 @@ import Script from "next/script";
 import type { Metadata } from "next";
 import { Fraunces, Work_Sans } from "next/font/google";
 import "./globals.css";
+import { env } from "@/lib/env";
 import { DEFAULT_MODE, DEFAULT_PALETTE } from "@/lib/theme";
 
 const display = Fraunces({
@@ -40,7 +41,7 @@ export default async function RootLayout({
         {process.env.NODE_ENV !== "development" && (
           <Script
             src="https://stats.guillaumejacquart.com/script.js"
-            data-website-id="ad8fcc2f-4830-436f-82e0-319f14727adb"
+            data-website-id={env.UMAMI_WEBSITE_ID}
           />
         )}
       </body>

@@ -6,6 +6,7 @@ import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
 import type { Ports } from "@/lib/ports";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import { sortRooms } from "@/services/room-order";
 import { dateStrInTz } from "@/lib/timezone";
 import type { SessionTypeVariant } from "@/dal/types";
@@ -196,6 +197,13 @@ export async function saveSessionType(
     });
   }
   await sessionTypesDal.replaceCompatibleRooms(id, compatibleRoomIds);
+  // Création uniquement : les mises à jour (même carte sauvegardée)
+  // n'émettent rien pour ne pas bruiter le funnel activation.
+  await ports.analytics.track(ANALYTICS_EVENTS.SESSION_TYPE_CREATED, {
+    requiresPayment: input.requiresPayment,
+    requiresValidation: input.requiresValidation,
+    variantCount: input.variants.length,
+  });
   return { id, variants: await sessionTypesDal.listVariants(id) };
 }
 

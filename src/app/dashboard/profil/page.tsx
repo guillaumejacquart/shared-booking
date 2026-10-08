@@ -15,6 +15,7 @@ import { parseOnsitePaymentMethods } from "@/lib/onsite-payments";
 import GoogleAgendaSettings, {
   type GoogleCalendar,
 } from "@/components/GoogleAgendaSettings";
+import { sortRooms } from "@/services/room-order";
 import StripeConnectSettings from "@/components/StripeConnectSettings";
 import SessionTypesManager from "../seances/SessionTypesManager";
 import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
@@ -63,18 +64,16 @@ export default async function ProfilPage({
   const googleCalendars: GoogleCalendar[] = await services.google
     .listGoogleCalendars(ctx.userId)
     .catch(() => []);
-  const rooms = roomsWithMembers
-    .filter((r) => r.practitionerIds.length === 0 || r.practitionerIds.includes(ctx.practitionerId))
-    .sort((a, b) =>
-      a.room.sortOrder - b.room.sortOrder ||
-      a.room.name.localeCompare(b.room.name) ||
-      (a.room.id < b.room.id ? -1 : a.room.id > b.room.id ? 1 : 0))
-    .map((r) => ({ id: r.room.id, name: r.room.name }));
+  const rooms = sortRooms(
+    roomsWithMembers.filter(
+      (entry) => entry.practitionerIds.length === 0 || entry.practitionerIds.includes(ctx.practitionerId),
+    ),
+  ).map((entry) => ({ id: entry.room.id, name: entry.room.name }));
   const compatibleByType = new Map<string, string[]>();
-  for (const c of compatibleRooms) {
-    const list = compatibleByType.get(c.sessionTypeId) ?? [];
-    list.push(c.roomId);
-    compatibleByType.set(c.sessionTypeId, list);
+  for (const compat of compatibleRooms) {
+    const list = compatibleByType.get(compat.sessionTypeId) ?? [];
+    list.push(compat.roomId);
+    compatibleByType.set(compat.sessionTypeId, list);
   }
   const variantsByType = new Map<string, typeof variants[number]["variant"][]>();
   for (const { sessionTypeId, variant } of variants) {
@@ -117,22 +116,22 @@ export default async function ProfilPage({
               practitionerId={ctx.practitionerId}
               paymentsReady={stripeStatus.ready}
               defaultRequiresValidation={prac?.requiresValidationDefault ?? false}
-              initial={types.map((s) => ({
-                id: s.id,
-                name: s.name,
-                description: s.description,
-                active: s.active,
-                requiresPayment: s.requiresPayment,
-                currency: s.currency,
-                requiresValidation: s.requiresValidation,
-                variants: (variantsByType.get(s.id) ?? []).map((variant) => ({
+              initial={types.map((sessionType) => ({
+                id: sessionType.id,
+                name: sessionType.name,
+                description: sessionType.description,
+                active: sessionType.active,
+                requiresPayment: sessionType.requiresPayment,
+                currency: sessionType.currency,
+                requiresValidation: sessionType.requiresValidation,
+                variants: (variantsByType.get(sessionType.id) ?? []).map((variant) => ({
                   id: variant.id,
                   durationMin: variant.durationMin,
                   bufferAfterMin: variant.bufferAfterMin,
                   priceDisplay: variant.priceDisplay,
                   priceCents: variant.priceCents,
                 })),
-                compatibleRoomIds: compatibleByType.get(s.id) ?? [],
+                compatibleRoomIds: compatibleByType.get(sessionType.id) ?? [],
               }))}
               rooms={rooms}
             />
@@ -144,11 +143,11 @@ export default async function ProfilPage({
                 <p className="mb-3 text-sm text-mist">{t("availability.regularHint")}</p>
                 <AvailabilityEditor
                   practitionerId={ctx.practitionerId}
-                  initial={rules.map((r) => ({
-                    key: r.id,
-                    weekday: r.weekday,
-                    startTime: r.startTime,
-                    endTime: r.endTime,
+                  initial={rules.map((rule) => ({
+                    key: rule.id,
+                    weekday: rule.weekday,
+                    startTime: rule.startTime,
+                    endTime: rule.endTime,
                   }))}
                 />
               </section>
@@ -160,15 +159,15 @@ export default async function ProfilPage({
                 <h2 className="mb-3 text-lg font-semibold">{t("availability.exceptions")}</h2>
                 <ExceptionsManager
                   practitionerId={ctx.practitionerId}
-                  initial={exceptions.map((x) => ({
-                    id: x.id,
-                    date: x.date,
-                    kind: x.kind,
-                    startTime: x.startTime,
-                    endTime: x.endTime,
-                    fullDay: x.fullDay,
-                    roomId: x.roomId,
-                    reason: x.reason,
+                  initial={exceptions.map((exception) => ({
+                    id: exception.id,
+                    date: exception.date,
+                    kind: exception.kind,
+                    startTime: exception.startTime,
+                    endTime: exception.endTime,
+                    fullDay: exception.fullDay,
+                    roomId: exception.roomId,
+                    reason: exception.reason,
                   }))}
                   rooms={rooms}
                 />

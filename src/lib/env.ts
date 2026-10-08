@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DEFAULT_UMAMI_HOST, DEFAULT_UMAMI_WEBSITE_ID } from "@/lib/analytics";
+
 /** Validation centralisée des variables d'environnement. */
 const envSchema = z.object({
   SQLITE_PATH: z.string().default("./local.db"),
@@ -36,6 +38,11 @@ const envSchema = z.object({
   // la connexion Google est désactivée et les réservations restent locales.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+  // --- Umami (business events) — tout est optionnel : les défauts pointent
+  // vers l'instance centrale ; surchargeable (ex. website staging séparé).
+  UMAMI_HOST: z.string().default(DEFAULT_UMAMI_HOST),
+  UMAMI_WEBSITE_ID: z.string().default(DEFAULT_UMAMI_WEBSITE_ID),
 });
 
 export const env = envSchema.parse({
@@ -54,6 +61,8 @@ export const env = envSchema.parse({
   SUBSCRIPTION_ENABLED: process.env.SUBSCRIPTION_ENABLED,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  UMAMI_HOST: process.env.UMAMI_HOST,
+  UMAMI_WEBSITE_ID: process.env.UMAMI_WEBSITE_ID,
 });
 
 export const isSmtpConfigured = Boolean(env.SMTP_HOST);

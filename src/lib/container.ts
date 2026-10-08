@@ -1,5 +1,6 @@
-import { env, isStripeConfigured, isSubscriptionEnabled } from "@/lib/env";
+import { env, isSubscriptionEnabled } from "@/lib/env";
 import { createMailer } from "@/lib/email";
+import { createAnalyticsPort, hostnameOf } from "@/lib/analytics";
 import { createCalendarClient, getGoogleAccessToken } from "@/lib/google-calendar";
 import {
   systemClock,
@@ -27,8 +28,9 @@ import Stripe from "stripe";
 
 /** Client Stripe plateforme ; null si le paiement en ligne n'est pas configuré. */
 function realStripe(): StripeLike | null {
-  if (!isStripeConfigured) return null;
-  return new Stripe(env.STRIPE_SECRET_KEY!) as unknown as StripeLike;
+  const key = env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  return new Stripe(key) as unknown as StripeLike;
 }
 
 /** Port Google réel : client OAuth frais pour l'utilisateur demandé. */
@@ -55,6 +57,11 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
   const ports: Ports = {
     clock: systemClock,
     sendEmail: createMailer(),
+    analytics: createAnalyticsPort({
+      hostUrl: env.UMAMI_HOST,
+      websiteId: env.UMAMI_WEBSITE_ID,
+      hostname: hostnameOf(env.BETTER_AUTH_URL),
+    }),
     stripeClient: realStripe(),
     subscriptionPriceId: env.STRIPE_SUBSCRIPTION_PRICE_ID ?? null,
     subscriptionEnabled: isSubscriptionEnabled,

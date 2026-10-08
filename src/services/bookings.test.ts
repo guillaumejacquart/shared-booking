@@ -18,6 +18,7 @@ import {
 } from "@/services/bookings";
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock } from "@/lib/ports";
+import { ANALYTICS_EVENTS, type AnalyticsData, type AnalyticsEventName } from "@/lib/analytics";
 import { testPorts } from "@/test/ports";
 import { seedSingleVariant } from "@/test/session-types";
 
@@ -589,5 +590,72 @@ describe("variantes (déclinaisons durée/prix)", () => {
         startAt: SLOT_A, ...patient,
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("analytics (Umami)", () => {
+  let tracked: { event: AnalyticsEventName; data?: AnalyticsData }[];
+
+  beforeEach(() => {
+    tracked = [];
+  });
+
+  function watchedPorts() {
+    return testPorts({
+      clock: fixedClock(NOW),
+      sendEmail: async (email) => void sent.push(email),
+      analytics: {
+        track: async (event, data) => {
+          tracked.push({ event, data });
+        },
+      },
+    });
+  }
+
+  it("confirmation immédiate : booking-confirmed sans PII", async () => {
+    const { createBooking: create } = await import("@/services/bookings");
+    const res = await create(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
+    });
+    expect(res.status).toBe("confirmed");
+    expect(tracked).toHaveLength(1);
+    expect(tracked[0].event).toBe(ANALYTICS_EVENTS.BOOKING_CONFIRMED);
+    expect(tracked[0].data).toMatchObject({
+      practitionerSlug: "alice",
+      durationMin: 60,
+      requiresValidation: false,
+    });
+    expect(tracked[0].data).not.toHaveProperty("patientEmail");
+  });
+
+  it("demande à valider : rien à la création, validated puis confirmed", async () => {
+    const { createBooking: create, validateBooking } = await import("@/services/bookings");
+    const res = await create(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
+    });
+    expect(res.status).toBe("pending");
+    expect(tracked).toHaveLength(0);
+    await validateBooking(watchedPorts(), {
+      bookingId: res.id, requesterUserId: "u1", accept: true,
+    });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_VALIDATED,
+      ANALYTICS_EVENTS.BOOKING_CONFIRMED,
+    ]);
+    expect(tracked[0].data).toMatchObject({ practitionerSlug: "alice", accepted: true });
+  });
+
+  it("demande refusée : validated(false), pas de confirmed", async () => {
+    const { createBooking: create, validateBooking } = await import("@/services/bookings");
+    const res = await create(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
+    });
+    await validateBooking(watchedPorts(), {
+      bookingId: res.id, requesterUserId: "u1", accept: false, reason: "Complet",
+    });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_VALIDATED,
+    ]);
+    expect(tracked[0].data).toMatchObject({ accepted: false });
   });
 });

@@ -14,7 +14,7 @@ import { services } from "@/lib/container";
  * - Signature invalide → 400 (Stripe retry).
  */
 export async function POST(req: Request) {
-  if (!env.STRIPE_WEBHOOK_SECRET) {
+  if (!env.STRIPE_WEBHOOK_SECRET || !env.STRIPE_SECRET_KEY) {
     return NextResponse.json({ error: "Webhook non configuré" }, { status: 500 });
   }
   const signature = req.headers.get("stripe-signature");
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   }
   let event: Stripe.Event;
   try {
-    const stripe = new Stripe(env.STRIPE_SECRET_KEY!);
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY);
     const rawBody = await req.text();
     event = stripe.webhooks.constructEvent(rawBody, signature, env.STRIPE_WEBHOOK_SECRET);
   } catch {

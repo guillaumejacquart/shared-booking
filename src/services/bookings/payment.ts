@@ -5,9 +5,11 @@ import {
   type SendEmail,
 } from "@/lib/email";
 import type { Ports } from "@/lib/ports";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import type { ApplyPaymentInput } from "@/lib/schemas/bookings";
 import {
   mailModel,
+  bookingEventData,
   notifyValidationRequest,
 } from "./shared";
 import { syncBookingToGoogle } from "../google-sync";
@@ -24,11 +26,19 @@ export async function applyPaymentCompleted(
 ): Promise<{ applied: boolean; confirmed: boolean }> {
   const detail = await bookingsDal.findBookingByStripeSession(input.stripeSessionId);
   if (!detail) return { applied: false, confirmed: false };
-  const { booking } = detail;
+  const { booking, practitioner } = detail;
   if (booking.paymentStatus === "paid") return { applied: false, confirmed: false };
   if (booking.status !== "pending") return { applied: false, confirmed: false };
 
   await bookingsDal.markBookingPaid(booking.id, input.paymentIntentId);
+  // `revenue` + `currency` alimentent l'onglet Revenue d'Umami.
+  await ports.analytics.track(ANALYTICS_EVENTS.BOOKING_PAID, {
+    practitionerSlug: practitioner.slug,
+    currency: booking.currencySnapshot,
+    ...(booking.priceCentsSnapshot != null
+      ? { revenue: booking.priceCentsSnapshot / 100 }
+      : {}),
+  });
   const confirmed = await finalizeBookingIfReady(ports, booking.id);
   return { applied: true, confirmed };
 }
@@ -58,6 +68,14 @@ export async function finalizeBookingIfReady(
     return false;
   }
   await bookingsDal.markBookingConfirmed(booking.id);
+  await ports.analytics.track(
+    ANALYTICS_EVENTS.BOOKING_CONFIRMED,
+    bookingEventData({
+      practitionerSlug: detail.practitioner.slug,
+      durationMin: booking.durationMinSnapshot,
+      requiresValidation: booking.validationRequired ?? false,
+    }),
+  );
   await send(confirmationEmail(booking.patientEmail, mailModel(booking, detail, { now: ports.clock.now() })));
   await syncBookingToGoogle(ports, booking.id);
   return true;

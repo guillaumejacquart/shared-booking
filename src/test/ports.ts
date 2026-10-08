@@ -8,6 +8,7 @@ export function testPorts(overrides: Partial<Ports> = {}): Ports {
   return {
     clock: systemClock,
     sendEmail: async () => {},
+    analytics: { track: async () => {} },
     stripeClient: null,
     googleCalendar: null,
     subscriptionPriceId: null,

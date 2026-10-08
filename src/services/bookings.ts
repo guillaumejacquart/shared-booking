@@ -28,6 +28,7 @@ export {
   MAX_BUFFER_MIN,
   MAX_FUTURE_PER_EMAIL,
   PENDING_TTL_MS,
+  bookingEventData,
   deadline,
   mailModel,
   manageUrl,

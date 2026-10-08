@@ -23,8 +23,14 @@ export async function processReminders(ports: Ports): Promise<{ sent: number; co
     Promise.all(officeIds.map((id) => officesDal.getOfficeById(id))),
     Promise.all(pracIds.map((id) => practitionersDal.getPractitionerById(id))),
   ]);
-  const officeById = new Map(offices.filter((office) => office).map((office) => [office!.id, office!]));
-  const pracById = new Map(pracs.filter((prac) => prac).map((prac) => [prac!.id, prac!]));
+  const officeById = new Map<string, NonNullable<(typeof offices)[number]>>();
+  for (const office of offices) {
+    if (office) officeById.set(office.id, office);
+  }
+  const pracById = new Map<string, NonNullable<(typeof pracs)[number]>>();
+  for (const prac of pracs) {
+    if (prac) pracById.set(prac.id, prac);
+  }
 
   let sent = 0;
   for (const booking of candidates) {

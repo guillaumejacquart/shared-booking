@@ -11,12 +11,14 @@ import {
 import { ValidationError } from "@/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
 import { fixedClock, type Ports } from "@/lib/ports";
+import { ANALYTICS_EVENTS, type AnalyticsData, type AnalyticsEventName } from "@/lib/analytics";
 import { testPorts } from "@/test/ports";
 import { seedSessionType, seedSingleVariant } from "@/test/session-types";
 
 let db: Db;
 let sent: OutgoingEmail[];
 let stripeCalls: unknown[];
+let tracked: { event: AnalyticsEventName; data?: AnalyticsData }[];
 
 const NOW = new Date("2026-09-14T06:00:00Z");
 const SLOT = "2026-09-14T08:00:00.000Z"; // 10h Paris
@@ -109,6 +111,7 @@ beforeEach(async () => {
   db = createMemoryDb();  setConnection(db);
   sent = [];
   stripeCalls = [];
+  tracked = [];
   await seed();
 });
 
@@ -259,5 +262,75 @@ describe("paid booking avec déclinaisons", () => {
     const rows = await db.select().from(s.booking).where(eq(s.booking.id, res.id));
     expect(rows[0].sessionVariantId).toBe("stv-paid-90");
     expect(rows[0].durationMinSnapshot).toBe(90);
+  });
+});
+
+describe("analytics (Umami)", () => {
+  function watchedPorts() {
+    return ports({
+      analytics: {
+        track: async (event, data) => {
+          tracked.push({ event, data });
+        },
+      },
+    });
+  }
+
+  it("flux payant : payment-started → paid (+revenue) → confirmed", async () => {
+    await createBooking(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
+    });
+    const paid = await applyPaymentCompleted(watchedPorts(), {
+      stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
+    });
+    expect(paid).toEqual({ applied: true, confirmed: true });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_PAYMENT_STARTED,
+      ANALYTICS_EVENTS.BOOKING_PAID,
+      ANALYTICS_EVENTS.BOOKING_CONFIRMED,
+    ]);
+    expect(tracked[1].data).toMatchObject({
+      practitionerSlug: "alice",
+      revenue: 60,
+      currency: "eur",
+    });
+    expect(tracked[1].data).not.toHaveProperty("patientEmail");
+    expect(tracked[2].data).toMatchObject({ practitionerSlug: "alice", durationMin: 60 });
+  });
+
+  it("payant + validation : paid sans confirmed", async () => {
+    await createBooking(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "stPaidVal", startAt: SLOT, ...patient,
+    });
+    const paid = await applyPaymentCompleted(watchedPorts(), {
+      stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
+    });
+    expect(paid).toEqual({ applied: true, confirmed: false });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_PAYMENT_STARTED,
+      ANALYTICS_EVENTS.BOOKING_PAID,
+    ]);
+  });
+
+  it("webhook rejoué : aucun event dupliqué", async () => {
+    await createBooking(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "stPaid", startAt: SLOT, ...patient,
+    });
+    await applyPaymentCompleted(watchedPorts(), {
+      stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
+    });
+    await applyPaymentCompleted(watchedPorts(), {
+      stripeSessionId: "cs_test_123", paymentIntentId: "pi_123",
+    });
+    expect(tracked).toHaveLength(3);
+  });
+
+  it("gratuit : un seul booking-confirmed à la création", async () => {
+    await createBooking(watchedPorts(), {
+      practitionerSlug: "alice", sessionTypeId: "stFree", startAt: SLOT, ...patient,
+    });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_CONFIRMED,
+    ]);
   });
 });

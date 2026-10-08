@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import type { Booking, BookingDetail, Practitioner, SessionTypeVariant } from "@/dal/types";
 import * as usersDal from "@/dal/users";
+import type { AnalyticsData } from "@/lib/analytics";
 import { env } from "@/lib/env";
 import {
   buildIcs,
@@ -149,6 +150,23 @@ export function mailModel(
       location,
       description: url,
     }),
+  };
+}
+
+/**
+ * Données analytics d'une réservation (source unique) : dimensions
+ * agrégeables uniquement, jamais de PII (le sanitize du port les
+ * refuserait de toute façon). Utilisé par create/payment/manage.
+ */
+export function bookingEventData(args: {
+  practitionerSlug: string;
+  durationMin: number;
+  requiresValidation: boolean;
+}): AnalyticsData {
+  return {
+    practitionerSlug: args.practitionerSlug,
+    durationMin: args.durationMin,
+    requiresValidation: args.requiresValidation,
   };
 }
 

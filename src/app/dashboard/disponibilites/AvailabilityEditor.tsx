@@ -42,14 +42,14 @@ export default function AvailabilityEditor({
   function slotsOf(weekday: number): RuleRow[] {
     return rows
       .filter((row) => row.weekday === weekday)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      .sort((first, second) => first.startTime.localeCompare(second.startTime));
   }
 
   function addSlot(weekday: number) {
     setRows((rs) => [
       ...rs,
       {
-        key: `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        key: `new-${crypto.randomUUID()}`,
         weekday,
         startTime: "09:00",
         endTime: "12:00",

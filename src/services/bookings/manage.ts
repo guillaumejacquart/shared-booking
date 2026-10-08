@@ -9,6 +9,7 @@ import {
   type SendEmail,
 } from "@/lib/email";
 import type { Ports } from "@/lib/ports";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import type {
   BookingResult,
   CancelInput,
@@ -26,6 +27,7 @@ import {
   ValidationError,
 } from "../errors";
 import {
+  bookingEventData,
   deadline,
   mailModel,
 } from "./shared";
@@ -71,13 +73,26 @@ export async function validateBooking(
   }
 
   const model = mailModel(booking, detail, { now });
+  const eventData = bookingEventData({
+    practitionerSlug: detail.practitioner.slug,
+    durationMin: booking.durationMinSnapshot,
+    requiresValidation: booking.validationRequired ?? false,
+  });
   if (input.accept) {
     await bookingsDal.markBookingValidated(booking.id, now);
+    await ports.analytics.track(ANALYTICS_EVENTS.BOOKING_VALIDATED, {
+      ...eventData,
+      accepted: true,
+    });
     await finalizeBookingIfReady(ports, booking.id);
     return { id: booking.id, status: "confirmed" };
   }
   if (!input.reason) throw new ValidationError("Un motif de refus est requis");
   await bookingsDal.markBookingCancelled(booking.id, input.reason, now, "practitioner");
+  await ports.analytics.track(ANALYTICS_EVENTS.BOOKING_VALIDATED, {
+    ...eventData,
+    accepted: false,
+  });
   await send(practitionerCancelledEmail(booking.patientEmail, { ...model, reason: input.reason }));
   // Jamais confirmé donc jamais poussé ; synchro défensive (supprime le
   // miroir Google s'il existe).

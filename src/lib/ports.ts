@@ -1,4 +1,5 @@
 import type { SendEmail } from "@/lib/email";
+import type { AnalyticsPort } from "@/lib/analytics";
 import type { CalendarClient } from "@/lib/google-calendar";
 
 /**
@@ -75,6 +76,7 @@ export interface GoogleCalendarPort {
 export interface Ports {
   clock: Clock;
   sendEmail: SendEmail;
+  analytics: AnalyticsPort;
   stripeClient: StripeLike | null;
   googleCalendar: GoogleCalendarPort | null;
   /** Prix mensuel de l'abonnement cabinet (`price_...`, null = facturation off). */

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createMemoryDb } from "@/test/memory-db";
 import { fixedClock } from "@/lib/ports";
+import { ANALYTICS_EVENTS, type AnalyticsData, type AnalyticsEventName } from "@/lib/analytics";
 import { testPorts } from "@/test/ports";
 import { seedSingleVariant } from "@/test/session-types";
 import { setConnection } from "@/dal/connection";
@@ -556,5 +557,40 @@ describe("saveSessionType nulls DB", () => {
       },
     );
     expect(typeof id).toBe("string");
+  });
+});
+
+describe("analytics (Umami)", () => {
+  it("émet session-type-created à la création, rien à la mise à jour", async () => {
+    const tracked: { event: AnalyticsEventName; data?: AnalyticsData }[] = [];
+    const watchedPorts = () =>
+      testPorts({
+        clock: fixedClock(NOW),
+        analytics: {
+          track: async (event, data) => {
+            tracked.push({ event, data });
+          },
+        },
+      });
+    const { id } = await saveSessionType(watchedPorts(), {
+      practitionerId: "p2", ...bob,
+      name: "Suivi",
+      variants: [{ durationMin: 45, bufferAfterMin: 5, priceDisplay: "60 €" }],
+      requiresPayment: false, requiresValidation: true, compatibleRoomIds: [],
+    });
+    expect(tracked).toHaveLength(1);
+    expect(tracked[0].event).toBe(ANALYTICS_EVENTS.SESSION_TYPE_CREATED);
+    expect(tracked[0].data).toMatchObject({
+      requiresPayment: false,
+      requiresValidation: true,
+      variantCount: 1,
+    });
+    await saveSessionType(watchedPorts(), {
+      practitionerId: "p2", ...bob, id,
+      name: "Suivi long",
+      variants: [{ durationMin: 45, bufferAfterMin: 5, priceDisplay: "65 €" }],
+      requiresPayment: false, requiresValidation: true, compatibleRoomIds: [],
+    });
+    expect(tracked).toHaveLength(1);
   });
 });

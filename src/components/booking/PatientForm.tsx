@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { t } from "@/lib/i18n";
+import { ANALYTICS_EVENTS, trackClientEvent } from "@/lib/analytics";
 import { sendJson } from "@/lib/api-client";
 import { Button, Checkbox, Field, FormMessage, TextInput, Textarea } from "@/components/ui";
 import type { SlotDto } from "@/hooks/useAvailableSlots";
@@ -72,8 +73,19 @@ export default function PatientForm({
       });
       if ("error" in result) setFormError(result.error);
       // Séance payante : redirection vers Stripe Checkout.
-      else if ("redirect" in result) window.location.href = result.redirect;
-      else onConfirmed(result.slot);
+      else if ("redirect" in result) {
+        trackClientEvent(ANALYTICS_EVENTS.BOOKING_SUBMITTED, {
+          practitionerSlug: slug,
+          checkout: true,
+        });
+        window.location.href = result.redirect;
+      } else {
+        trackClientEvent(ANALYTICS_EVENTS.BOOKING_SUBMITTED, {
+          practitionerSlug: slug,
+          checkout: false,
+        });
+        onConfirmed(result.slot);
+      }
     } catch {
       setFormError(t("booking.errorGeneric"));
     } finally {

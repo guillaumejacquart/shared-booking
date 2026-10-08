@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { t } from "@/lib/i18n";
+import { ANALYTICS_EVENTS, trackClientEvent } from "@/lib/analytics";
 import { toKey } from "@/lib/calendar";
 import { fullFmt, timeFmt } from "@/lib/format";
 import {
@@ -85,10 +86,18 @@ export default function BookingWidget({
     setSlot("");
   }
 
+  function pickSlot(startAt: string) {
+    setSlot(startAt);
+    trackClientEvent(ANALYTICS_EVENTS.BOOKING_SLOT_SELECTED, {
+      practitionerSlug: slug,
+      ...(selection ? { sessionTypeId: selection.typeId } : {}),
+    });
+  }
+
   function pickNext() {
     if (!next) return;
     setDay(toKey(new Date(next.startAt)));
-    setSlot(next.startAt);
+    pickSlot(next.startAt);
   }
 
   if (sessionTypes.length === 0) {
@@ -157,7 +166,7 @@ export default function BookingWidget({
           selected={slot}
           loading={loading}
           onSelectDay={pickDay}
-          onSelectSlot={setSlot}
+          onSelectSlot={pickSlot}
         />
       </section>
 

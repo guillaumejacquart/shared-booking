@@ -35,13 +35,13 @@ export async function listActiveBookings(query: BusyQuery) {
     lt(booking.startAt, query.to),
   ];
   if (query.practitionerId) conditions.push(eq(booking.practitionerId, query.practitionerId));
-  if (query.practitionerIds) {
-    conditions.push(
-      or(...query.practitionerIds.map((id) => eq(booking.practitionerId, id)))!,
-    );
+  if (query.practitionerIds?.length) {
+    const byPractitioner = or(...query.practitionerIds.map((id) => eq(booking.practitionerId, id)));
+    if (byPractitioner) conditions.push(byPractitioner);
   }
-  if (query.roomIds) {
-    conditions.push(or(...query.roomIds.map((id) => eq(booking.roomId, id)))!);
+  if (query.roomIds?.length) {
+    const byRoom = or(...query.roomIds.map((id) => eq(booking.roomId, id)));
+    if (byRoom) conditions.push(byRoom);
   }
   const rows = await conn
     .select()

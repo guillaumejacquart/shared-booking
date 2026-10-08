@@ -5,12 +5,14 @@ import { confirmationEmail, validationPendingEmail } from "@/lib/email";
 import { env } from "@/lib/env";
 import type { Ports, StripeLike } from "@/lib/ports";
 import type { BookingResult, CreateBookingInput } from "@/lib/schemas/bookings";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import { dateStrInTz } from "@/lib/timezone";
 import { bookingMutex } from "@/lib/mutex";
 import type { Slot } from "@/services/slot-engine";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import {
   mailModel,
+  bookingEventData,
   MAX_BUFFER_MIN,
   MAX_FUTURE_PER_EMAIL,
   notifyValidationRequest,
@@ -126,7 +128,10 @@ async function createCheckoutSession(args: {
   if (!destination) throw new ValidationError("Paiement en ligne indisponible pour ce praticien");
   const origin = env.BETTER_AUTH_URL.replace(/\/$/, "");
   const fee = env.STRIPE_APPLICATION_FEE_CENTS;
-  const priceCents = variant.priceCents!;
+  const priceCents = variant.priceCents;
+  if (!priceCents || priceCents <= 0) {
+    throw new ValidationError("Séance mal configurée : prix manquant");
+  }
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: email,
@@ -289,6 +294,27 @@ export async function createBooking(ports: Ports, input: CreateBookingInput): Pr
     confirmed: status === "confirmed",
     needsPayment,
   });
+  // Analytics best-effort après commit : la réservation existe déjà,
+  // un tracking qui échoue ne change rien (le port ne throw jamais).
+  if (status === "confirmed") {
+    await ports.analytics.track(
+      ANALYTICS_EVENTS.BOOKING_CONFIRMED,
+      bookingEventData({
+        practitionerSlug: page.practitioner.slug,
+        durationMin: variant.durationMin,
+        requiresValidation: needsValidation,
+      }),
+    );
+  } else if (needsPayment) {
+    await ports.analytics.track(
+      ANALYTICS_EVENTS.BOOKING_PAYMENT_STARTED,
+      bookingEventData({
+        practitionerSlug: page.practitioner.slug,
+        durationMin: variant.durationMin,
+        requiresValidation: needsValidation,
+      }),
+    );
+  }
 
   return {
     id: bookedId,
