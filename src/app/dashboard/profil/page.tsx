@@ -1,4 +1,5 @@
 import * as availabilityDal from "@/dal/availability";
+import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as roomsDal from "@/dal/rooms";
 import * as sessionTypesDal from "@/dal/session-types";
@@ -37,8 +38,9 @@ export default async function ProfilPage({
   const backFromStripe = sp.stripe === "retour" || sp.stripe === "refresh";
 
   const now = new Date();
-  const [prac, types, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus] = await Promise.all([
+  const [prac, office, types, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus] = await Promise.all([
     practitionersDal.getPractitionerById(ctx.practitionerId),
+    officesDal.getOfficeById(ctx.officeId),
     sessionTypesDal.listSessionTypes(ctx.practitionerId),
     availabilityDal.listRules(ctx.practitionerId),
     roomsDal.listRoomsWithMembers(ctx.officeId),
@@ -91,6 +93,8 @@ export default async function ProfilPage({
           profil: prac ? (
             <ProfileForm
               practitionerId={ctx.practitionerId}
+              officeSlug={ctx.officeSlug}
+              officePageEnabled={office?.enableOfficePage ?? false}
               initial={{
                 displayName: prac.displayName,
                 slug: prac.slug,

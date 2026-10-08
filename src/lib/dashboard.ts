@@ -27,6 +27,7 @@ export interface DashboardContext {
   officePalette: string;
   officeThemeMode: string;
   role: string;
+  officePageEnabled: boolean;
   practitionerId: string;
   practitionerSlug: string;
   pendingCount: number;
@@ -53,6 +54,7 @@ export const getDashboardContext = cache(async (): Promise<DashboardContext> => 
     officePalette: parsePalette(office.themePalette),
     officeThemeMode: parseMode(office.themeMode),
     role: membership.role,
+    officePageEnabled: office.enableOfficePage,
     practitionerId: prac.id,
     practitionerSlug: prac.slug,
     pendingCount,

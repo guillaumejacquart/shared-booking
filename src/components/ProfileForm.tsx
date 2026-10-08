@@ -11,9 +11,13 @@ import PublicLinkCard from "@/components/PublicLinkCard";
 export default function ProfileForm({
   practitionerId,
   initial,
+  officeSlug,
+  officePageEnabled = false,
 }: {
   practitionerId: string;
   initial: { displayName: string; slug: string; bio: string | null; publicContact: string | null };
+  officeSlug: string;
+  officePageEnabled?: boolean;
 }) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(initial.displayName);
@@ -48,6 +52,13 @@ export default function ProfileForm({
         title={t("profile.publicTitle")}
         description={t("profile.publicHint")}
       />
+      {officePageEnabled ? (
+        <PublicLinkCard
+          path={`/o/${officeSlug}`}
+          title={t("settings.officePage")}
+          description={t("settings.officePageHint")}
+        />
+      ) : null}
 
       <form onSubmit={save} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

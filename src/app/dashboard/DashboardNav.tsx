@@ -2,11 +2,95 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import type { DashboardContext } from "@/lib/dashboard";
 import { t } from "@/lib/i18n";
 import { Badge } from "@/components/ui";
 import UserMenu from "./UserMenu";
+
+/**
+ * Lien(s) vers les pages publiques : lien direct vers la page praticien,
+ * ou dropdown praticien + cabinet quand la page cabinet est activée.
+ */
+function PublicPageLink({ ctx }: { ctx: DashboardContext }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(event: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  if (!ctx.officePageEnabled) {
+    return (
+      <Link
+        href={`/p/${ctx.practitionerSlug}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
+      >
+        {t("dashboard.publicPage")}
+      </Link>
+    );
+  }
+
+  const itemStyles =
+    "block w-full px-4 py-2 text-left text-sm text-ink transition-colors hover:bg-wash";
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        className="rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
+      >
+        {t("dashboard.publicPage")}
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-line bg-card py-1 shadow-lift"
+        >
+          <Link
+            role="menuitem"
+            href={`/p/${ctx.practitionerSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            className={itemStyles}
+          >
+            {t("profile.publicTitle")}
+          </Link>
+          <Link
+            role="menuitem"
+            href={`/o/${ctx.officeSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            className={itemStyles}
+          >
+            {t("settings.officePage")}
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
   const pathname = usePathname();
@@ -48,14 +132,7 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
             );
           })}
         </nav>
-        <Link
-          href={`/p/${ctx.practitionerSlug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
-        >
-          {t("dashboard.publicPage")}
-        </Link>
+        <PublicPageLink ctx={ctx} />
         <UserMenu email={ctx.userEmail} isOwner={ctx.role === "owner"} />
       </div>
     </header>
