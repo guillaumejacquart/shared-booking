@@ -16,6 +16,7 @@ import {
   notifyValidationRequest,
   PENDING_TTL_MS,
   safeSend,
+  tariffSnapshot,
   tokens,
   type MailBooking,
 } from "./shared";
@@ -265,6 +266,9 @@ export async function createBooking(ports: Ports, input: CreateBookingInput): Pr
       st.variants.length > 1 ? `${st.name} (${variant.durationMin} min)` : st.name,
     durationMinSnapshot: variant.durationMin,
     bufferAfterMinSnapshot: variant.bufferAfterMin,
+    // Snapshots tarifaires : figent le prix affiché au patient pour les
+    // stats/CA, même si la variante change ou est supprimée ensuite.
+    ...tariffSnapshot(st.currency, variant),
     startAt: start,
     endAt: checked.end,
     patientFirstName: input.patientFirstName,

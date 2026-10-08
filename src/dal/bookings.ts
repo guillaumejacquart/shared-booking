@@ -227,6 +227,9 @@ export async function tryInsertBooking(data: NewBooking): Promise<{ conflict: tr
       sessionNameSnapshot: data.sessionNameSnapshot,
       durationMinSnapshot: data.durationMinSnapshot,
       bufferAfterMinSnapshot: data.bufferAfterMinSnapshot,
+      priceCentsSnapshot: data.priceCentsSnapshot,
+      priceDisplaySnapshot: data.priceDisplaySnapshot,
+      currencySnapshot: data.currencySnapshot,
       startAt: data.startAt,
       endAt: data.endAt,
       patientFirstName: data.patientFirstName,
@@ -289,11 +292,12 @@ export async function tryMoveBooking(bookingId: string,
 
 export async function markBookingCancelled(bookingId: string,
   reason: string | null,
-  now: Date) {
+  now: Date,
+  by: "patient" | "practitioner" | null = null) {
   const conn = getConnection();
   await conn
     .update(booking)
-    .set({ status: "cancelled", cancelledAt: now, cancelReason: reason })
+    .set({ status: "cancelled", cancelledAt: now, cancelReason: reason, cancelledBy: by })
     .where(eq(booking.id, bookingId));
 }
 
@@ -371,6 +375,45 @@ export async function listBookingsForPractitioner(practitionerId: string,
         lt(booking.startAt, to),
       ),
     );
+}
+
+/** Réservations d'un praticien dont la séance démarre dans [from, to[ (tous statuts, stats). */
+export async function listBookingsForStats(practitionerId: string,
+  from: Date,
+  to: Date) {
+  const conn = getConnection();
+  return conn
+    .select()
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        gte(booking.startAt, from),
+        lt(booking.startAt, to),
+      ),
+    )
+    .orderBy(asc(booking.startAt));
+}
+
+/** Emails patients connus avant `from` (RDV non en attente, pour nouveau vs revenant). */
+export async function listPatientEmailsBefore(practitionerId: string,
+  from: Date): Promise<string[]> {
+  const conn = getConnection();
+  const rows = await conn
+    .select({ email: booking.patientEmail })
+    .from(booking)
+    .where(
+      and(
+        eq(booking.practitionerId, practitionerId),
+        lt(booking.startAt, from),
+        or(
+          eq(booking.status, "confirmed"),
+          eq(booking.status, "cancelled"),
+          eq(booking.status, "completed"),
+        ),
+      ),
+    );
+  return [...new Set(rows.map((row) => row.email))];
 }
 
 /** Demandes en attente de validation d'un praticien (triées par horaire). */

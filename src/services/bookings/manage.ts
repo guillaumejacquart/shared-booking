@@ -77,7 +77,7 @@ export async function validateBooking(
     return { id: booking.id, status: "confirmed" };
   }
   if (!input.reason) throw new ValidationError("Un motif de refus est requis");
-  await bookingsDal.markBookingCancelled(booking.id, input.reason, now);
+  await bookingsDal.markBookingCancelled(booking.id, input.reason, now, "practitioner");
   await send(practitionerCancelledEmail(booking.patientEmail, { ...model, reason: input.reason }));
   // Jamais confirmé donc jamais poussé ; synchro défensive (supprime le
   // miroir Google s'il existe).
@@ -109,7 +109,7 @@ export async function cancelBooking(
     throw new ValidationError("Un motif d'annulation est requis");
   }
 
-  await bookingsDal.markBookingCancelled(booking.id, input.reason ?? null, now);
+  await bookingsDal.markBookingCancelled(booking.id, input.reason ?? null, now, input.by);
 
   // Pas de lien de gestion dans un email d'annulation : `manageUrl` vide.
   const model = { ...mailModel(booking, detail, { now }), manageUrl: "" };

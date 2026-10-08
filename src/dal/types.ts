@@ -43,6 +43,9 @@ export interface NewBooking {
   sessionNameSnapshot: string;
   durationMinSnapshot: number;
   bufferAfterMinSnapshot: number;
+  priceCentsSnapshot: number | null;
+  priceDisplaySnapshot: string | null;
+  currencySnapshot: string;
   startAt: Date;
   endAt: Date;
   patientFirstName: string;

@@ -41,7 +41,7 @@ function PublicPageLink({ ctx }: { ctx: DashboardContext }) {
         href={`/p/${ctx.practitionerSlug}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
+        className="shrink-0 whitespace-nowrap rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
       >
         {t("dashboard.publicPage")}
       </Link>
@@ -51,13 +51,13 @@ function PublicPageLink({ ctx }: { ctx: DashboardContext }) {
   const itemStyles =
     "block w-full px-4 py-2 text-left text-sm text-ink transition-colors hover:bg-wash";
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative shrink-0">
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
-        className="rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
+        className="whitespace-nowrap rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
       >
         {t("dashboard.publicPage")}
       </button>
@@ -102,15 +102,16 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
       count: ctx.pendingCount,
     },
     { href: "/dashboard/calendrier", label: t("dashboard.calendar") },
+    { href: "/dashboard/statistiques", label: t("dashboard.statistics") },
   ];
   return (
     <header className="border-b border-line bg-card">
-      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-        <div className="mr-auto">
-          <p className="text-xs text-mist">{ctx.officeName}</p>
-          <p className="font-display text-sm font-semibold">{ctx.userName}</p>
+      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 md:flex-nowrap">
+        <div className="mr-auto min-w-0">
+          <p className="truncate text-xs text-mist">{ctx.officeName}</p>
+          <p className="truncate font-display text-sm font-semibold">{ctx.userName}</p>
         </div>
-        <nav className="flex flex-wrap items-center gap-1 text-sm">
+        <nav className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
           {links.map((link) => {
             const active = link.exact
               ? pathname === link.href
@@ -132,8 +133,10 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
             );
           })}
         </nav>
-        <PublicPageLink ctx={ctx} />
-        <UserMenu email={ctx.userEmail} isOwner={ctx.role === "owner"} />
+        <div className="flex shrink-0 items-center gap-2">
+          <PublicPageLink ctx={ctx} />
+          <UserMenu email={ctx.userEmail} isOwner={ctx.role === "owner"} />
+        </div>
       </div>
     </header>
   );

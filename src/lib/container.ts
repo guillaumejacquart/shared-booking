@@ -12,6 +12,7 @@ import { createCalendarService, type CalendarService } from "@/services/calendar
 import { createGoogleService, type GoogleService } from "@/services/google";
 import { createBillingService, type BillingService } from "@/services/billing";
 import { createStripeConnectService, type StripeConnectService } from "@/services/stripe-connect";
+import { createStatsService, type StatsService } from "@/services/stats";
 import { createRemindersService, type RemindersService } from "@/services/reminders";
 import { createScheduleService, type ScheduleService } from "@/services/schedule";
 import { createTeamService, type TeamService } from "@/services/team";
@@ -45,6 +46,7 @@ export interface Services {
   team: TeamService;
   reminders: RemindersService;
   schedule: ScheduleService;
+  stats: StatsService;
   google: GoogleService;
   calendar: CalendarService;
 }
@@ -66,6 +68,7 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
     team: createTeamService(ports),
     reminders: createRemindersService(ports),
     schedule: createScheduleService(ports),
+    stats: createStatsService(ports),
     google: createGoogleService(ports),
     calendar: createCalendarService(),
   };

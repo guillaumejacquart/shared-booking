@@ -371,11 +371,16 @@ export const booking = sqliteTable(
       // Même traçabilité que le type : SET NULL, snapshots ci-dessous.
       .references(() => sessionTypeVariant.id, { onDelete: "set null" }),
     // Snapshots au moment de la réservation (les types peuvent changer après).
+    // Prix + devise figés pour les stats/CA : NULL = tarif inconnu
+    // (réservations antérieures à la colonne ou variante supprimée).
     sessionNameSnapshot: text("session_name_snapshot").notNull(),
     durationMinSnapshot: integer("duration_min_snapshot").notNull(),
     bufferAfterMinSnapshot: integer("buffer_after_min_snapshot")
       .notNull()
       .default(0),
+    priceCentsSnapshot: integer("price_cents_snapshot"),
+    priceDisplaySnapshot: text("price_display_snapshot"),
+    currencySnapshot: text("currency_snapshot"),
     startAt: integer("start_at", { mode: "timestamp" }).notNull(),
     endAt: integer("end_at", { mode: "timestamp" }).notNull(),
     patientFirstName: text("patient_first_name").notNull(),
@@ -398,6 +403,9 @@ export const booking = sqliteTable(
     reminderSentAt: integer("reminder_sent_at", { mode: "timestamp" }),
     cancelledAt: integer("cancelled_at", { mode: "timestamp" }),
     cancelReason: text("cancel_reason"),
+    // Qui a annulé : 'patient' (lien magique) ou 'practitioner' (dashboard).
+    // NULL = antérieur à la colonne ou expiration système (paiement impayé).
+    cancelledBy: text("cancelled_by"),
     // Push Google Agenda (outbound, par praticien) : identifiant de
     // l'événement chez Google + état de la synchro (retry best-effort).
     googleEventId: text("google_event_id").unique(),

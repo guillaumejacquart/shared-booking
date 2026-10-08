@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { Booking, BookingDetail } from "@/dal/types";
+import type { Booking, BookingDetail, SessionTypeVariant } from "@/dal/types";
 import * as usersDal from "@/dal/users";
 import { env } from "@/lib/env";
 import {
@@ -25,6 +25,21 @@ export const PENDING_TTL_MS = 30 * 60_000;
 
 export const MAX_FUTURE_PER_EMAIL = 3;
 export const MAX_BUFFER_MIN = 480; // garde-fou cohérent avec la marge SQL (±24h);
+
+/**
+ * Snapshots tarifaires figés à la réservation : le CA des stats reste
+ * stable même si la variante change ou est supprimée ensuite.
+ */
+export function tariffSnapshot(
+  currency: string | null,
+  variant: Pick<SessionTypeVariant, "priceCents" | "priceDisplay">,
+): { priceCentsSnapshot: number | null; priceDisplaySnapshot: string | null; currencySnapshot: string } {
+  return {
+    priceCentsSnapshot: variant.priceCents ?? null,
+    priceDisplaySnapshot: variant.priceDisplay ?? null,
+    currencySnapshot: currency ?? "eur",
+  };
+}
 
 export function tokens() {
   return {

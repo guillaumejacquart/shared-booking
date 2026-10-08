@@ -48,13 +48,13 @@ export default function UserMenu({
   const itemStyles =
     "block w-full px-4 py-2 text-left text-sm text-ink transition-colors hover:bg-wash";
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative shrink-0">
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
-        className="inline-flex max-w-56 items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:bg-wash"
+        className="inline-flex max-w-48 items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors hover:bg-wash"
       >
         <span className="truncate">{email}</span>
         <span
