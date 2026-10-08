@@ -146,6 +146,7 @@ export async function getSlotsWithRoom(ports: Ports, input: SlotsInput): Promise
     ...context,
     sessionDurationMin: sessionType.durationMin,
     bufferAfterMin: sessionType.bufferAfterMin,
+    slotStepMin: page.practitioner.slotStepMin ?? 15,
     leadTimeMin: page.office.bookingLeadTimeMin,
     from: engineFrom,
     days: input.days,
@@ -174,10 +175,11 @@ export async function slotOnGrid(
   start: Date,
   timezone: string,
 ): Promise<boolean> {
-  const [rules, roomsWithMembers, sessionRoomIds] = await Promise.all([
+  const [rules, roomsWithMembers, sessionRoomIds, prac] = await Promise.all([
     availabilityDal.listRules(practitionerId),
     roomsDal.listRoomsWithMembers(officeId),
     sessionTypesDal.listCompatibleRoomIds(sessionTypeId),
+    practitionersDal.getPractitionerById(practitionerId),
   ]);
   const slots = generateSlots({
     timezone,
@@ -189,6 +191,7 @@ export async function slotOnGrid(
     sessionRoomIds,
     sessionDurationMin: durationMin,
     bufferAfterMin,
+    slotStepMin: prac?.slotStepMin ?? 15,
     leadTimeMin: 0,
     from: new Date(start.getTime() - 86_400_000),
     days: 3,

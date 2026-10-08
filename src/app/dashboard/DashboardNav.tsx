@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { DashboardContext } from "@/lib/dashboard";
 import { t } from "@/lib/i18n";
 import { Badge } from "@/components/ui";
-import SignOutButton from "./SignOutButton";
+import UserMenu from "./UserMenu";
 
 export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
   const pathname = usePathname();
@@ -18,10 +18,6 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
       count: ctx.pendingCount,
     },
     { href: "/dashboard/calendrier", label: t("dashboard.calendar") },
-    { href: "/dashboard/profil", label: t("dashboard.profile") },
-    ...(ctx.role === "owner"
-      ? [{ href: "/dashboard/parametres", label: t("dashboard.settings") }]
-      : []),
   ];
   return (
     <header className="border-b border-line bg-card">
@@ -60,7 +56,7 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
         >
           {t("dashboard.publicPage")}
         </Link>
-        <SignOutButton />
+        <UserMenu email={ctx.userEmail} isOwner={ctx.role === "owner"} />
       </div>
     </header>
   );

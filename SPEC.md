@@ -99,8 +99,8 @@ Fixed timezone `Europe/Paris` everywhere. Store `startAt/endAt` as UTC timestamp
 
 Generation for (practitioner, sessionType, dateRange):
 1. Take AvailabilityRules for weekday + Extra openings for that date, minus Unavailable exceptions.
-2. Slice each window into back-to-back slots of `durationMin`, each followed by `bufferAfterMin` (buffer is **blocked** but not bookable).
-   * Example: window 09:00–12:00, 45min + 10min buffer → 09:00, 09:55, 10:50. 11:45 would end 12:30 → excluded.
+2. Sweep each window with a sliding grid at step `practitioner.slotStepMin` (default 15min, 5–120, set by the practitioner in their profile): every start `windowStart + k * step` with `start + durationMin <= windowEnd` is a candidate. Each candidate is followed by `bufferAfterMin` (buffer is **blocked** but not bookable, and still spills past the window end).
+   * Example: window 09:00–12:00, 60min + 10min buffer, step 15min → 09:00, 09:15, …, 11:00. 11:15 would end 12:15 → excluded.
 3. Exclude slots that:
    * start before `now + bookingLeadTimeMin`,
    * overlap any existing non-cancelled booking of the **same practitioner** (including its buffer),

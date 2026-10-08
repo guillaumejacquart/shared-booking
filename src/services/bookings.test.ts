@@ -21,12 +21,13 @@ import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
 
 // Lundi 14 sept. 2026, 08:00 Paris = 06:00 UTC (heure d'été).
-// Fenêtre lun. 09:00–13:00, séances 60min + buffer 10 → grille : 09:00, 10:10, 11:20.
-// SLOT_A = 10:10 Paris, SLOT_B = 11:20 Paris.
+// Fenêtre lun. 09:00–13:00, séances 60min + buffer 10, pas 15min → grille
+// coulissante : 09:00, 09:15, …, 12:00.
+// SLOT_A = 10:15 Paris, SLOT_B = 11:30 Paris (sans chevauchement de buffer).
 const NOW = new Date("2026-09-14T06:00:00Z");
-const SLOT_A = "2026-09-14T08:10:00.000Z";
-const SLOT_B = "2026-09-14T09:20:00.000Z";
-const BOB_10H = "2026-09-14T08:00:00.000Z"; // 10:00 Paris (grille de Bob, 60+0)
+const SLOT_A = "2026-09-14T08:15:00.000Z";
+const SLOT_B = "2026-09-14T09:30:00.000Z";
+const BOB_10H = "2026-09-14T08:00:00.000Z"; // 10:00 Paris (grille de Bob, 60+0, pas 15)
 
 let db: Db;
 let sent: OutgoingEmail[];
@@ -56,9 +57,9 @@ async function seed() {
     { id: "room-b", officeId: "o1", name: "Salle B", color: "#22c55e" },
   ]);
   await db.insert(s.practitioner).values([
-    { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice" },
-    { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "bob" },
-    { id: "p3", officeId: "o1", userId: "u3", displayName: "Carol", slug: "carol" },
+    { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice", slotStepMin: 15 },
+    { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "bob", slotStepMin: 15 },
+    { id: "p3", officeId: "o1", userId: "u3", displayName: "Carol", slug: "carol", slotStepMin: 15 },
   ]);
   await db.insert(s.roomMember).values([
     { id: "rm1", roomId: "room-a", practitionerId: "p1" },
@@ -108,8 +109,18 @@ describe("getAvailableSlots", () => {
       fromDate: "2026-09-14",
       days: 1,
     });
-    // 09:00 passé (lead time 2h depuis 08:00) → 10:10 et 11:20.
-    expect(slots.map((s) => s.startAt)).toEqual([SLOT_A, SLOT_B]);
+    // 09:00–09:45 passés (lead time 2h depuis 08:00) → 10:00 à 12:00 au pas de 15min.
+    expect(slots.map((s) => s.startAt)).toEqual([
+      "2026-09-14T08:00:00.000Z",
+      SLOT_A,
+      "2026-09-14T08:30:00.000Z",
+      "2026-09-14T08:45:00.000Z",
+      "2026-09-14T09:00:00.000Z",
+      "2026-09-14T09:15:00.000Z",
+      SLOT_B,
+      "2026-09-14T09:45:00.000Z",
+      "2026-09-14T10:00:00.000Z",
+    ]);
     // La salle n'est pas exposée au public.
     expect(slots[0]).not.toHaveProperty("roomId");
   });
@@ -174,7 +185,7 @@ describe("createBooking", () => {
     );
     expect(googleUrl.searchParams.get("text")).toBe(title);
     expect(googleUrl.searchParams.get("location")).toBe(location);
-    expect(googleUrl.searchParams.get("dates")).toBe("20260914T081000Z/20260914T091000Z");
+    expect(googleUrl.searchParams.get("dates")).toBe("20260914T081500Z/20260914T091500Z");
     // Le lien de gestion voyage aussi dans la description Google.
     expect(googleUrl.searchParams.get("details")).toContain(res.cancelToken);
   });
@@ -279,7 +290,7 @@ describe("createBooking", () => {
   });
 
   it("refuse un créneau en conflit de salle (Bob en salle A à la même heure)", async () => {
-    // Alice 10:10–11:10 + 10min buffer en salle A → Bob ne peut plus prendre 10:00 en A.
+    // Alice 10:15–11:15 + 10min buffer en salle A → Bob ne peut plus prendre 10:00 en A.
     await createBooking(ports(), {
       practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
     });

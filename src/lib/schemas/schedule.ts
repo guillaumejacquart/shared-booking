@@ -91,6 +91,10 @@ export const updateProfileSchema = scopeSchema.merge(requesterSchema).extend({
   slug: z.string().trim().toLowerCase().regex(SLUG_RE).optional(),
   bio: z.string().trim().max(2000).optional(),
   publicContact: z.string().trim().max(200).optional(),
+  /** Pas de la grille de créneaux coulissante (minutes). */
+  slotStepMin: z.number().int().min(5).max(120).optional(),
+  /** Défaut de validation manuelle, pré-rempli à la création d'une séance. */
+  requiresValidationDefault: z.boolean().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 

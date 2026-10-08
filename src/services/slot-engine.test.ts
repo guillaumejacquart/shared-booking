@@ -255,6 +255,63 @@ describe("generateSlots", () => {
     ]);
   });
 
+  it("grille coulissante : le pas du praticien densifie les départs", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"), // 8h Paris, avant l'ouverture
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
+        sessionDurationMin: 60,
+        bufferAfterMin: 10,
+        slotStepMin: 15,
+      }),
+    );
+    // Départs tous les 1/4h de 09:00 à 11:00 inclus (11:15 + 60min > 12:00).
+    expect(slots.map((s) => s.start.toISOString())).toEqual([
+      "2026-09-14T07:00:00.000Z",
+      "2026-09-14T07:15:00.000Z",
+      "2026-09-14T07:30:00.000Z",
+      "2026-09-14T07:45:00.000Z",
+      "2026-09-14T08:00:00.000Z",
+      "2026-09-14T08:15:00.000Z",
+      "2026-09-14T08:30:00.000Z",
+      "2026-09-14T08:45:00.000Z",
+      "2026-09-14T09:00:00.000Z",
+    ]);
+  });
+
+  it("grille coulissante : un créneau pris libère le pas suivant (pas de grille fixe)", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"),
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
+        sessionDurationMin: 60,
+        bufferAfterMin: 10,
+        slotStepMin: 15,
+        practitionerBusy: [
+          // RDV 09:00–10:00 + buffer → occupé jusqu'à 10:10.
+          { start: new Date("2026-09-14T07:00:00Z"), end: new Date("2026-09-14T08:10:00Z") },
+        ],
+      }),
+    );
+    // 10:15 est proposé (libre), ce que la grille fixe (09:00, 10:10) ne permettait pas.
+    expect(slots.map((s) => s.start.toISOString())[0]).toBe("2026-09-14T08:15:00.000Z");
+  });
+
+  it("sans pas explicite : repli sur l'ancien découpage accolé (compat tests)", () => {
+    const slots = generateSlots(
+      base({
+        from: new Date("2026-09-14T06:00:00Z"),
+        windows: [{ weekday: 1, startTime: "09:00", endTime: "12:00" }],
+        sessionDurationMin: 60,
+        bufferAfterMin: 10,
+      }),
+    );
+    expect(slots.map((s) => s.start.toISOString())).toEqual([
+      "2026-09-14T07:00:00.000Z",
+      "2026-09-14T08:10:00.000Z",
+    ]);
+  });
+
   it("une ouverture extra dans une salle incompatible ne produit rien", () => {
     const slots = generateSlots(
       base({

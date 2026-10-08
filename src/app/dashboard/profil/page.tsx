@@ -94,6 +94,7 @@ export default async function ProfilPage({
                 slug: prac.slug,
                 bio: prac.bio,
                 publicContact: prac.publicContact,
+                slotStepMin: prac.slotStepMin ?? 15,
               }}
             />
           ) : null,

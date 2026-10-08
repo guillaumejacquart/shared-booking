@@ -157,6 +157,7 @@ async function moveBookingToNewSlot(args: {
       ...context,
       sessionDurationMin: booking.durationMinSnapshot,
       bufferAfterMin: booking.bufferAfterMinSnapshot,
+      slotStepMin: prac.slotStepMin ?? 15,
       leadTimeMin: office.bookingLeadTimeMin,
       from: engineFrom,
       days: Math.max(

@@ -8,8 +8,9 @@ import { dateStrInTz, weekdayInTz, zonedTimeToUtc } from "@/lib/timezone";
  * Sortie : créneaux réservables triés par heure de début, chacun avec la
  * salle attribuée (première salle autorisée libre, dans l'ordre fourni).
  *
- * Règles :
- * - Chaque fenêtre de dispo est découpée en blocs `duration + buffer` accolés.
+ * Règles (grille coulissante) :
+ * - Chaque fenêtre est balayée au pas `slotStepMin` depuis son début : tout
+ *   départ `start = début + k * pas` est proposé.
  * - Un créneau est gardé si `start + duration <= fin de fenêtre`.
  * - Le buffer déborde librement hors fenêtre (temps de battement, pas de
  *   réservation) mais bloque praticien ET salle (inclus dans l'occupation).
@@ -63,6 +64,11 @@ export interface SlotRequest {
   sessionRoomIds?: string[];
   sessionDurationMin: number;
   bufferAfterMin: number;
+  /**
+   * Pas de la grille coulissante, en minutes. Absent (tests historiques) =
+   * ancien comportement (blocs `duration + buffer` accolés).
+   */
+  slotStepMin?: number;
   leadTimeMin: number;
   /** "Maintenant" (injecté pour les tests). */
   from: Date;
@@ -136,7 +142,13 @@ function roomCandidates(window: DayWindow, req: SlotRequest): string[] {
 function slotsInWindow(req: SlotRequest, dateStr: string, window: DayWindow, offs: Interval[]): Slot[] {
   const tz = req.timezone;
   const durationMs = req.sessionDurationMin * 60_000;
-  const stepMs = (req.sessionDurationMin + req.bufferAfterMin) * 60_000;
+  // Grille coulissante au pas choisi, repli historique sur duration + buffer.
+  const stepMin = req.slotStepMin && req.slotStepMin > 0
+    ? req.slotStepMin
+    : req.sessionDurationMin + req.bufferAfterMin;
+  const stepMs = stepMin * 60_000;
+  // L'empreinte bloquante reste durée + buffer (le pas ne change que la densité).
+  const blockedMs = (req.sessionDurationMin + req.bufferAfterMin) * 60_000;
   const earliest = req.from.getTime() + req.leadTimeMin * 60_000;
   const windowStart = zonedTimeToUtc(dateStr, window.startTime, tz).getTime();
   const windowEnd = zonedTimeToUtc(dateStr, window.endTime, tz).getTime();
@@ -144,7 +156,7 @@ function slotsInWindow(req: SlotRequest, dateStr: string, window: DayWindow, off
   const slots: Slot[] = [];
   for (let start = windowStart; start + durationMs <= windowEnd; start += stepMs) {
     if (start < earliest) continue;
-    const candidate: Interval = { start, end: start + stepMs };
+    const candidate: Interval = { start, end: start + blockedMs };
     if (offs.some((off) => candidate.start < off.end && off.start < candidate.end)) continue;
     if (req.practitionerBusy.some((busy) => overlaps(candidate, busy))) continue;
     const roomId = candidates.find(

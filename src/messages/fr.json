@@ -235,7 +235,7 @@
     "agenda": "Mon agenda",
     "reservations": "Mes réservations",
     "calendar": "Calendrier",
-    "profile": "Profil",
+    "profile": "Profil praticien",
     "settings": "Paramètres",
     "signOut": "Déconnexion",
     "publicPage": "Page publique ↗",
@@ -252,7 +252,10 @@
     "publicHint": "C'est ce lien que vous partagez à vos patients.",
     "visit": "Voir la page",
     "copy": "Copier le lien",
-    "copied": "Lien copié !"
+    "copied": "Lien copié !",
+    "slotStep": "Pas des créneaux proposés",
+    "slotStepHint": "Écart entre deux horaires proposés dans vos plages d'ouverture (la durée de la séance ne change pas).",
+    "slotStepOption": "Toutes les {n} min"
   },
   "agenda": {
     "title": "Mon agenda",

@@ -234,6 +234,10 @@ export async function updateProfile(input: UpdateProfileInput): Promise<void> {
     ...(input.slug ? { slug: input.slug } : {}),
     bio: input.bio || null,
     publicContact: input.publicContact || null,
+    ...(input.slotStepMin !== undefined ? { slotStepMin: input.slotStepMin } : {}),
+    ...(input.requiresValidationDefault !== undefined
+      ? { requiresValidationDefault: input.requiresValidationDefault }
+      : {}),
   });
 }
 

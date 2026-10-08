@@ -170,6 +170,16 @@ export const practitioner = sqliteTable(
     bio: text("bio"),
     publicContact: text("public_contact"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    // Pas de la grille de créneaux coulissante (minutes, 5..120, défaut 15).
+    // La grille est ancrée au début de chaque fenêtre ; tout départ multiple
+    // du pas qui tient dans la fenêtre est proposé (SPEC.md §F7).
+    slotStepMin: integer("slot_step_min").notNull().default(15),
+    // Défaut praticien pour la validation manuelle : pré-remplit
+    // `requiresValidation` à la création d'un type de séance (option A :
+    // les séances existantes gardent leur valeur, modifiable une par une).
+    requiresValidationDefault: integer("requires_validation_default", { mode: "boolean" })
+      .notNull()
+      .default(false),
     // Stripe Connect Express (destination charges) : un compte par praticien.
     // Null tant que le praticien n'a pas lié son compte Stripe.
     stripeAccountId: text("stripe_account_id"),

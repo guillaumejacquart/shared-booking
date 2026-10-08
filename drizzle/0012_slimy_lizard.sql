@@ -1,0 +1,1 @@
+ALTER TABLE `practitioner` ADD `slot_step_min` integer DEFAULT 15 NOT NULL;

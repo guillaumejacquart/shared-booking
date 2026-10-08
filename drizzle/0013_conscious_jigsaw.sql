@@ -1,0 +1,1 @@
+ALTER TABLE `practitioner` ADD `requires_validation_default` integer DEFAULT false NOT NULL;
