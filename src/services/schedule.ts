@@ -330,6 +330,14 @@ export async function updatePractitionerSettings(input: UpdatePractitionerSettin
     ...(input.requiresValidationDefault !== undefined
       ? { requiresValidationDefault: input.requiresValidationDefault }
       : {}),
+    // Moyens sur place : JSON dédupliqué (l'ordre canonique est
+    // rétabli à la lecture par `parseOnsitePaymentMethods`).
+    ...(input.onsitePaymentMethods !== undefined
+      ? { onsitePaymentMethods: JSON.stringify([...new Set(input.onsitePaymentMethods)]) }
+      : {}),
+    ...(input.onsitePaymentNote !== undefined
+      ? { onsitePaymentNote: input.onsitePaymentNote || null }
+      : {}),
   });
 }
 

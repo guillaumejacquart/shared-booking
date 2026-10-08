@@ -1,16 +1,23 @@
 import { randomBytes } from "node:crypto";
 
-import type { Booking, BookingDetail, SessionTypeVariant } from "@/dal/types";
+import type { Booking, BookingDetail, Practitioner, SessionTypeVariant } from "@/dal/types";
 import * as usersDal from "@/dal/users";
 import { env } from "@/lib/env";
 import {
   buildIcs,
   validationRequestEmail,
   type BookingMailPayload,
+  type OnsitePaymentLine,
   type OutgoingEmail,
   type SendEmail,
 } from "@/lib/email";
 import { googleCalendarTemplateUrl } from "@/lib/google-template";
+import {
+  formatOnsitePaymentMethods,
+  formatPayablePrice,
+  ONSITE_METHOD_LABELS_FR,
+  parseOnsitePaymentMethods,
+} from "@/lib/onsite-payments";
 import type { Ports } from "@/lib/ports";
 
 /**
@@ -61,8 +68,39 @@ export function manageUrl(officeSlug: string, practitionerSlug: string, token: s
 /** Champs de réservation nécessaires au contenu d'un email. */
 export type MailBooking = Pick<
   Booking,
-  "id" | "sessionNameSnapshot" | "startAt" | "endAt" | "patientEmail" | "cancelToken"
+  | "id"
+  | "sessionNameSnapshot"
+  | "startAt"
+  | "endAt"
+  | "patientEmail"
+  | "cancelToken"
+  | "paymentStatus"
+  | "priceDisplaySnapshot"
+  | "currencySnapshot"
 >;
+
+/**
+ * Détail du règlement sur place : réservation sans paiement en ligne
+ * (`paymentStatus === "none"`) + tarif affiché non gratuit. Les moyens et
+ * la précision viennent du réglage praticien (libellés FR pour les emails).
+ */
+function onsitePaymentLine(
+  booking: MailBooking,
+  practitioner: Pick<Practitioner, "onsitePaymentMethods" | "onsitePaymentNote">,
+): OnsitePaymentLine | null {
+  if (booking.paymentStatus !== "none") return null;
+  const price = formatPayablePrice(booking.priceDisplaySnapshot, booking.currencySnapshot ?? "eur");
+  if (!price) return null;
+  const note = practitioner.onsitePaymentNote?.trim();
+  return {
+    price,
+    methods: formatOnsitePaymentMethods(
+      parseOnsitePaymentMethods(practitioner.onsitePaymentMethods),
+      ONSITE_METHOD_LABELS_FR,
+    ),
+    note: note ? note : null,
+  };
+}
 
 /**
  * Modèle d'email + dérivés calendrier à partir d'une réservation et de son
@@ -94,6 +132,7 @@ export function mailModel(
     officeName: detail.office.name,
     officeAddress: detail.office.address,
     manageUrl: url,
+    onsitePayment: onsitePaymentLine(booking, detail.practitioner),
     ics: buildIcs({
       uid: booking.id,
       summary: title,

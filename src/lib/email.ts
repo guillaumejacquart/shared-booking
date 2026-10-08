@@ -97,6 +97,33 @@ export interface BookingMailModel {
   officeName: string;
   officeAddress?: string | null;
   manageUrl: string; // lien magique (annulation / report)
+  /** Règlement sur place (null si gratuit, à définir ou payé en ligne). */
+  onsitePayment?: OnsitePaymentLine | null;
+}
+
+/** Détail du règlement sur place, calculé une seule fois par `mailModel`. */
+export interface OnsitePaymentLine {
+  price: string;
+  methods: string | null; // « espèces et carte bancaire » (libellés FR)
+  note: string | null; // précision libre du praticien
+}
+
+/** Lignes texte du règlement sur place (vide si rien à annoncer). */
+function onsitePaymentTextLines(line: OnsitePaymentLine | null | undefined): string[] {
+  if (!line) return [];
+  const lines = [
+    `Règlement sur place : ${line.price}${line.methods ? ` (${line.methods})` : ""}.`,
+  ];
+  if (line.note) lines.push(`Précision : ${line.note}`);
+  return lines;
+}
+
+/** Paragraphe(s) HTML du règlement sur place (vide si rien à annoncer). */
+function onsitePaymentHtml(line: OnsitePaymentLine | null | undefined): string {
+  if (!line) return "";
+  const methods = line.methods ? ` (${escapeHtml(line.methods)})` : "";
+  const note = line.note ? `<p>Précision : ${escapeHtml(line.note)}</p>` : "";
+  return `<p>Règlement sur place : <strong>${escapeHtml(line.price)}</strong>${methods}.</p>${note}`;
 }
 
 /**
@@ -121,6 +148,7 @@ export function confirmationEmail(to: string, model: BookingMailPayload): Outgoi
     `Votre rendez-vous « ${model.sessionName} » avec ${model.practitionerName} est confirmé :`,
     `${when(model)}.`,
     model.officeAddress ? `Lieu : ${model.officeName}, ${model.officeAddress}.` : `Lieu : ${model.officeName}.`,
+    ...onsitePaymentTextLines(model.onsitePayment),
     ``,
     `Ajouter à Google Agenda : ${model.googleUrl}`,
     ``,
@@ -133,7 +161,7 @@ export function confirmationEmail(to: string, model: BookingMailPayload): Outgoi
     subject,
     text,
     html: layout(
-      `<p>Bonjour,</p><p>Votre rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> est confirmé :<br /><strong>${escapeHtml(when(model))}</strong>.</p><p>Lieu : ${escapeHtml(model.officeAddress ? `${model.officeName}, ${model.officeAddress}` : model.officeName)}.</p><p><a href="${escapeHtml(model.googleUrl)}">Ajouter à Google Agenda</a></p><p><a href="${escapeHtml(model.manageUrl)}">Annuler ou reporter</a></p><p>À bientôt,</p>`,
+      `<p>Bonjour,</p><p>Votre rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> est confirmé :<br /><strong>${escapeHtml(when(model))}</strong>.</p><p>Lieu : ${escapeHtml(model.officeAddress ? `${model.officeName}, ${model.officeAddress}` : model.officeName)}.</p>${onsitePaymentHtml(model.onsitePayment)}<p><a href="${escapeHtml(model.googleUrl)}">Ajouter à Google Agenda</a></p><p><a href="${escapeHtml(model.manageUrl)}">Annuler ou reporter</a></p><p>À bientôt,</p>`,
     ),
     ics: model.ics,
   };
@@ -141,13 +169,14 @@ export function confirmationEmail(to: string, model: BookingMailPayload): Outgoi
 
 export function reminderEmail(to: string, model: BookingMailModel): OutgoingEmail {
   const subject = `Rappel : ${model.sessionName} ${when(model)}`;
-  const text = `Bonjour,\n\nPetit rappel : votre rendez-vous « ${model.sessionName} » avec ${model.practitionerName} a lieu ${when(model)}.\n\nPour annuler ou reporter : ${model.manageUrl}\n\nÀ bientôt,`;
+  const onsite = onsitePaymentTextLines(model.onsitePayment);
+  const text = `Bonjour,\n\nPetit rappel : votre rendez-vous « ${model.sessionName} » avec ${model.practitionerName} a lieu ${when(model)}.${onsite.length > 0 ? `\n${onsite.join("\n")}` : ""}\n\nPour annuler ou reporter : ${model.manageUrl}\n\nÀ bientôt,`;
   return {
     to,
     subject,
     text,
     html: layout(
-      `<p>Bonjour,</p><p>Petit rappel : votre rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> a lieu <strong>${escapeHtml(when(model))}</strong>.</p><p><a href="${escapeHtml(model.manageUrl)}">Annuler ou reporter</a></p><p>À bientôt,</p>`,
+      `<p>Bonjour,</p><p>Petit rappel : votre rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> a lieu <strong>${escapeHtml(when(model))}</strong>.</p>${onsitePaymentHtml(model.onsitePayment)}<p><a href="${escapeHtml(model.manageUrl)}">Annuler ou reporter</a></p><p>À bientôt,</p>`,
     ),
   };
 }
@@ -171,13 +200,14 @@ export function patientCancelledEmail(
 /** RDV créé mais en attente de validation du praticien (sans paiement). */
 export function validationPendingEmail(to: string, model: BookingMailModel): OutgoingEmail {
   const subject = `Demande reçue : ${model.sessionName} le ${when(model)}`;
-  const text = `Bonjour,\n\nVotre demande de rendez-vous « ${model.sessionName} » avec ${model.practitionerName} (${when(model)}) est bien reçue.\nLe praticien va la valider et vous recevrez une confirmation par email.\n\nPour annuler : ${model.manageUrl}`;
+  const onsite = onsitePaymentTextLines(model.onsitePayment);
+  const text = `Bonjour,\n\nVotre demande de rendez-vous « ${model.sessionName} » avec ${model.practitionerName} (${when(model)}) est bien reçue.\nLe praticien va la valider et vous recevrez une confirmation par email.${onsite.length > 0 ? `\n${onsite.join("\n")}` : ""}\n\nPour annuler : ${model.manageUrl}`;
   return {
     to,
     subject,
     text,
     html: layout(
-      `<p>Bonjour,</p><p>Votre demande de rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> (${escapeHtml(when(model))}) est bien reçue.</p><p>Le praticien va la valider et vous recevrez une confirmation par email.</p><p><a href="${escapeHtml(model.manageUrl)}">Annuler la demande</a></p>`,
+      `<p>Bonjour,</p><p>Votre demande de rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> (${escapeHtml(when(model))}) est bien reçue.</p><p>Le praticien va la valider et vous recevrez une confirmation par email.</p>${onsitePaymentHtml(model.onsitePayment)}<p><a href="${escapeHtml(model.manageUrl)}">Annuler la demande</a></p>`,
     ),
   };
 }
@@ -252,13 +282,14 @@ export function passwordResetEmail(to: string, url: string): OutgoingEmail {
 
 export function rescheduledEmail(to: string, model: BookingMailPayload): OutgoingEmail {
   const subject = `Report : ${model.sessionName} déplacé au ${when(model)}`;
-  const text = `Bonjour,\n\nVotre rendez-vous « ${model.sessionName} » avec ${model.practitionerName} est reporté au ${when(model)}.\n\nAjouter à Google Agenda : ${model.googleUrl}\n\nPour annuler ou reporter : ${model.manageUrl}\n\nÀ bientôt,`;
+  const onsite = onsitePaymentTextLines(model.onsitePayment);
+  const text = `Bonjour,\n\nVotre rendez-vous « ${model.sessionName} » avec ${model.practitionerName} est reporté au ${when(model)}.${onsite.length > 0 ? `\n${onsite.join("\n")}` : ""}\n\nAjouter à Google Agenda : ${model.googleUrl}\n\nPour annuler ou reporter : ${model.manageUrl}\n\nÀ bientôt,`;
   return {
     to,
     subject,
     text,
     html: layout(
-      `<p>Bonjour,</p><p>Votre rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> est reporté au <strong>${escapeHtml(when(model))}</strong>.</p><p><a href="${escapeHtml(model.googleUrl)}">Ajouter à Google Agenda</a></p><p><a href="${escapeHtml(model.manageUrl)}">Annuler ou reporter</a></p><p>À bientôt,</p>`,
+      `<p>Bonjour,</p><p>Votre rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> avec <strong>${escapeHtml(model.practitionerName)}</strong> est reporté au <strong>${escapeHtml(when(model))}</strong>.</p>${onsitePaymentHtml(model.onsitePayment)}<p><a href="${escapeHtml(model.googleUrl)}">Ajouter à Google Agenda</a></p><p><a href="${escapeHtml(model.manageUrl)}">Annuler ou reporter</a></p><p>À bientôt,</p>`,
     ),
     ics: model.ics,
   };

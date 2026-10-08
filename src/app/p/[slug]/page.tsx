@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { getPractitionerPage } from "@/dal/practitioners";
 import { t } from "@/lib/i18n";
+import { parseOnsitePaymentMethods } from "@/lib/onsite-payments";
 import { parseMode, parsePalette } from "@/lib/theme";
 import BookingWidget from "./BookingWidget";
 
@@ -56,6 +57,10 @@ export default async function PractitionerPage({
       ) : null}
       <BookingWidget
         slug={page.practitioner.slug}
+        onsitePayment={{
+          methods: parseOnsitePaymentMethods(page.practitioner.onsitePaymentMethods),
+          note: page.practitioner.onsitePaymentNote,
+        }}
         sessionTypes={page.sessionTypes.map((sessionType) => ({
           id: sessionType.id,
           name: sessionType.name,

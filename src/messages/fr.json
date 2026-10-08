@@ -147,6 +147,9 @@
     "submit": "Confirmer la réservation",
     "submitting": "Envoi…",
     "payOnline": "Paiement en ligne",
+    "payOnSite": "Paiement sur place",
+    "payOnSiteRecap": "{price} à régler sur place",
+    "payOnSiteMethods": "Moyens de paiement acceptés : {methods}",
     "paymentCanceled": "Paiement annulé, vous n'avez pas été débité.",
     "nextSlot": "Prochain créneau disponible",
     "choose": "Choisir",
@@ -425,7 +428,19 @@
     "resync": "Resynchroniser",
     "resyncDone": "{ok} synchronisée(s), {failed} en échec."
   },
+  "onsite": {
+    "title": "Paiement sur place",
+    "hint": "Pour vos séances à tarif affiché sans paiement en ligne : les patients verront un badge « Paiement sur place » avec ces moyens, dans le récapitulatif et l'email de confirmation.",
+    "methodEspeces": "Espèces",
+    "methodCarte": "Carte bancaire",
+    "methodVirement": "Virement",
+    "methodCheque": "Chèque",
+    "noteLabel": "Précision (optionnel)",
+    "notePlaceholder": "Ex. : appoint apprécié, virement avant la séance…",
+    "empty": "Aucun moyen coché : les patients verront « Paiement sur place » sans détail."
+  },
   "stripeConnect": {
+    "title": "Paiement en ligne",
     "notConfigured": "Le paiement en ligne n'est pas configuré sur ce serveur (clé STRIPE_SECRET_KEY manquante).",
     "hint": "Liez votre compte Stripe pour encaisser vos séances payantes : l'argent arrive directement sur votre compte, moins l'éventuelle commission plateforme.",
     "connect": "Lier mon compte Stripe",

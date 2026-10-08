@@ -166,6 +166,44 @@ describe("createBooking", () => {
     expect(sent[0].ics).toBeDefined();
   });
 
+  it("l'email de confirmation annonce le règlement sur place (moyens + précision)", async () => {
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db
+      .update(s.practitioner)
+      .set({
+        onsitePaymentMethods: '["especes","carte"]',
+        onsitePaymentNote: "Appoint apprécié",
+      })
+      .where(eq(s.practitioner.id, "p1"));
+    await db
+      .update(s.sessionTypeVariant)
+      .set({ priceDisplay: "60 €" })
+      .where(eq(s.sessionTypeVariant.sessionTypeId, "st1"));
+    await createBooking(ports(), {
+      practitionerSlug: "alice",
+      sessionTypeId: "st1",
+      startAt: SLOT_A,
+      ...patient,
+    });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain("Règlement sur place : 60 € (espèces et carte bancaire).");
+    expect(sent[0].text).toContain("Précision : Appoint apprécié");
+    expect(sent[0].html).toContain("Règlement sur place");
+  });
+
+  it("sans tarif ni moyens configurés, l'email ne parle pas de règlement", async () => {
+    await createBooking(ports(), {
+      practitionerSlug: "alice",
+      sessionTypeId: "st1",
+      startAt: SLOT_A,
+      ...patient,
+    });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).not.toContain("Règlement sur place");
+    expect(sent[0].html).not.toContain("Règlement sur place");
+  });
+
   it("l'email de confirmation porte ICS + lien Google issus de la même description", async () => {
     const res = await createBooking(ports(), {
       practitionerSlug: "alice",

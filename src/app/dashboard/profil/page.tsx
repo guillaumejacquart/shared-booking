@@ -10,6 +10,8 @@ import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
 import ProfileForm from "@/components/ProfileForm";
 import PractitionerSettingsForm from "@/components/PractitionerSettingsForm";
+import OnsitePaymentSettings from "@/components/OnsitePaymentSettings";
+import { parseOnsitePaymentMethods } from "@/lib/onsite-payments";
 import GoogleAgendaSettings, {
   type GoogleCalendar,
 } from "@/components/GoogleAgendaSettings";
@@ -185,14 +187,24 @@ export default async function ProfilPage({
               </section>
             </div>
           ),
-          paiements: (
-            <div className="flex flex-col gap-4">
+          paiements: prac ? (
+            <div className="flex flex-col gap-8">
               <section>
-                <h2 className="mb-1 text-lg font-semibold">{t("profile.tabPayments")}</h2>
+                <h2 className="mb-1 text-lg font-semibold">{t("stripeConnect.title")}</h2>
                 <StripeConnectSettings initialStatus={stripeStatus} />
               </section>
+              <section>
+                <h2 className="mb-1 text-lg font-semibold">{t("onsite.title")}</h2>
+                <OnsitePaymentSettings
+                  practitionerId={ctx.practitionerId}
+                  initial={{
+                    methods: parseOnsitePaymentMethods(prac.onsitePaymentMethods),
+                    note: prac.onsitePaymentNote,
+                  }}
+                />
+              </section>
             </div>
-          ),
+          ) : null,
           parametres: prac ? (
             <PractitionerSettingsForm
               practitionerId={ctx.practitionerId}

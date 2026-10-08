@@ -190,6 +190,12 @@ export const practitioner = sqliteTable(
     stripePayoutsEnabled: integer("stripe_payouts_enabled", { mode: "boolean" })
       .notNull()
       .default(false),
+    // Règlement sur place : moyens acceptés (JSON : ["especes", "carte",
+    // "virement", "cheque"], voir `@/lib/onsite-payments`) affichés aux
+    // patients pour les séances à tarif affiché sans paiement en ligne,
+    // plus une précision libre (ex. "virement avant la séance").
+    onsitePaymentMethods: text("onsite_payment_methods").notNull().default("[]"),
+    onsitePaymentNote: text("onsite_payment_note"),
     ...timestamps,
   },
   (t) => [index("practitioner_office_idx").on(t.officeId)],

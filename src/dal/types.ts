@@ -56,7 +56,7 @@ export interface NewBooking {
   cancelToken: string;
   rescheduleToken: string;
   status?: string;
-  paymentStatus?: string;
+  paymentStatus: string;
   stripeSessionId?: string | null;
   validationRequired?: boolean;
   pendingExpiresAt?: Date | null;

@@ -1,10 +1,21 @@
 import { t } from "@/lib/i18n";
+import { formatPayablePrice } from "@/lib/onsite-payments";
 import { Badge, OptionCard } from "@/components/ui";
 import { displayPrice, type SessionTypeOpt } from "./format";
 
 export interface SessionSelection {
   typeId: string;
   variantId: string;
+}
+
+/** Séance à régler sur place : sans paiement en ligne + au moins un tarif non gratuit. */
+function hasOnsitePrice(sessionType: SessionTypeOpt): boolean {
+  return (
+    !sessionType.requiresPayment &&
+    sessionType.variants.some(
+      (variant) => formatPayablePrice(variant.priceDisplay, sessionType.currency) !== null,
+    )
+  );
 }
 
 function VariantLabel({
@@ -59,6 +70,10 @@ export default function SessionTypeList({
                 <div className="mt-1">
                   <Badge tone="blue">{t("booking.payOnline")}</Badge>
                 </div>
+              ) : hasOnsitePrice(sessionType) ? (
+                <div className="mt-1">
+                  <Badge tone="green">{t("booking.payOnSite")}</Badge>
+                </div>
               ) : null}
               {sessionType.description ? (
                 <p className="mt-1 text-sm text-mist">{sessionType.description}</p>
@@ -74,7 +89,11 @@ export default function SessionTypeList({
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-medium">{sessionType.name}</span>
-              {sessionType.requiresPayment ? <Badge tone="blue">{t("booking.payOnline")}</Badge> : null}
+              {sessionType.requiresPayment ? (
+                <Badge tone="blue">{t("booking.payOnline")}</Badge>
+              ) : hasOnsitePrice(sessionType) ? (
+                <Badge tone="green">{t("booking.payOnSite")}</Badge>
+              ) : null}
             </div>
             {sessionType.description ? (
               <p className="mt-1 text-sm text-mist">{sessionType.description}</p>

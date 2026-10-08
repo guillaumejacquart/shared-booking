@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ONSITE_PAYMENT_METHODS } from "@/lib/onsite-payments";
 import { PALETTES, THEME_MODES } from "@/lib/theme";
 
 /**
@@ -118,6 +119,10 @@ export const updatePractitionerSettingsSchema = scopeSchema.merge(requesterSchem
   slotStepMin: z.number().int().min(5).max(120).optional(),
   /** Défaut de validation manuelle, pré-rempli à la création d'une séance. */
   requiresValidationDefault: z.boolean().optional(),
+  /** Moyens de paiement acceptés sur place (cases + précision libre). */
+  onsitePaymentMethods: z.array(z.enum(ONSITE_PAYMENT_METHODS)).max(4).optional(),
+  /** Précision libre sur le règlement sur place (ex. "virement avant la séance"). */
+  onsitePaymentNote: z.string().trim().max(200).optional(),
 });
 export type UpdatePractitionerSettingsInput = z.infer<typeof updatePractitionerSettingsSchema>;
 

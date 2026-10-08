@@ -344,6 +344,38 @@ describe("updateProfile", () => {
   });
 });
 
+describe("updatePractitionerSettings", () => {
+  it("persiste les moyens sur place (dédupliqués) et la précision", async () => {
+    const { updatePractitionerSettings } = await import("@/services/schedule");
+    const { getPractitionerById } = await import("@/dal/practitioners");
+    await updatePractitionerSettings({
+      practitionerId: "p2",
+      ...bob,
+      onsitePaymentMethods: ["virement", "especes", "especes"],
+      onsitePaymentNote: "Appoint apprécié",
+    });
+    const prac = await getPractitionerById("p2");
+    expect(prac?.onsitePaymentMethods).toBe('["virement","especes"]');
+    expect(prac?.onsitePaymentNote).toBe("Appoint apprécié");
+    // Mise à jour partielle : les autres champs sont préservés.
+    await updatePractitionerSettings({
+      practitionerId: "p2",
+      ...bob,
+      onsitePaymentNote: "",
+    });
+    const after = await getPractitionerById("p2");
+    expect(after?.onsitePaymentMethods).toBe('["virement","especes"]');
+    expect(after?.onsitePaymentNote).toBeNull();
+  });
+
+  it("refuse l'accès à un tiers", async () => {
+    const { updatePractitionerSettings } = await import("@/services/schedule");
+    await expect(
+      updatePractitionerSettings({ practitionerId: "p1", ...bob, onsitePaymentNote: "x" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
 describe("saveRoom / deleteRoom", () => {
   it("crée et modifie une salle avec allowlist (owner uniquement)", async () => {
     const { saveRoom } = await import("@/services/schedule");

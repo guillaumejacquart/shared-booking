@@ -6,6 +6,8 @@ export interface SessionTypeVariantOpt {
   priceCents: number | null;
 }
 
+import { formatPlainAmount } from "@/lib/onsite-payments";
+
 export interface SessionTypeOpt {
   id: string;
   name: string;
@@ -14,9 +16,6 @@ export interface SessionTypeOpt {
   currency: string;
   variants: SessionTypeVariantOpt[];
 }
-
-/** Montant nu (« 60 », « 59,90 », « 1 200 ») : espaces ignorés, 2 décimales max. */
-const PLAIN_AMOUNT_RE = /^[0-9]+([.,][0-9]{1,2})?$/;
 
 function formatAmount(amount: number, currency: string): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency }).format(amount);
@@ -34,12 +33,7 @@ export function displayPrice(
   requiresPayment: boolean,
 ): string | null {
   if (variant.priceDisplay) {
-    const compact = variant.priceDisplay.trim().replace(/\s/g, "");
-    if (PLAIN_AMOUNT_RE.test(compact)) {
-      const amount = Number(compact.replace(",", "."));
-      if (Number.isFinite(amount)) return formatAmount(amount, currency);
-    }
-    return variant.priceDisplay;
+    return formatPlainAmount(variant.priceDisplay, currency) ?? variant.priceDisplay;
   }
   if (requiresPayment && variant.priceCents) {
     return formatAmount(variant.priceCents / 100, currency);

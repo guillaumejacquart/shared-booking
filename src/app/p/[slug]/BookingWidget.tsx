@@ -5,10 +5,18 @@ import { useState } from "react";
 import { t } from "@/lib/i18n";
 import { toKey } from "@/lib/calendar";
 import { fullFmt, timeFmt } from "@/lib/format";
+import {
+  formatOnsitePaymentMethods,
+  formatPayablePrice,
+  type OnsitePaymentMethod,
+} from "@/lib/onsite-payments";
 import { Button } from "@/components/ui";
 import SlotPicker from "@/components/SlotPicker";
 import BookingConfirmation from "@/components/booking/BookingConfirmation";
 import PatientForm from "@/components/booking/PatientForm";
+import OnsitePaymentNotice, {
+  type OnsitePaymentNoticeInfo,
+} from "@/components/booking/OnsitePaymentNotice";
 import SessionTypeList, { type SessionSelection } from "@/components/booking/SessionTypeList";
 import { displayPrice, type SessionTypeOpt } from "@/components/booking/format";
 import { useAvailableSlots, type SlotDto } from "@/hooks/useAvailableSlots";
@@ -25,12 +33,26 @@ function defaultSelection(sessionTypes: SessionTypeOpt[]): SessionSelection | nu
   return { typeId: first.id, variantId: variant.id };
 }
 
+const ONSITE_METHOD_KEYS: Record<OnsitePaymentMethod, string> = {
+  especes: "onsite.methodEspeces",
+  carte: "onsite.methodCarte",
+  virement: "onsite.methodVirement",
+  cheque: "onsite.methodCheque",
+};
+
+export interface OnsitePaymentInfo {
+  methods: OnsitePaymentMethod[];
+  note: string | null;
+}
+
 export default function BookingWidget({
   slug,
   sessionTypes,
+  onsitePayment,
 }: {
   slug: string;
   sessionTypes: SessionTypeOpt[];
+  onsitePayment: OnsitePaymentInfo;
 }) {
   const [selection, setSelection] = useState<SessionSelection | null>(() =>
     defaultSelection(sessionTypes),
@@ -73,8 +95,31 @@ export default function BookingWidget({
     return <p className="text-sm text-mist">{t("booking.noSessionTypes")}</p>;
   }
 
+  // Prix à régler sur place : séance sans paiement en ligne + tarif affiché
+  // non gratuit. Les moyens acceptés viennent du réglage praticien.
+  const onsitePrice =
+    selectedType && !selectedType.requiresPayment && selectedVariant
+      ? formatPayablePrice(selectedVariant.priceDisplay, selectedType.currency)
+      : null;
+  const onsiteMethods = formatOnsitePaymentMethods(
+    onsitePayment.methods,
+    Object.fromEntries(
+      onsitePayment.methods.map((method) => [method, t(ONSITE_METHOD_KEYS[method])]),
+    ) as Record<OnsitePaymentMethod, string>,
+  );
+  const note = onsitePayment.note?.trim() ? onsitePayment.note.trim() : null;
+  const onsiteNotice: OnsitePaymentNoticeInfo | null = onsitePrice
+    ? { price: onsitePrice, methods: onsiteMethods, note }
+    : null;
+
   if (confirmed) {
-    return <BookingConfirmation sessionName={selectedType?.name} slot={confirmed} />;
+    return (
+      <BookingConfirmation
+        sessionName={selectedType?.name}
+        slot={confirmed}
+        onsiteNotice={onsiteNotice}
+      />
+    );
   }
 
   const variantPrice = selectedVariant
@@ -125,7 +170,13 @@ export default function BookingWidget({
               ? ` — ${t("booking.minutes", { min: selectedVariant.durationMin })}${variantPrice ? ` · ${variantPrice}` : ""}`
               : null}{" "}
             — {slotLabel(slot)}
+            {onsitePrice ? ` · ${t("booking.payOnSite")}` : null}
           </p>
+          {onsiteNotice ? (
+            <div className="mb-3">
+              <OnsitePaymentNotice info={onsiteNotice} />
+            </div>
+          ) : null}
           <PatientForm
             slug={slug}
             sessionTypeId={selection?.typeId ?? ""}
