@@ -5,6 +5,7 @@ import { dateStrInTz, tzOffsetMs } from "@/lib/timezone";
 import { statsFileName } from "@/lib/stats-export";
 import { Badge, Card } from "@/components/ui";
 import StatsExportButton from "./StatsExportButton";
+import WeeklyChart from "./WeeklyChart";
 import type { StatsStatusFilter } from "@/services/stats";
 
 /**
@@ -101,7 +102,6 @@ export default async function StatistiquesPage({
     month: "short",
   });
   const timeFmt = new Intl.DateTimeFormat("fr-FR", { timeZone: timezone, hour: "2-digit", minute: "2-digit" });
-  const weekMax = Math.max(1, ...stats.weekly.map((week) => week.honored + week.cancelled));
   const detailCount = stats.rows.length;
   const scope = t("stats.scope", {
     count: detailCount,
@@ -204,25 +204,13 @@ export default async function StatistiquesPage({
           {stats.weekly.length === 0 ? (
             <p className="text-sm text-mist">{t("stats.weeklyEmpty")}</p>
           ) : (
-            <div className="flex items-end gap-2 overflow-x-auto pb-1" role="img" aria-label={t("stats.weeklyTitle")}>
-              {stats.weekly.map((week) => (
-                <div key={week.weekStart} className="flex w-14 shrink-0 flex-col items-center gap-1">
-                  <div className="flex h-28 w-full items-end justify-center gap-1">
-                    <div
-                      className="w-4 rounded-t bg-green-600"
-                      style={{ height: `${Math.max(week.honored > 0 ? 6 : 2, (week.honored / weekMax) * 100)}%` }}
-                      title={`${t("stats.kindHonored")} : ${week.honored}`}
-                    />
-                    <div
-                      className="w-4 rounded-t bg-red-400"
-                      style={{ height: `${Math.max(week.cancelled > 0 ? 6 : 2, (week.cancelled / weekMax) * 100)}%` }}
-                      title={`${t("stats.kindCancelled")} : ${week.cancelled}`}
-                    />
-                  </div>
-                  <span className="text-[11px] text-mist">{formatDay(week.weekStart, timezone).replace(/^[a-zéû]+\.?\s/, "")}</span>
-                </div>
-              ))}
-            </div>
+            <WeeklyChart
+              data={stats.weekly.map((week) => ({
+                label: formatDay(week.weekStart, timezone).replace(/^[a-zéû]+\.?\s/, ""),
+                honored: week.honored,
+                cancelled: week.cancelled,
+              }))}
+            />
           )}
         </Card>
       </div>

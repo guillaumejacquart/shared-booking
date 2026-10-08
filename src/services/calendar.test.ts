@@ -83,12 +83,14 @@ beforeEach(async () => {
 });
 
 describe("getSharedCalendar", () => {
-  it("le owner voit les noms des patients de tous", async () => {
+  it("chacun ne voit les noms que de ses propres patients (y compris le owner)", async () => {
     const cal = await getSharedCalendar({ userId: "u1", start: START, end: END });
     expect(cal.events).toHaveLength(2);
-    expect(cal.events.map((e) => e.title)).toEqual(
-      expect.arrayContaining(["Séance — Jean Dupont", "Séance — Marie Martin"]),
-    );
+    const mine = cal.events.find((e) => e.id === "b1")!;
+    const other = cal.events.find((e) => e.id === "b2")!;
+    expect(mine.title).toBe("Séance — Jean Dupont");
+    expect(other.title).toBe("Réservé");
+    expect(other.extendedProps.patientName).toBeNull();
   });
 
   it("un praticien non-owner voit 'Réservé' pour les autres", async () => {
@@ -100,11 +102,11 @@ describe("getSharedCalendar", () => {
     expect(bob.title).toContain("Marie Martin");
   });
 
-  it("notes, paiement et gestion visibles pour soi/owner, masqués pour les autres", async () => {
+  it("notes, paiement et gestion visibles pour soi uniquement, masqués pour les autres", async () => {
     const owner = await getSharedCalendar({ userId: "u1", start: START, end: END });
     const bob = owner.events.find((e) => e.id === "b2")!;
-    // Owner : tout visible, mais pas de lien de gestion sur le RDV d'autrui.
-    expect(bob.extendedProps.patientEmail).toBe("marie@example.com");
+    // RDV d'autrui : masqué même pour le owner, sans lien de gestion.
+    expect(bob.extendedProps.patientEmail).toBeNull();
     expect(bob.extendedProps.cancelToken).toBeNull();
 
     const alice = (await getSharedCalendar({ userId: "u1", start: START, end: END })).events.find(

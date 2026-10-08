@@ -302,7 +302,8 @@
     "scopeMine": "Moi",
     "scopeAll": "Cabinet",
     "booked": "Réservé",
-    "masked": "Détails masqués (confidentialité du cabinet)."
+    "masked": "Détails masqués (confidentialité du cabinet).",
+    "toggleFilter": "Cliquer pour masquer / réafficher dans le calendrier"
   },
   "availability": {
     "title": "Mes disponibilités hebdo",

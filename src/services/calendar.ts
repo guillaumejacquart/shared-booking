@@ -19,9 +19,9 @@ export interface SharedCalendarInput {
 }
 
 /**
- * Données sensibles d'un événement partagé : masquées sauf pour le
- * praticien concerné (`mine`) ou le owner (`visible`), qui voient aussi
- * le lien de gestion quand le RDV est confirmé.
+ * Données sensibles d'un événement partagé : visibles pour le seul
+ * praticien concerné (`mine`, y compris le lien de gestion quand le RDV
+ * est confirmé), masquées pour tous les autres (y compris le owner).
  */
 function patientProps(
   booking: Booking,
@@ -74,15 +74,14 @@ function statusColors(status: string): {
 
 /**
  * Calendrier du cabinet (vue unifiée : filtre Moi / Tout le cabinet côté
- * client). Données patients masquées sauf pour soi et le owner (SPEC.md
- * §F10). Couleur des événements = statut du RDV.
+ * client). Données patients visibles pour le seul praticien concerné
+ * (SPEC.md §F10). Couleur des événements = statut du RDV.
  */
 export async function getSharedCalendar(input: SharedCalendarInput) {
   const prac = await practitionersDal.getPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const membership = await membersDal.getMembership(prac.officeId, input.userId);
   if (!membership || !membership.active) throw new ForbiddenError("Action non autorisée");
-  const isOwner = membership.role === "owner";
 
   const [pracs, rooms, bookings] = await Promise.all([
     practitionersDal.listPractitionersByOffice(prac.officeId),
@@ -105,7 +104,7 @@ export async function getSharedCalendar(input: SharedCalendarInput) {
       const bookingPrac = pracById.get(booking.practitionerId);
       const room = roomById.get(booking.roomId);
       const mine = booking.practitionerId === prac.id;
-      const visible = mine || isOwner;
+      const visible = mine;
       return {
         id: booking.id,
         // Le praticien est identifié par ses initiales (rendu
@@ -118,6 +117,8 @@ export async function getSharedCalendar(input: SharedCalendarInput) {
         // Couleur = statut (tokens résolus côté client par FullCalendar).
         ...statusColors(booking.status),
         extendedProps: {
+          practitionerId: booking.practitionerId,
+          roomId: booking.roomId,
           status: booking.status,
           validationRequired: booking.validationRequired,
           practitionerName: bookingPrac?.displayName ?? "",

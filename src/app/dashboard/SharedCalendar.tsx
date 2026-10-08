@@ -12,7 +12,7 @@ import type { EventClickArg, EventContentArg, EventSourceFunc } from "@fullcalen
 import "@/components/FullCalendarTheme.css";
 
 import { t } from "@/lib/i18n";
-import { fullFmt } from "@/lib/format";
+import { fullFmt, timeFmt } from "@/lib/format";
 import { Badge, Modal } from "@/components/ui";
 import CancelBookingButton from "./CancelBookingButton";
 import ValidateButtons from "./ValidateButtons";
@@ -71,6 +71,13 @@ function statusTone(status: string): "green" | "zinc" | "red" | "amber" {
         : "red";
 }
 
+/** "mardi 14 octobre · 09:00 – 10:00" pour l'en-tête de la modale. */
+function formatRange(startIso: string, endIso: string): string {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  return `${fullFmt.format(start)} · ${timeFmt.format(start)} – ${timeFmt.format(end)}`;
+}
+
 function statusLabel(status: string): string {
   return status === "confirmed"
     ? t("agenda.confirmed")
@@ -93,7 +100,10 @@ export default function SharedCalendar() {
   const [rooms, setRooms] = useState<RoomLegend[]>([]);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [scope, setScope] = useState<Scope>("me");
+  const [hiddenPractitioners, setHiddenPractitioners] = useState<string[]>([]);
+  const [hiddenRooms, setHiddenRooms] = useState<string[]>([]);
   const scopeRef = useRef<Scope>("me");
+  const filtersRef = useRef<{ practitioners: string[]; rooms: string[] }>({ practitioners: [], rooms: [] });
   const ref = useRef<FullCalendar | null>(null);
 
   // Cabinet multi-praticiens : propose le filtre. En solo tout est à soi.
@@ -103,6 +113,18 @@ export default function SharedCalendar() {
   function changeScope(next: Scope) {
     scopeRef.current = next;
     setScope(next);
+    ref.current?.getApi().refetchEvents();
+  }
+
+  /** La légende est un filtre : un clic masque / réaffiche le praticien ou la salle. */
+  function toggleFilter(kind: "practitioners" | "rooms", id: string) {
+    const current = filtersRef.current[kind];
+    const next = current.includes(id)
+      ? current.filter((entry) => entry !== id)
+      : [...current, id];
+    filtersRef.current = { ...filtersRef.current, [kind]: next };
+    if (kind === "practitioners") setHiddenPractitioners(next);
+    else setHiddenRooms(next);
     ref.current?.getApi().refetchEvents();
   }
 
@@ -124,9 +146,17 @@ export default function SharedCalendar() {
           setRooms((prev) =>
             JSON.stringify(prev) === JSON.stringify(data.rooms ?? []) ? prev : (data.rooms ?? []),
           );
-          const events = (data.events ?? []) as { extendedProps?: { mine?: boolean } }[];
+          const events = (data.events ?? []) as {
+            extendedProps?: { mine?: boolean; practitionerId?: string; roomId?: string };
+          }[];
+          const hidden = filtersRef.current;
           successCallback(
-            scopeRef.current === "all" ? events : events.filter((event) => event.extendedProps?.mine),
+            events.filter(
+              (event) =>
+                (scopeRef.current === "all" || event.extendedProps?.mine) &&
+                !hidden.practitioners.includes(event.extendedProps?.practitionerId ?? "") &&
+                !hidden.rooms.includes(event.extendedProps?.roomId ?? ""),
+            ),
           );
         })
         .catch(() => failureCallback(new Error("chargement impossible")));
@@ -152,7 +182,7 @@ export default function SharedCalendar() {
         {cabinetMode ? (
           <span
             className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
-            style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+            style={{ backgroundColor: props.practitionerColor ?? "rgba(0,0,0,0.35)" }}
             title={props.practitionerName ?? ""}
           >
             {initials(props.practitionerName ?? "?")}
@@ -175,7 +205,7 @@ export default function SharedCalendar() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="shared-calendar flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         {showScope ? (
           <div
@@ -206,31 +236,51 @@ export default function SharedCalendar() {
         </div>
       </div>
       {cabinetMode && practitioners.length > 0 ? (
-        <div className="flex flex-wrap gap-3 text-sm">
-          {practitioners.map((prac) => (
-            <span key={prac.id} className="inline-flex items-center gap-1.5">
-              <span
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                style={{ backgroundColor: prac.color }}
+        <div className="flex flex-wrap gap-1.5 text-sm">
+          {practitioners.map((prac) => {
+            const off = hiddenPractitioners.includes(prac.id);
+            return (
+              <button
+                key={prac.id}
+                type="button"
+                aria-pressed={!off}
+                title={t("sharedCalendar.toggleFilter")}
+                onClick={() => toggleFilter("practitioners", prac.id)}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-1.5 py-0.5 transition-opacity hover:opacity-80 ${off ? "opacity-40" : ""}`}
               >
-                {initials(prac.displayName)}
-              </span>
-              {prac.displayName}
-            </span>
-          ))}
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                  style={{ backgroundColor: prac.color }}
+                >
+                  {initials(prac.displayName)}
+                </span>
+                {prac.displayName}
+              </button>
+            );
+          })}
         </div>
       ) : null}
       {rooms.length > 0 ? (
-        <div className="flex flex-wrap gap-3 text-sm">
-          {rooms.map((room) => (
-            <span key={room.id} className="inline-flex items-center gap-1.5">
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: room.color ?? "var(--faint)" }}
-              />
-              {room.name}
-            </span>
-          ))}
+        <div className="flex flex-wrap gap-1.5 text-sm">
+          {rooms.map((room) => {
+            const off = hiddenRooms.includes(room.id);
+            return (
+              <button
+                key={room.id}
+                type="button"
+                aria-pressed={!off}
+                title={t("sharedCalendar.toggleFilter")}
+                onClick={() => toggleFilter("rooms", room.id)}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-1.5 py-0.5 transition-opacity hover:opacity-80 ${off ? "opacity-40" : ""}`}
+              >
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: room.color ?? "var(--faint)" }}
+                />
+                {room.name}
+              </button>
+            );
+          })}
         </div>
       ) : null}
       <div className="rounded-3xl border border-line bg-card p-2 shadow-soft sm:p-4">
@@ -262,7 +312,7 @@ export default function SharedCalendar() {
         {selected ? (
           <div className="flex flex-col gap-2 text-sm">
             <p className="text-mist">
-              {selected.start ? fullFmt.format(new Date(selected.start)) : ""}
+              {selected.start && selected.end ? formatRange(selected.start, selected.end) : ""}
             </p>
             <p>
               <Badge tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Badge>{" "}

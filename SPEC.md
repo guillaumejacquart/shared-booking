@@ -147,8 +147,8 @@ States: `confirmed → cancelled | completed`. (`pending` not needed — no paym
 * All emails contain: practitioner, session type, date/time (Europe/Paris, e.g. "mardi 16 sept. à 9h00"), office address (add `address` field to office — needed for patients), room is **not** shown to patient (internal detail), cancel/reschedule links.
 
 ### F10 — Calendars (authenticated)
-* **Calendrier unifié** (`/dashboard/calendrier`, page d'arrivée, `/dashboard` redirige) : filtre Moi / Cabinet (masqué en solo), couleur des événements = statut du RDV, initiales praticien en mode cabinet + pastilles salles, clic → détail (patient, notes, valider/annuler pour ses propres RDV). Données patients **masquées** pour les RDV d'autrui (titre « Réservé », nom/email/tél/notes/paiement à null, pas de lien de gestion), sauf owner qui voit tout.
-  * Decision to validate: masking is cheap and avoids gossip. Keep it.
+* **Calendrier unifié** (`/dashboard/calendrier`, page d'arrivée, `/dashboard` redirige) : filtre Moi / Cabinet (masqué en solo), couleur des événements = statut du RDV, initiales praticien en mode cabinet + pastilles salles, clic → détail (patient, notes, valider/annuler pour ses propres RDV). Données patients **masquées** pour les RDV d'autrui (titre « Réservé », nom/email/tél/notes/paiement à null, pas de lien de gestion), y compris pour le owner : seul le praticien concerné voit ses patients.
+  * Decision validée : masquage strict, même pour le owner (confidentialité patient).
 * Block time: practitioner can create an Unavailable exception directly from calendar ("Bloquer ce créneau").
 
 ### F11 — Emails (FR only in MVP)

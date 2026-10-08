@@ -151,6 +151,29 @@
   color: var(--mist);
 }
 
+/* Calendrier partagé : jour courant discret — pas de fond teinté sur toute
+   la colonne, juste une pastille sur l'en-tête (vue semaine) ou sur le
+   numéro (vue mois). */
+.shared-calendar .fc {
+  --fc-today-bg-color: transparent;
+}
+.shared-calendar .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  background: var(--brand);
+  border-radius: 9999px;
+  color: var(--brand-ink);
+  font-weight: 700;
+  padding: 0.1em 0.6em;
+}
+.shared-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: var(--brand);
+  border-radius: 9999px;
+  color: var(--brand-ink);
+  font-weight: 700;
+  min-width: 1.6em;
+  padding: 0 0.3em;
+  text-align: center;
+}
+
 /* Vue disponibilités : le jour courant est signalé par une pastille sur le
    numéro plutôt qu'un fond teinté (confusion avec le vert d'ouverture,
    voire foncé par superposition quand aujourd'hui est ouvert). */

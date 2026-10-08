@@ -16,7 +16,15 @@ npm run db:seed               # démo : Cabinet des Tilleuls (mot de passe affic
 npm run dev                   # http://localhost:3000
 ```
 
-Pages démo : `/o/tilleuls`, `/p/camille`.
+Le seed **remet la base à zéro** puis recrée un cabinet vitrine complet :
+4 praticiens (`camille` owner, `karim`, `lea`, `ines` @example.com),
+3 salles (partagée + restreinte + exclusive), 8 séances (payante,
+à validation, multi-déclinaisons, inactive), dispos Lun→Sam, 1 congé,
+1 formation, 1 ouverture exceptionnelle et ~45 réservations passées
+(historique, stats, CA) et futures (agenda, 2 validations en attente).
+Les dates sont relatives à aujourd'hui : relançable à tout moment.
+
+Pages démo : `/o/tilleuls`, `/p/camille`, `/p/karim`, `/p/lea`, `/p/ines`.
 
 ## Commandes
 
