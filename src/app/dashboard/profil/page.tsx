@@ -8,6 +8,7 @@ import { dateStrInTz } from "@/lib/timezone";
 import { t } from "@/lib/i18n";
 import { Tabs } from "@/components/ui";
 import ProfileForm from "@/components/ProfileForm";
+import PractitionerSettingsForm from "@/components/PractitionerSettingsForm";
 import GoogleAgendaSettings, {
   type GoogleCalendar,
 } from "@/components/GoogleAgendaSettings";
@@ -17,7 +18,7 @@ import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
 import ExceptionsManager from "../disponibilites/ExceptionsManager";
 import AvailabilityMonthLoader from "../disponibilites/AvailabilityMonthLoader";
 
-export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "paiements";
+export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "paiements" | "parametres";
 
 /** Hub praticien : profil public, séances, disponibilités. */
 export default async function ProfilPage({
@@ -30,7 +31,7 @@ export default async function ProfilPage({
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "profil";
   const initial: ProfilTab =
-    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google" || rawTab === "paiements"
+    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google" || rawTab === "paiements" || rawTab === "parametres"
       ? rawTab
       : "profil";
   const backFromStripe = sp.stripe === "retour" || sp.stripe === "refresh";
@@ -79,6 +80,7 @@ export default async function ProfilPage({
         param="tab"
         tabs={[
           { key: "profil", label: t("profile.tabProfile") },
+          { key: "parametres", label: t("profile.tabSettings") },
           { key: "seances", label: t("profile.tabSessionTypes") },
           { key: "disponibilites", label: t("profile.tabAvailability") },
           { key: "google", label: t("profile.tabGoogle") },
@@ -94,7 +96,6 @@ export default async function ProfilPage({
                 slug: prac.slug,
                 bio: prac.bio,
                 publicContact: prac.publicContact,
-                slotStepMin: prac.slotStepMin ?? 15,
               }}
             />
           ) : null,
@@ -102,6 +103,7 @@ export default async function ProfilPage({
             <SessionTypesManager
               practitionerId={ctx.practitionerId}
               paymentsReady={stripeStatus.ready}
+              defaultRequiresValidation={prac?.requiresValidationDefault ?? false}
               initial={types.map((s) => ({
                 id: s.id,
                 name: s.name,
@@ -177,6 +179,15 @@ export default async function ProfilPage({
               </section>
             </div>
           ),
+          parametres: prac ? (
+            <PractitionerSettingsForm
+              practitionerId={ctx.practitionerId}
+              initial={{
+                slotStepMin: prac.slotStepMin ?? 15,
+                requiresValidationDefault: prac.requiresValidationDefault ?? false,
+              }}
+            />
+          ) : null,
         }}
       </Tabs>
     </div>

@@ -98,6 +98,19 @@ export const updateProfileSchema = scopeSchema.merge(requesterSchema).extend({
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
+/**
+ * Paramètres praticien (onglet dédié) : aucun champ profil requis, le
+ * formulaire n'envoie que ses propres champs (sinon `displayName`
+ * manquant fait échouer la validation Zod).
+ */
+export const updatePractitionerSettingsSchema = scopeSchema.merge(requesterSchema).extend({
+  /** Pas de la grille de créneaux coulissante (minutes). */
+  slotStepMin: z.number().int().min(5).max(120).optional(),
+  /** Défaut de validation manuelle, pré-rempli à la création d'une séance. */
+  requiresValidationDefault: z.boolean().optional(),
+});
+export type UpdatePractitionerSettingsInput = z.infer<typeof updatePractitionerSettingsSchema>;
+
 export const saveRoomSchema = z.object({
   officeId: z.string().min(1),
   requesterUserId: z.string().min(1),

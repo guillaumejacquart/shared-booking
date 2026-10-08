@@ -20,7 +20,6 @@ export default function ProfileForm({
   const [slug, setSlug] = useState(initial.slug);
   const [bio, setBio] = useState(initial.bio ?? "");
   const [publicContact, setPublicContact] = useState(initial.publicContact ?? "");
-  const [slotStepMin, setSlotStepMin] = useState(String(initial.slotStepMin ?? 15));
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -29,7 +28,7 @@ export default function ProfileForm({
     setBusy(true);
     setMessage(null);
     try {
-      const result = await sendJson(`/api/practitioners/${practitionerId}`, "PATCH", { displayName, slug, bio: bio || undefined, publicContact: publicContact || undefined, slotStepMin: Number(slotStepMin) });
+      const result = await sendJson(`/api/practitioners/${practitionerId}`, "PATCH", { displayName, slug, bio: bio || undefined, publicContact: publicContact || undefined });
       if (!result.ok) throw new Error(result.error);
       setMessage({ ok: true, text: t("dashboard.saved") });
       router.refresh();
@@ -64,18 +63,6 @@ export default function ProfileForm({
         </Field>
         <Field label="Contact public (optionnel)">
           <TextInput value={publicContact} onChange={(event) => setPublicContact(event.target.value)} maxLength={200} />
-        </Field>
-        <Field
-          label={t("profile.slotStep")}
-          hint={t("profile.slotStepHint")}
-        >
-          <Select value={slotStepMin} onChange={(event) => setSlotStepMin(event.target.value)}>
-            {[5, 10, 15, 20, 30, 60].map((step) => (
-              <option key={step} value={step}>
-                {t("profile.slotStepOption", { n: step })}
-              </option>
-            ))}
-          </Select>
         </Field>
         {message ? <FormMessage tone={message.ok ? "ok" : "error"}>{message.text}</FormMessage> : null}
         <Button type="submit" disabled={busy} className="w-fit">

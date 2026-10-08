@@ -31,10 +31,16 @@ const EMPTY: Draft = {
   compatibleRoomIds: [],
 };
 
+/** Valeur initiale de la case validation : défaut du praticien (option A). */
+function emptyWithDefault(requiresValidation: boolean): Draft {
+  return { ...EMPTY, requiresValidation };
+}
+
 export default function NewSessionTypeForm({
   practitionerId,
   rooms,
   paymentsReady,
+  defaultRequiresValidation = false,
   onCreated,
   onError,
 }: {
@@ -42,10 +48,12 @@ export default function NewSessionTypeForm({
   rooms: Room[];
   /** Compte Stripe prêt à encaisser ; sinon le paiement reste désactivé. */
   paymentsReady: boolean;
+  /** Défaut praticien : pré-remplit la case validation (modifiable par séance). */
+  defaultRequiresValidation?: boolean;
   onCreated: (row: SessionTypeRow) => void;
   onError: (message: string | null) => void;
 }) {
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [draft, setDraft] = useState<Draft>(() => emptyWithDefault(defaultRequiresValidation));
   const update = (patch: Partial<Draft>) => setDraft((prev) => ({ ...prev, ...patch }));
 
   async function create(event: React.FormEvent) {
@@ -81,7 +89,7 @@ export default function NewSessionTypeForm({
       requiresValidation: draft.requiresValidation,
       compatibleRoomIds: draft.compatibleRoomIds,
     });
-    setDraft({ ...EMPTY, durationMin: draft.durationMin, bufferAfterMin: draft.bufferAfterMin });
+    setDraft({ ...EMPTY, durationMin: draft.durationMin, bufferAfterMin: draft.bufferAfterMin, requiresValidation: defaultRequiresValidation });
   }
 
   return (

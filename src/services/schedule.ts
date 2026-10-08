@@ -18,6 +18,7 @@ import type {
   SaveRoomInput,
   SaveSessionTypeInput,
   UpdateOfficeSettingsInput,
+  UpdatePractitionerSettingsInput,
   UpdateProfileInput,
 } from "@/lib/schemas/schedule";
 import {
@@ -241,6 +242,18 @@ export async function updateProfile(input: UpdateProfileInput): Promise<void> {
   });
 }
 
+/** Paramètres praticien (onglet dédié) : n'écrit que les champs fournis. */
+export async function updatePractitionerSettings(input: UpdatePractitionerSettingsInput): Promise<void> {
+  const { practitionerId } = input;
+  await checkAccess(practitionerId, input.requesterUserId);
+  await practitionersDal.updatePractitioner(practitionerId, {
+    ...(input.slotStepMin !== undefined ? { slotStepMin: input.slotStepMin } : {}),
+    ...(input.requiresValidationDefault !== undefined
+      ? { requiresValidationDefault: input.requiresValidationDefault }
+      : {}),
+  });
+}
+
 // --- Salles (owner) ----------------------------------------------------------
 
 async function requireOwner(officeId: string, userId: string): Promise<void> {
@@ -399,6 +412,7 @@ export interface ScheduleService {
   createException: typeof createException;
   deleteException: typeof deleteException;
   updateProfile: typeof updateProfile;
+  updatePractitionerSettings: typeof updatePractitionerSettings;
   saveRoom: typeof saveRoom;
   deleteRoom(input: DeleteRoomInput): ReturnType<typeof deleteRoom>;
   updateOfficeSettings: typeof updateOfficeSettings;
@@ -413,6 +427,7 @@ export function createScheduleService(ports: Ports): ScheduleService {
     createException,
     deleteException,
     updateProfile,
+    updatePractitionerSettings,
     saveRoom,
     deleteRoom: (input) => deleteRoom(ports, input),
     updateOfficeSettings,

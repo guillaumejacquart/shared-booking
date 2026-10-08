@@ -15,12 +15,15 @@ export default function SessionTypesManager({
   initial,
   rooms,
   paymentsReady,
+  defaultRequiresValidation = false,
 }: {
   practitionerId: string;
   initial: SessionTypeRow[];
   rooms: Room[];
   /** Compte Stripe du praticien prêt à encaisser (`charges_enabled`). */
   paymentsReady: boolean;
+  /** Défaut praticien : pré-remplit la case validation des nouvelles séances. */
+  defaultRequiresValidation?: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<SessionTypeRow[]>(initial);
@@ -75,7 +78,7 @@ export default function SessionTypesManager({
           />
         ))}
       </div>
-      <NewSessionTypeForm practitionerId={practitionerId} rooms={rooms} paymentsReady={paymentsReady} onCreated={onCreated} onError={setError} />
+      <NewSessionTypeForm practitionerId={practitionerId} rooms={rooms} paymentsReady={paymentsReady} defaultRequiresValidation={defaultRequiresValidation} onCreated={onCreated} onError={setError} />
       <div className="mt-2 flex flex-col gap-1">
         <FormMessage tone="error">{error ?? ""}</FormMessage>
         {saved ? <FormMessage tone="ok">{t("dashboard.saved")}</FormMessage> : null}

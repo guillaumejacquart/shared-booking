@@ -111,7 +111,7 @@ export async function updatePractitioner(practitionerId: string,
     publicContact: string | null;
     slotStepMin: number;
     requiresValidationDefault: boolean;
-  }>)) {
+  }>) {
   const conn = getConnection();
   await conn.update(practitioner).set(data).where(eq(practitioner.id, practitionerId));
 }
