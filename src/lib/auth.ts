@@ -11,9 +11,11 @@ import * as schema from "@/db/schema";
  * MVP : pas de vérification d'email pour simplifier l'onboarding.
  *
  * Google (optionnel, push agenda praticien) : activé uniquement si
- * GOOGLE_CLIENT_ID/SECRET sont configurés. Scope minimal `calendar.events`
- * (créer/modifier/supprimer ses propres événements) + offline pour le
- * refresh token (push en arrière-plan, sans session navigateur).
+ * GOOGLE_CLIENT_ID/SECRET sont configurés. Scopes minimaux : `calendar.events`
+ * (créer/modifier/supprimer ses propres événements) + `calendar.calendarlist.readonly`
+ * (lister ses agendas : exigé par `calendarList.list` pour le sélecteur et la
+ * vérification du jeton) + offline pour le refresh token (push en arrière-plan,
+ * sans session navigateur).
  */
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -56,6 +58,7 @@ export const auth = betterAuth({
               "email",
               "profile",
               "https://www.googleapis.com/auth/calendar.events",
+              "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
             ],
           },
         },

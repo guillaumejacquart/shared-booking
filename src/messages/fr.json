@@ -259,7 +259,7 @@
     "visit": "Voir la page",
     "copy": "Copier le lien",
     "copied": "Lien copié !",
-    "slotStep": "Pas des créneaux proposés",
+    "slotStep": "Intervalle entre les créneaux proposés",
     "slotStepHint": "Écart entre deux horaires proposés dans vos plages d'ouverture (la durée de la séance ne change pas).",
     "slotStepOption": "Toutes les {n} min"
   },

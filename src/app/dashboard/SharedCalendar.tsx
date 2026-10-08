@@ -233,25 +233,27 @@ export default function SharedCalendar() {
           ))}
         </div>
       ) : null}
-      <FullCalendar
-        ref={ref}
-        plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-        initialView="timeGridWeek"
-        headerToolbar={{ left: "prev,today,next", center: "title", right: "timeGridWeek,dayGridMonth,listWeek" }}
-        locales={[frLocale]}
-        locale="fr"
-        timeZone={TZ}
-        firstDay={1}
-        slotMinTime="07:00:00"
-        slotMaxTime="21:00:00"
-        allDaySlot={false}
-        nowIndicator
-        height="auto"
-        noEventsText={t("agenda.empty")}
-        events={fetchEvents}
-        eventClick={onEventClick}
-        eventContent={renderEvent}
-      />
+      <div className="rounded-3xl border border-line bg-card p-2 shadow-soft sm:p-4">
+        <FullCalendar
+          ref={ref}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
+          headerToolbar={{ left: "prev,today,next", center: "title", right: "timeGridWeek,dayGridMonth,listWeek" }}
+          locales={[frLocale]}
+          locale="fr"
+          timeZone={TZ}
+          firstDay={1}
+          slotMinTime="07:00:00"
+          slotMaxTime="21:00:00"
+          allDaySlot={false}
+          nowIndicator
+          height="auto"
+          noEventsText={t("agenda.empty")}
+          events={fetchEvents}
+          eventClick={onEventClick}
+          eventContent={renderEvent}
+        />
+      </div>
       <Modal
         open={selected !== null}
         onClose={() => setSelected(null)}

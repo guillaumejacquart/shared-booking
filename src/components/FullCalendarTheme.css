@@ -50,6 +50,14 @@
   gap: 0.5rem;
 }
 
+/* Respiration entre les boutons de navigation (groupes FullCalendar collés par défaut). */
+.fc .fc-button-group {
+  gap: 0.375rem;
+}
+.fc .fc-button-group > .fc-button {
+  margin-left: 0 !important;
+}
+
 .fc .fc-event {
   border-radius: 8px !important;
   font-size: 12px !important;

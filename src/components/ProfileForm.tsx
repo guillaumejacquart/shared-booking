@@ -46,21 +46,23 @@ export default function ProfileForm({
   const publicPath = `/p/${initial.slug}`;
 
   return (
-    <div className="flex max-w-xl flex-col gap-6">
-      <PublicLinkCard
-        path={publicPath}
-        title={t("profile.publicTitle")}
-        description={t("profile.publicHint")}
-      />
-      {officePageEnabled ? (
+    <div className="grid max-w-5xl grid-cols-1 items-start gap-6 lg:grid-cols-2">
+      <div className="order-1 flex flex-col gap-6 lg:order-2">
         <PublicLinkCard
-          path={`/o/${officeSlug}`}
-          title={t("settings.officePage")}
-          description={t("settings.officePageHint")}
+          path={publicPath}
+          title={t("profile.publicTitle")}
+          description={t("profile.publicHint")}
         />
-      ) : null}
+        {officePageEnabled ? (
+          <PublicLinkCard
+            path={`/o/${officeSlug}`}
+            title={t("settings.officePage")}
+            description={t("settings.officePageHint")}
+          />
+        ) : null}
+      </div>
 
-      <form onSubmit={save} className="flex flex-col gap-4">
+      <form onSubmit={save} className="order-2 flex flex-col gap-4 lg:order-1">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t("auth.name")}>
             <TextInput value={displayName} onChange={(event) => setDisplayName(event.target.value)} required maxLength={100} />
