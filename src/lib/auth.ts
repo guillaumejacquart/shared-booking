@@ -64,11 +64,17 @@ export const auth = betterAuth({
         // Liaison du compte Google au praticien déjà connecté (bouton
         // « Connecter » du profil). Google est un IdP de confiance : on
         // autorise les emails différents (pro vs perso).
+        // `requireLocalEmailVerified: false` : les comptes email existants
+        // n'ont jamais vérifié leur email (requireEmailVerification: false,
+        // choix MVP). Prouver la propriété du compte Google suffit à
+        // rattacher le compte local de même email — sinon le SSO échoue
+        // avec `?error=account_not_linked`.
         account: {
           accountLinking: {
             enabled: true,
             trustedProviders: ["google"],
             allowDifferentEmails: true,
+            requireLocalEmailVerified: false,
           },
         },
       }
