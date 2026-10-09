@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { authClient } from "@/lib/auth-client";
+import { ANALYTICS_EVENTS, trackClientEvent } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import AuthShell from "@/components/AuthShell";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
@@ -29,10 +30,14 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       if (mode === "signup") {
         const { error } = await authClient.signUp.email({ name, email, password });
         if (error) throw new Error(error.message || t("auth.failed"));
+        trackClientEvent(ANALYTICS_EVENTS.AUTH_SIGNUP, {
+          fromInvite: next?.startsWith("/invite/") ?? false,
+        });
         router.push(next ?? "/onboarding");
       } else {
         const { error } = await authClient.signIn.email({ email, password });
         if (error) throw new Error(error.message || t("auth.failed"));
+        trackClientEvent(ANALYTICS_EVENTS.AUTH_LOGIN, {});
         router.push(next ?? "/dashboard");
       }
     } catch (err) {

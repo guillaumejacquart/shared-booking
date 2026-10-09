@@ -4,6 +4,7 @@ import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
 import { fixedClock } from "@/lib/ports";
+import { ANALYTICS_EVENTS, type AnalyticsData, type AnalyticsEventName } from "@/lib/analytics";
 import { testPorts } from "@/test/ports";
 import { ForbiddenError, ValidationError } from "./errors";
 import {
@@ -116,6 +117,21 @@ describe("billing", () => {
     expect(params).toMatchObject({ mode: "subscription", customer: "cus_test_123" });
     expect(params.line_items).toMatchObject([{ price: PRICE, quantity: 1 }]);
     expect((params.metadata as { officeId: string }).officeId).toBe("o1");
+  });
+
+  it("start émet subscription-checkout-started", async () => {
+    const tracked: { event: AnalyticsEventName; data?: AnalyticsData }[] = [];
+    const watched = testPorts({
+      clock: fixedClock(NOW),
+      stripeClient: fakeStripe,
+      subscriptionPriceId: PRICE,
+      subscriptionEnabled: true,
+      analytics: { track: async (event, data) => void tracked.push({ event, data }) },
+    });
+    await startSubscriptionCheckout(watched, "u1");
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.SUBSCRIPTION_CHECKOUT_STARTED,
+    ]);
   });
 
   it("start refusé aux non-owners", async () => {

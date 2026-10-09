@@ -6,6 +6,7 @@ import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as usersDal from "@/dal/users";
 import type { Ports } from "@/lib/ports";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import type {
   AcceptInviteInput,
   ChangeMemberRoleInput,
@@ -30,7 +31,7 @@ import {
 const INVITE_TTL_MS = 7 * 24 * 3_600_000;
 
 /** Création d'un cabinet : office + membre owner + praticien pour le créateur. */
-export async function createOffice(input: CreateOfficeInput): Promise<{ officeId: string; officeSlug: string; practitionerSlug: string }> {
+export async function createOffice(ports: Ports, input: CreateOfficeInput): Promise<{ officeId: string; officeSlug: string; practitionerSlug: string }> {
   const slugTaken = await officesDal.getOfficeBySlug(input.slug);
   if (slugTaken) throw new ConflictError("Cet identifiant de cabinet est déjà pris");
 
@@ -56,6 +57,7 @@ export async function createOffice(input: CreateOfficeInput): Promise<{ officeId
       slug: practitionerSlug,
     },
   });
+  await ports.analytics.track(ANALYTICS_EVENTS.OFFICE_CREATED, {});
   return { officeId, officeSlug: input.slug, practitionerSlug };
 }
 
@@ -121,6 +123,7 @@ export async function createInvite(
     text: `Bonjour,\n\n${office.name} vous invite à rejoindre son cabinet partagé en tant que ${input.role === "owner" ? "responsable" : "praticien"}.\n\nAcceptez l'invitation (valable 7 jours) : ${input.origin}/invite/${token}\n\nSi vous n'avez pas encore de compte, créez-en un avec cette adresse email puis acceptez l'invitation.`,
     html: `<div style="font-family:sans-serif;max-width:560px"><p>Bonjour,</p><p><strong>${office.name}</strong> vous invite à rejoindre son cabinet partagé.</p><p><a href="${input.origin}/invite/${token}">Accepter l'invitation</a> (valable 7 jours).</p><p>Si vous n'avez pas encore de compte, créez-en un avec cette adresse email puis acceptez l'invitation.</p></div>`,
   });
+  await ports.analytics.track(ANALYTICS_EVENTS.INVITE_SENT, { role: input.role });
   return { id, token };
 }
 
@@ -167,6 +170,7 @@ export async function acceptInvite(
       slug,
     },
   });
+  await ports.analytics.track(ANALYTICS_EVENTS.INVITE_ACCEPTED, { role: inv.role });
   return { officeSlug: office.slug, practitionerSlug: slug };
 }
 
@@ -253,7 +257,7 @@ export async function changeMemberRole(input: ChangeMemberRoleInput): Promise<vo
 
 /** Surface du service équipe (utilisée par les routes via le container). */
 export interface TeamService {
-  createOffice: typeof createOffice;
+  createOffice(input: CreateOfficeInput): ReturnType<typeof createOffice>;
   createInvite(input: CreateInviteInput): ReturnType<typeof createInvite>;
   acceptInvite(input: AcceptInviteInput): ReturnType<typeof acceptInvite>;
   getInvitePublicInfo(token: string): ReturnType<typeof getInvitePublicInfo>;
@@ -264,7 +268,7 @@ export interface TeamService {
 
 export function createTeamService(ports: Ports): TeamService {
   return {
-    createOffice,
+    createOffice: (input) => createOffice(ports, input),
     createInvite: (input) => createInvite(ports, input),
     acceptInvite: (input) => acceptInvite(ports, input),
     getInvitePublicInfo: (token) => getInvitePublicInfo(ports, token),

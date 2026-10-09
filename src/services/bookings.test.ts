@@ -658,4 +658,49 @@ describe("analytics (Umami)", () => {
     ]);
     expect(tracked[0].data).toMatchObject({ accepted: false });
   });
+
+  it("annulation patient : booking-cancelled avec by", async () => {
+    const { createBooking: create, cancelBooking: cancel } = await import("@/services/bookings");
+    const early = () => testPorts({
+      clock: fixedClock(new Date("2026-09-12T06:00:00Z")),
+      sendEmail: async (email) => void sent.push(email),
+      analytics: {
+        track: async (event, data) => {
+          tracked.push({ event, data });
+        },
+      },
+    });
+    const res = await create(early(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
+    });
+    tracked.length = 0;
+    await cancel(early(), { token: res.cancelToken, by: "patient" });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_CANCELLED,
+    ]);
+    expect(tracked[0].data).toMatchObject({ practitionerSlug: "alice", by: "patient" });
+    expect(tracked[0].data).not.toHaveProperty("patientEmail");
+  });
+
+  it("report : booking-rescheduled", async () => {
+    const { createBooking: create, rescheduleBooking: reschedule } = await import("@/services/bookings");
+    const early = () => testPorts({
+      clock: fixedClock(new Date("2026-09-12T06:00:00Z")),
+      sendEmail: async (email) => void sent.push(email),
+      analytics: {
+        track: async (event, data) => {
+          tracked.push({ event, data });
+        },
+      },
+    });
+    const res = await create(early(), {
+      practitionerSlug: "alice", sessionTypeId: "st1", startAt: SLOT_A, ...patient,
+    });
+    tracked.length = 0;
+    await reschedule(early(), { token: res.rescheduleToken, newStartAt: SLOT_B });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.BOOKING_RESCHEDULED,
+    ]);
+    expect(tracked[0].data).toMatchObject({ practitionerSlug: "alice" });
+  });
 });

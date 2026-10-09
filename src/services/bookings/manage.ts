@@ -126,6 +126,15 @@ export async function cancelBooking(
 
   await bookingsDal.markBookingCancelled(booking.id, input.reason ?? null, now, input.by);
 
+  await ports.analytics.track(ANALYTICS_EVENTS.BOOKING_CANCELLED, {
+    ...bookingEventData({
+      practitionerSlug: prac.slug,
+      durationMin: booking.durationMinSnapshot,
+      requiresValidation: booking.validationRequired ?? false,
+    }),
+    by: input.by,
+  });
+
   // Pas de lien de gestion dans un email d'annulation : `manageUrl` vide.
   const model = { ...mailModel(booking, detail, { now }), manageUrl: "" };
   if (input.by === "patient") {
@@ -225,6 +234,14 @@ export async function rescheduleBooking(
   const model = mailModel(booking, detail, { now, ...target });
   await send(rescheduledEmail(booking.patientEmail, model));
   await syncBookingToGoogle(ports, booking.id);
+  await ports.analytics.track(
+    ANALYTICS_EVENTS.BOOKING_RESCHEDULED,
+    bookingEventData({
+      practitionerSlug: prac.slug,
+      durationMin: booking.durationMinSnapshot,
+      requiresValidation: booking.validationRequired ?? false,
+    }),
+  );
 
   return {
     id: booking.id,

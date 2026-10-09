@@ -25,10 +25,18 @@ export const DEFAULT_UMAMI_HOST = "https://stats.guillaumejacquart.com";
 
 /**
  * Catalogue des events. Côté patient : le funnel client (`slot-selected`,
- * `submitted`) est fermé par la vérité serveur (`confirmed`, `paid`).
- * Côté praticien : 100 % serveur (dashboard derrière auth).
+ * `submitted`) est fermé par la vérité serveur (`confirmed`, `paid`,
+ * `cancelled`, `rescheduled`). Côté praticien : 100 % serveur (dashboard
+ * derrière auth), du signup (`auth-*`, client) à l'activation
+ * (`office-created`, `invite-*`) puis la monétisation (`subscription-*`,
+ * `stripe-connect-*`).
  */
 export const ANALYTICS_EVENTS = {
+  AUTH_SIGNUP: "auth-signup",
+  AUTH_LOGIN: "auth-login",
+  OFFICE_CREATED: "office-created",
+  INVITE_SENT: "invite-sent",
+  INVITE_ACCEPTED: "invite-accepted",
   BOOKING_SLOT_SELECTED: "booking-slot-selected",
   BOOKING_SUBMITTED: "booking-submitted",
   BOOKING_CONFIRMED: "booking-confirmed",
@@ -36,7 +44,12 @@ export const ANALYTICS_EVENTS = {
   BOOKING_PAID: "booking-paid",
   BOOKING_VALIDATED: "booking-validated",
   BOOKING_CANCELLED: "booking-cancelled",
+  BOOKING_RESCHEDULED: "booking-rescheduled",
+  ROOM_CREATED: "room-created",
   SESSION_TYPE_CREATED: "session-type-created",
+  SUBSCRIPTION_CHECKOUT_STARTED: "subscription-checkout-started",
+  STRIPE_CONNECT_STARTED: "stripe-connect-started",
+  STRIPE_CONNECT_READY: "stripe-connect-ready",
 } as const;
 
 export type AnalyticsEventName =

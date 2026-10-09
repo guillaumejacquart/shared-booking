@@ -358,7 +358,7 @@ async function requireOwner(officeId: string, userId: string): Promise<void> {
   }
 }
 
-export async function saveRoom(input: SaveRoomInput): Promise<string> {
+export async function saveRoom(ports: Ports, input: SaveRoomInput): Promise<string> {
   await requireOwner(input.officeId, input.requesterUserId);
 
   const pracs = await practitionersDal.listPractitionersByOffice(input.officeId);
@@ -377,6 +377,11 @@ export async function saveRoom(input: SaveRoomInput): Promise<string> {
   const id = crypto.randomUUID();
   await roomsDal.createRoom({ id, officeId: input.officeId, name: input.name, color: input.color });
   await roomsDal.replaceRoomMembers(id, input.practitionerIds);
+  // Création uniquement : les renommages/recolorations n'émettent rien
+  // (même règle que `session-type-created`).
+  await ports.analytics.track(ANALYTICS_EVENTS.ROOM_CREATED, {
+    practitionerCount: input.practitionerIds.length,
+  });
   return id;
 }
 
@@ -508,7 +513,7 @@ export interface ScheduleService {
   deleteException: typeof deleteException;
   updateProfile: typeof updateProfile;
   updatePractitionerSettings: typeof updatePractitionerSettings;
-  saveRoom: typeof saveRoom;
+  saveRoom(input: SaveRoomInput): ReturnType<typeof saveRoom>;
   deleteRoom(input: DeleteRoomInput): ReturnType<typeof deleteRoom>;
   updateOfficeSettings: typeof updateOfficeSettings;
   getAvailabilityMonth: typeof getAvailabilityMonth;
@@ -523,7 +528,7 @@ export function createScheduleService(ports: Ports): ScheduleService {
     deleteException,
     updateProfile,
     updatePractitionerSettings,
-    saveRoom,
+    saveRoom: (input) => saveRoom(ports, input),
     deleteRoom: (input) => deleteRoom(ports, input),
     updateOfficeSettings,
     getAvailabilityMonth,

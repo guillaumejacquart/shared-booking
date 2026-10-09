@@ -3,6 +3,7 @@ import * as officesDal from "@/dal/offices";
 import * as practitionersDal from "@/dal/practitioners";
 import * as usersDal from "@/dal/users";
 import { env, isStripeConfigured } from "@/lib/env";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import type { Ports, StripeSubscriptionLike } from "@/lib/ports";
 import { ForbiddenError, NotFoundError, ValidationError } from "./errors";
 
@@ -109,6 +110,7 @@ export async function startSubscriptionCheckout(
     cancel_url: `${origin}/dashboard/parametres?tab=abonnement&abo=annule`,
   });
   if (!session.url) throw new ValidationError("Abonnement indisponible pour le moment");
+  await ports.analytics.track(ANALYTICS_EVENTS.SUBSCRIPTION_CHECKOUT_STARTED, {});
   return { url: session.url };
 }
 

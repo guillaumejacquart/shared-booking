@@ -1,6 +1,7 @@
 import * as practitionersDal from "@/dal/practitioners";
 import * as usersDal from "@/dal/users";
 import { env, isStripeConfigured } from "@/lib/env";
+import { ANALYTICS_EVENTS } from "@/lib/analytics";
 import type { Ports, StripeAccountLike } from "@/lib/ports";
 import { NotFoundError, ValidationError } from "./errors";
 
@@ -85,6 +86,7 @@ export async function startConnectOnboarding(
     return_url: `${origin}/dashboard/profil?tab=paiements&stripe=retour`,
     type: "account_onboarding",
   });
+  await ports.analytics.track(ANALYTICS_EVENTS.STRIPE_CONNECT_STARTED, {});
   return { url: link.url, accountId };
 }
 
@@ -96,12 +98,18 @@ export async function refreshConnectStatus(
   const stripe = requireStripe(ports);
   const prac = await requirePractitioner(requesterUserId);
   if (!prac.stripeAccountId) return toStatus(prac);
+  const wasReady = prac.stripeChargesEnabled;
   const account = await stripe.accounts.retrieve(prac.stripeAccountId);
   await practitionersDal.setPractitionerStripe(prac.id, {
     stripeAccountId: prac.stripeAccountId,
     stripeChargesEnabled: account.charges_enabled,
     stripePayoutsEnabled: account.payouts_enabled,
   });
+  // Transition vers prêt : l'onboarding KYC est terminé, le praticien peut
+  // encaisser. Un seul event (pas à chaque refresh manuel).
+  if (!wasReady && account.charges_enabled) {
+    await ports.analytics.track(ANALYTICS_EVENTS.STRIPE_CONNECT_READY, {});
+  }
   return toStatus({
     stripeAccountId: prac.stripeAccountId,
     stripeChargesEnabled: account.charges_enabled,

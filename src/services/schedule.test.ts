@@ -380,20 +380,21 @@ describe("updatePractitionerSettings", () => {
 describe("saveRoom / deleteRoom", () => {
   it("crée et modifie une salle avec allowlist (owner uniquement)", async () => {
     const { saveRoom } = await import("@/services/schedule");
-    const id = await saveRoom({
+    const roomPorts = () => testPorts({ clock: fixedClock(NOW) });
+    const id = await saveRoom(roomPorts(), {
       officeId: "o1", requesterUserId: "u1", name: "Salle B", color: "#3b82f6", practitionerIds: ["p1", "p2"],
     });
-    const id2 = await saveRoom({
+    const id2 = await saveRoom(roomPorts(), {
       officeId: "o1", requesterUserId: "u1", id, name: "Salle B", color: "#ff0000", practitionerIds: ["p1"],
     });
     expect(id2).toBe(id);
     // Bob (non-owner) ne peut pas gérer les salles.
     await expect(
-      saveRoom({ officeId: "o1", requesterUserId: "u2", name: "X", color: "#3b82f6", practitionerIds: [] }),
+      saveRoom(roomPorts(), { officeId: "o1", requesterUserId: "u2", name: "X", color: "#3b82f6", practitionerIds: [] }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     // Praticien d'un autre cabinet refusé dans l'allowlist : on teste avec un id inconnu.
     await expect(
-      saveRoom({ officeId: "o1", requesterUserId: "u1", name: "Y", color: "#3b82f6", practitionerIds: ["nope"] }),
+      saveRoom(roomPorts(), { officeId: "o1", requesterUserId: "u1", name: "Y", color: "#3b82f6", practitionerIds: ["nope"] }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -590,6 +591,32 @@ describe("analytics (Umami)", () => {
       name: "Suivi long",
       variants: [{ durationMin: 45, bufferAfterMin: 5, priceDisplay: "65 €" }],
       requiresPayment: false, requiresValidation: true, compatibleRoomIds: [],
+    });
+    expect(tracked).toHaveLength(1);
+  });
+
+  it("émet room-created à la création, rien à la mise à jour", async () => {
+    const tracked: { event: AnalyticsEventName; data?: AnalyticsData }[] = [];
+    const watchedPorts = () =>
+      testPorts({
+        clock: fixedClock(NOW),
+        analytics: {
+          track: async (event, data) => {
+            tracked.push({ event, data });
+          },
+        },
+      });
+    const { saveRoom } = await import("@/services/schedule");
+    const id = await saveRoom(watchedPorts(), {
+      officeId: "o1", requesterUserId: "u1", name: "Salle B",
+      color: "#3b82f6", practitionerIds: ["p1", "p2"],
+    });
+    expect(tracked).toHaveLength(1);
+    expect(tracked[0].event).toBe(ANALYTICS_EVENTS.ROOM_CREATED);
+    expect(tracked[0].data).toMatchObject({ practitionerCount: 2 });
+    await saveRoom(watchedPorts(), {
+      officeId: "o1", requesterUserId: "u1", id, name: "Salle B",
+      color: "#ff0000", practitionerIds: ["p1"],
     });
     expect(tracked).toHaveLength(1);
   });

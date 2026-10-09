@@ -11,6 +11,7 @@ import {
   ValidationError,
 } from "@/services/errors";
 import type { OutgoingEmail } from "@/lib/email";
+import { ANALYTICS_EVENTS, type AnalyticsData, type AnalyticsEventName } from "@/lib/analytics";
 import { fixedClock } from "@/lib/ports";
 import { testPorts } from "@/test/ports";
 
@@ -74,7 +75,7 @@ describe("createInvite", () => {
 describe("createOffice", () => {
   it("crée cabinet + membre owner + praticien", async () => {
     const { createOffice } = await import("@/services/team");
-    const res = await createOffice({
+    const res = await createOffice(ports(), {
       userId: "owner1",
       userName: "Owner",
       name: "Cabinet du Centre",
@@ -93,7 +94,7 @@ describe("createOffice", () => {
   it("refuse un slug déjà pris (le format invalide est rejeté par le schéma)", async () => {
     const { createOffice } = await import("@/services/team");
     await expect(
-      createOffice({ userId: "owner1", userName: "Owner", name: "X", slug: "cabinet" }),
+      createOffice(ports(), { userId: "owner1", userName: "Owner", name: "X", slug: "cabinet" }),
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
@@ -172,6 +173,37 @@ describe("acceptInvite", () => {
     await expect(
       acceptInvite(ports(), { token: inv.token, userId: "n3", userEmail: "noa@example.com", userName: "Noa" }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("analytics (Umami)", () => {
+  it("office-created, invite-sent puis invite-accepted", async () => {
+    const tracked: { event: AnalyticsEventName; data?: AnalyticsData }[] = [];
+    const watched = () => testPorts({
+      clock: fixedClock(NOW),
+      sendEmail: async (email: OutgoingEmail) => void sent.push(email),
+      analytics: { track: async (event, data) => void tracked.push({ event, data }) },
+    });
+    const { createOffice } = await import("@/services/team");
+    await createOffice(watched(), {
+      userId: "owner1", userName: "Owner", name: "Cabinet", slug: "nouveau",
+    });
+    const inv = await createInvite(watched(), {
+      officeId: "o1", email: "nadia@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    const s = await import("@/db/schema");
+    await db.insert(s.user).values([{ id: "new1", name: "Nadia", email: "nadia@example.com" }]);
+    await acceptInvite(watched(), {
+      token: inv.token, userId: "new1", userEmail: "nadia@example.com", userName: "Nadia",
+    });
+    expect(tracked.map((entry) => entry.event)).toEqual([
+      ANALYTICS_EVENTS.OFFICE_CREATED,
+      ANALYTICS_EVENTS.INVITE_SENT,
+      ANALYTICS_EVENTS.INVITE_ACCEPTED,
+    ]);
+    expect(tracked[1].data).toMatchObject({ role: "practitioner" });
+    expect(tracked[2].data).toMatchObject({ role: "practitioner" });
   });
 });
 
