@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { ANALYTICS_EVENTS, trackClientEvent } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import AuthShell from "@/components/AuthShell";
+import GoogleGIcon from "@/components/GoogleGIcon";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
 
 export default function AuthForm({ mode, googleSso = false }: { mode: "login" | "signup"; googleSso?: boolean }) {
@@ -110,7 +111,15 @@ export default function AuthForm({ mode, googleSso = false }: { mode: "login" | 
             {t("auth.or")}
             <span className="h-px flex-1 bg-line" />
           </div>
-          <Button type="button" size="lg" variant="secondary" onClick={() => void signInWithGoogle()} disabled={busy}>
+          <Button
+            type="button"
+            size="lg"
+            variant="secondary"
+            onClick={() => void signInWithGoogle()}
+            disabled={busy}
+            className="inline-flex items-center justify-center gap-2"
+          >
+            <GoogleGIcon />
             {t("auth.continueWithGoogle")}
           </Button>
         </div>

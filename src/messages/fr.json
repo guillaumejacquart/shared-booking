@@ -487,7 +487,7 @@
   "google": {
     "notConfigured": "Google Agenda n'est pas configuré sur ce serveur (clés GOOGLE_CLIENT_* manquantes).",
     "connectHint": "Connectez votre compte Google pour recopier automatiquement vos réservations confirmées dans votre agenda.",
-    "connect": "Connecter Google",
+    "connect": "Connecter Google Agenda",
     "disconnect": "Déconnecter",
     "disconnectConfirm": "Couper le push vers Google Agenda ? Les événements déjà créés restent dans votre agenda.",
     "calendar": "Agenda de destination",

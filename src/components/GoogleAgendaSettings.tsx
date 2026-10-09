@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { googleAgendaLinkBody } from "@/lib/google-scopes";
+import GoogleGIcon from "@/components/GoogleGIcon";
 import { t } from "@/lib/i18n";
 import type { GoogleStatus } from "@/services/google";
 import {
@@ -187,7 +188,13 @@ export default function GoogleAgendaSettings({
             {message.text}
           </FormMessage>
         ) : null}
-        <Button onClick={connect} disabled={busy} className="w-fit">
+        <Button
+          onClick={connect}
+          disabled={busy}
+          variant="secondary"
+          className="inline-flex w-fit items-center gap-2"
+        >
+          <GoogleGIcon />
           {t("google.connect")}
         </Button>
       </div>
@@ -202,7 +209,13 @@ export default function GoogleAgendaSettings({
       {needsReconnect ? (
         <div className="flex flex-col gap-2">
           <FormMessage tone="error">{t("google.statusReconnect")}</FormMessage>
-          <Button onClick={connect} disabled={busy} className="w-fit">
+          <Button
+            onClick={connect}
+            disabled={busy}
+            variant="secondary"
+            className="inline-flex w-fit items-center gap-2"
+          >
+            <GoogleGIcon />
             {t("google.connect")}
           </Button>
         </div>
