@@ -24,15 +24,20 @@ const envSchema = z.object({
   // les types de séance payants sont rejetés à la réservation.
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // OAuth Connect (liaison d'un compte Stripe existant, type Standard) :
+  // `client_id` (`ca_...`) Dashboard Stripe → Settings → Connect. Sans lui,
+  // seul l'Express (création d'un nouveau compte) est proposé.
+  STRIPE_CLIENT_ID: z.string().optional(),
   // Commission plateforme prélevée via Connect (destination charges).
   // 0 = pas de commission (reversement intégral au praticien).
   STRIPE_APPLICATION_FEE_CENTS: z.coerce.number().int().min(0).default(0),
   // Abonnement SaaS (1 par cabinet) : prix mensuel Stripe (`price_...`).
   // Sans prix, la facturation est désactivée (bandeau masqué).
   STRIPE_SUBSCRIPTION_PRICE_ID: z.string().optional(),
-  // Feature flag abonnement : à "true", le bandeau + l'onglet Abonnement
-  // sont visibles et le checkout/portal Stripe actifs. À "false" (défaut),
-  // tout le monde utilise le service sans restriction ni paiement.
+  // Feature flag monétique : à "true", le bandeau + l'onglet Abonnement
+  // sont visibles, le checkout/portal Stripe actifs ET la liaison Stripe
+  // Connect des praticiens possible. À "false" (défaut), tout le monde
+  // utilise le service sans restriction ni paiement.
   SUBSCRIPTION_ENABLED: z.enum(["true", "false"]).optional().default("false"),
 
   // --- Google (push agenda praticien) — optionnel : sans GOOGLE_CLIENT_*,
@@ -58,6 +63,7 @@ export const env = envSchema.parse({
   EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+  STRIPE_CLIENT_ID: process.env.STRIPE_CLIENT_ID,
   STRIPE_APPLICATION_FEE_CENTS: process.env.STRIPE_APPLICATION_FEE_CENTS,
   STRIPE_SUBSCRIPTION_PRICE_ID: process.env.STRIPE_SUBSCRIPTION_PRICE_ID,
   SUBSCRIPTION_ENABLED: process.env.SUBSCRIPTION_ENABLED,
@@ -69,6 +75,7 @@ export const env = envSchema.parse({
 
 export const isSmtpConfigured = Boolean(env.SMTP_HOST);
 export const isStripeConfigured = Boolean(env.STRIPE_SECRET_KEY);
+export const isStripeOAuthConfigured = Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_CLIENT_ID);
 export const isSubscriptionEnabled = env.SUBSCRIPTION_ENABLED === "true";
 export const isGoogleConfigured = Boolean(
   env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET,

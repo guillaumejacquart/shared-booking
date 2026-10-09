@@ -62,6 +62,11 @@ export interface StripeLike {
       create(params: Record<string, unknown>): Promise<{ url: string | null }>;
     };
   };
+  /** OAuth Connect (liaison d'un compte Standard existant). */
+  oauth: {
+    token(params: Record<string, unknown>): Promise<{ stripe_user_id: string }>;
+    deauthorize(params: Record<string, unknown>): Promise<unknown>;
+  };
 }
 
 /**
@@ -79,6 +84,11 @@ export interface Ports {
   analytics: AnalyticsPort;
   stripeClient: StripeLike | null;
   googleCalendar: GoogleCalendarPort | null;
+  /**
+   * OAuth Connect Standard : `clientId` = `ca_...` plateforme (+ secret de
+   * signature du `state`), null = seul l'Express est proposé.
+   */
+  stripeOAuth: { clientId: string; stateSecret: string } | null;
   /** Prix mensuel de l'abonnement cabinet (`price_...`, null = facturation off). */
   subscriptionPriceId: string | null;
   /** Feature flag abonnement : false = service complet sans paiement. */

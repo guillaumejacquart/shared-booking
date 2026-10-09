@@ -1,4 +1,4 @@
-import { env, isSubscriptionEnabled } from "@/lib/env";
+import { env, isStripeOAuthConfigured, isSubscriptionEnabled } from "@/lib/env";
 import { createMailer } from "@/lib/email";
 import { createAnalyticsPort, hostnameOf } from "@/lib/analytics";
 import { createCalendarClient, getGoogleAccessToken } from "@/lib/google-calendar";
@@ -65,6 +65,9 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
       hostname: hostnameOf(env.BETTER_AUTH_URL),
     }),
     stripeClient: realStripe(),
+    stripeOAuth: isStripeOAuthConfigured
+      ? { clientId: env.STRIPE_CLIENT_ID as string, stateSecret: env.BETTER_AUTH_SECRET }
+      : null,
     subscriptionPriceId: env.STRIPE_SUBSCRIPTION_PRICE_ID ?? null,
     subscriptionEnabled: isSubscriptionEnabled,
     googleCalendar: realGoogleCalendar,

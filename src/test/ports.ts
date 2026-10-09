@@ -10,6 +10,7 @@ export function testPorts(overrides: Partial<Ports> = {}): Ports {
     sendEmail: async () => {},
     analytics: { track: async () => {} },
     stripeClient: null,
+    stripeOAuth: null,
     googleCalendar: null,
     subscriptionPriceId: null,
     subscriptionEnabled: false,

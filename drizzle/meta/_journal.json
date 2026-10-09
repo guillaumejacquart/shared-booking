@@ -148,6 +148,13 @@
       "when": 1791574851167,
       "tag": "0020_unusual_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1791579671748,
+      "tag": "0021_fixed_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

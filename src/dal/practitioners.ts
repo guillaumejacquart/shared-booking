@@ -105,9 +105,13 @@ export async function listPractitionersByOffice(officeId: string) {
     .where(and(eq(practitioner.officeId, officeId), eq(practitioner.active, true)));
 }
 
+/** Type de compte Connect : Express (créé par la plateforme) ou Standard (existant, OAuth). */
+export type StripeAccountType = "express" | "standard";
+
 /** Lie (ou met à jour) le compte Stripe Connect d'un praticien. */
 export async function setPractitionerStripe(practitionerId: string, data: {
   stripeAccountId: string | null;
+  stripeAccountType: StripeAccountType;
   stripeChargesEnabled: boolean;
   stripePayoutsEnabled: boolean;
 }) {

@@ -1,0 +1,1 @@
+ALTER TABLE `practitioner` ADD `stripe_account_type` text DEFAULT 'express' NOT NULL;

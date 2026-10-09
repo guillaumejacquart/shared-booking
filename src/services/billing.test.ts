@@ -62,6 +62,10 @@ const fakeStripe = {
       create: async () => ({ url: "https://billing.stripe.test/portal" }),
     },
   },
+  oauth: {
+    token: async () => ({ stripe_user_id: "acct_oauth_123" }),
+    deauthorize: async () => ({}),
+  },
 };
 
 function ports() {

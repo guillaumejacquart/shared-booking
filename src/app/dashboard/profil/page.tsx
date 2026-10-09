@@ -41,6 +41,15 @@ export default async function ProfilPage({
       ? rawTab
       : "profil";
   const backFromStripe = sp.stripe === "retour" || sp.stripe === "refresh";
+  // Échec OAuth Standard : message transmis par le callback (texte brut,
+  // affiché tel quel par le composant — jamais interprété comme HTML),
+  // ou message générique si l'accès a été refusé côté Stripe.
+  const stripeOAuthError =
+    sp.stripe === "erreur"
+      ? (typeof sp.msg === "string" && sp.msg.length > 0
+        ? sp.msg.slice(0, 300)
+        : t("stripeConnect.oauthDenied"))
+      : null;
 
   const now = new Date();
   const [prac, office, types, variants, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus, apiTokens] = await Promise.all([
@@ -206,7 +215,7 @@ export default async function ProfilPage({
             <div className="flex flex-col gap-8">
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("stripeConnect.title")}</h2>
-                <StripeConnectSettings initialStatus={stripeStatus} />
+                <StripeConnectSettings initialStatus={stripeStatus} oauthError={stripeOAuthError} />
               </section>
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("onsite.title")}</h2>

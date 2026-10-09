@@ -186,6 +186,10 @@ export const practitioner = sqliteTable(
     // Stripe Connect Express (destination charges) : un compte par praticien.
     // Null tant que le praticien n'a pas lié son compte Stripe.
     stripeAccountId: text("stripe_account_id"),
+    // 'express' (compte créé par la plateforme) ou 'standard' (compte
+    // existant du praticien, lié via OAuth). Défaut 'express' : les lignes
+    // existantes sont toutes Express.
+    stripeAccountType: text("stripe_account_type").notNull().default("express"),
     stripeChargesEnabled: integer("stripe_charges_enabled", { mode: "boolean" })
       .notNull()
       .default(false),
