@@ -24,6 +24,7 @@ export type Room = typeof schema.room.$inferSelect;
 export type RoomMember = typeof schema.roomMember.$inferSelect;
 export type Member = typeof schema.member.$inferSelect;
 export type Invite = typeof schema.invite.$inferSelect;
+export type ApiToken = typeof schema.apiToken.$inferSelect;
 export type User = typeof schema.user.$inferSelect;
 export type PractitionerGoogle = typeof schema.practitionerGoogle.$inferSelect;
 

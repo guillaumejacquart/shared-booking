@@ -16,6 +16,7 @@ import type {
   ValidateInput,
 } from "@/lib/schemas/bookings";
 import { createBooking } from "./bookings/create";
+import { cancelApiBooking, createApiBooking, getApiCatalog, listApiBookings, type ApiBookingItem, type ApiCancelInput, type ApiCatalog, type ApiCreateInput, type ApiListFilter } from "./bookings/api";
 import { createManualBooking, getManualFormData, getRoomAvailability, type ManualFormData, type RoomAvailability } from "./bookings/manual";
 import {
   applyPaymentCompleted,
@@ -53,6 +54,8 @@ export {
   type PublicSlot,
 } from "./bookings/slots";
 export { createBooking } from "./bookings/create";
+export { cancelApiBooking, createApiBooking, getApiCatalog, listApiBookings } from "./bookings/api";
+export type { ApiBookingItem, ApiCancelInput, ApiCatalog, ApiCreateInput, ApiListFilter } from "./bookings/api";
 export { createManualBooking, getManualFormData, getRoomAvailability } from "./bookings/manual";
 export type { ManualFormData, RoomAvailability } from "./bookings/manual";
 export {
@@ -76,6 +79,10 @@ export interface BookingsService {
   statusByStripeSession(stripeSessionId: string): ReturnType<typeof getBookingStatusByStripeSession>;
   releaseExpired(): Promise<number>;
   availableSlots(input: SlotsInput): Promise<PublicSlot[]>;
+  createApi(input: ApiCreateInput): Promise<BookingResult>;
+  cancelApi(input: ApiCancelInput): Promise<{ id: string; status: string }>;
+  listApi(practitionerId: string, filter: ApiListFilter): Promise<ApiBookingItem[]>;
+  catalog(practitionerId: string): Promise<ApiCatalog>;
 }
 
 export function createBookingsService(ports: Ports): BookingsService {
@@ -91,5 +98,9 @@ export function createBookingsService(ports: Ports): BookingsService {
     statusByStripeSession: (stripeSessionId) => getBookingStatusByStripeSession(stripeSessionId),
     releaseExpired: () => releaseExpiredPendings(ports),
     availableSlots: (input) => getAvailableSlots(ports, input),
+    createApi: (input) => createApiBooking(ports, input),
+    cancelApi: (input) => cancelApiBooking(ports, input),
+    listApi: (practitionerId, filter) => listApiBookings(practitionerId, filter),
+    catalog: (practitionerId) => getApiCatalog(practitionerId),
   };
 }

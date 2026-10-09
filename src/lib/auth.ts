@@ -10,12 +10,16 @@ import * as schema from "@/db/schema";
  * Configuration better-auth (email + mot de passe, SQLite via Drizzle).
  * MVP : pas de vérification d'email pour simplifier l'onboarding.
  *
- * Google (optionnel, push agenda praticien) : activé uniquement si
- * GOOGLE_CLIENT_ID/SECRET sont configurés. Scopes minimaux : `calendar.events`
- * (créer/modifier/supprimer ses propres événements) + `calendar.calendarlist.readonly`
- * (lister ses agendas : exigé par `calendarList.list` pour le sélecteur et la
- * vérification du jeton) + offline pour le refresh token (push en arrière-plan,
- * sans session navigateur).
+ * Google : même client OAuth pour deux usages aux consentements séparés.
+ * - SSO login/création de compte : identité seule (`openid email profile`).
+ * - Push agenda praticien : les scopes Calendar sont demandés uniquement
+ *   lors de la connexion agenda (profil → onglet Google), via le paramètre
+ *   `scopes` de `POST /api/auth/link-social` (voir `lib/google-scopes.ts`).
+ *   Better Auth fusionne les scopes (union) et Google envoie
+ *   `include_granted_scopes=true` : un login SSO postérieur ne rétrécit
+ *   jamais les droits agenda déjà accordés.
+ * `accessType: offline` + `prompt: select_account consent` : refresh token
+ * pour le push en arrière-plan, sans session navigateur.
  */
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -54,13 +58,7 @@ export const auth = betterAuth({
             clientSecret: env.GOOGLE_CLIENT_SECRET!,
             accessType: "offline" as const,
             prompt: "select_account consent",
-            scope: [
-              "openid",
-              "email",
-              "profile",
-              "https://www.googleapis.com/auth/calendar.events",
-              "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
-            ],
+            scope: ["openid", "email", "profile"],
           },
         },
         // Liaison du compte Google au praticien déjà connecté (bouton

@@ -11,6 +11,7 @@ import {
 import { createBookingsService, type BookingsService } from "@/services/bookings";
 import { createCalendarService, type CalendarService } from "@/services/calendar";
 import { createGoogleService, type GoogleService } from "@/services/google";
+import { createApiTokensService, type ApiTokensService } from "@/services/api-tokens";
 import { createBillingService, type BillingService } from "@/services/billing";
 import { createStripeConnectService, type StripeConnectService } from "@/services/stripe-connect";
 import { createStatsService, type StatsService } from "@/services/stats";
@@ -42,6 +43,7 @@ const realGoogleCalendar: GoogleCalendarPort = {
 };
 
 export interface Services {
+  apiTokens: ApiTokensService;
   billing: BillingService;
   stripeConnect: StripeConnectService;
   bookings: BookingsService;
@@ -69,6 +71,7 @@ export function makeServices(overrides: Partial<Ports> = {}): Services {
     ...overrides,
   };
   return {
+    apiTokens: createApiTokensService(ports),
     billing: createBillingService(ports),
     stripeConnect: createStripeConnectService(ports),
     bookings: createBookingsService(ports),

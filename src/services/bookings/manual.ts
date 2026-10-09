@@ -147,6 +147,40 @@ async function resolveManualRoom(plan: ManualPlan, roomId: string): Promise<void
   }
 }
 
+/**
+ * Première salle libre sur [start, end) : même règle d'attribution que le
+ * parcours public (salles autorisées au praticien ∩ compatibles avec la
+ * séance, ordre déterministe), sans la contrainte de grille. Sert à
+ * l'API v1 quand l'appelant ne choisit pas de salle explicite.
+ */
+export async function findFirstFreeRoom(input: {
+  practitionerId: string;
+  officeId: string;
+  compatibleRoomIds: string[];
+  start: Date;
+  end: Date;
+  bufferAfterMin: number;
+}): Promise<string | null> {
+  const roomsWithMembers = await roomsDal.listRoomsWithMembers(input.officeId);
+  const candidates = allowedRoomIdsFor(input.practitionerId, roomsWithMembers).filter(
+    (roomId) =>
+      input.compatibleRoomIds.length === 0 || input.compatibleRoomIds.includes(roomId),
+  );
+  const endBuffered = input.end.getTime() + input.bufferAfterMin * 60_000;
+  for (const roomId of candidates) {
+    const busy = await bookingsDal.listActiveBookings({
+      roomIds: [roomId],
+      from: input.start,
+      to: input.end,
+    });
+    const occupied = busy.some((booking) =>
+      collidesWith(input.start.getTime(), endBuffered, booking),
+    );
+    if (!occupied) return roomId;
+  }
+  return null;
+}
+
 /** Insertion protégée : la garde DAL tranche les courses (mutex mono-processus). */
 async function insertManualBookingGuarded(
   plan: ManualPlan,
@@ -196,7 +230,7 @@ async function insertManualBookingGuarded(
       status: "confirmed",
       paymentStatus: "none",
       validationRequired: false,
-      origin: "manual",
+      origin: input.origin,
     });
     if (inserted.conflict) throw new ConflictError("Créneau déjà réservé");
     return inserted.id;

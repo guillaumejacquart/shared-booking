@@ -134,6 +134,20 @@
       "when": 1791487460193,
       "tag": "0018_organic_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1791553210419,
+      "tag": "0019_dry_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1791574851167,
+      "tag": "0020_unusual_warstar",
+      "breakpoints": true
     }
   ]
 }

@@ -99,6 +99,7 @@ function manualInput(overrides: Record<string, unknown> = {}) {
     startAt: AFTERNOON,
     roomId: "room-a",
     overrideOff: false,
+    origin: "manual" as const,
     ...patient,
     ...overrides,
   };
@@ -172,6 +173,7 @@ describe("createManualBooking", () => {
         startAt: AFTERNOON,
         roomId: "room-a",
         overrideOff: false,
+        origin: "manual" as const,
         patientFirstName: "Marie",
         patientLastName: "Martin",
         patientEmail: "marie@example.com",
@@ -186,6 +188,7 @@ describe("createManualBooking", () => {
         startAt: AFTERNOON,
         roomId: "room-b",
         overrideOff: false,
+        origin: "manual" as const,
         patientFirstName: "Marie",
         patientLastName: "Martin",
         patientEmail: "marie@example.com",

@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n";
 import AuthShell from "@/components/AuthShell";
 import { Button, Field, FormMessage, TextInput } from "@/components/ui";
 
-export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
+export default function AuthForm({ mode, googleSso = false }: { mode: "login" | "signup"; googleSso?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Retour vers la page d'origine (ex. invitation) — chemins relatifs uniquement.
@@ -21,6 +21,26 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  async function signInWithGoogle() {
+    setError(null);
+    setBusy(true);
+    try {
+      // SSO identité seule : aucun scope Calendar demandé ici (voir `auth.ts`).
+      // Redirection Google : en cas de succès on quitte la page, `busy` reste.
+      trackClientEvent(mode === "signup" ? ANALYTICS_EVENTS.AUTH_SIGNUP : ANALYTICS_EVENTS.AUTH_LOGIN, {
+        ...(mode === "signup" ? { fromInvite: next?.startsWith("/invite/") ?? false } : {}),
+      });
+      const { error: socialError } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: next ?? (mode === "signup" ? "/onboarding" : "/dashboard"),
+      });
+      if (socialError) throw new Error(socialError.message || t("auth.failed"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("auth.failed"));
+      setBusy(false);
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -52,7 +72,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <h1 className="text-2xl font-semibold tracking-tight">
         {mode === "signup" ? t("auth.signupTitle") : t("auth.loginTitle")}
       </h1>
-      <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
+      <form onSubmit={submit} className="mt-8 flex flex-col gap-4">
         {mode === "signup" ? (
           <Field label={t("auth.name")}>
             <TextInput value={name} onChange={(event) => setName(event.target.value)} required maxLength={100} autoComplete="name" />
@@ -83,6 +103,18 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
           </p>
         ) : null}
       </form>
+      {googleSso ? (
+        <div className="mt-6 flex flex-col gap-4">
+          <div className="flex items-center gap-3 text-sm text-mist" aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            {t("auth.or")}
+            <span className="h-px flex-1 bg-line" />
+          </div>
+          <Button type="button" size="lg" variant="secondary" onClick={() => void signInWithGoogle()} disabled={busy}>
+            {t("auth.continueWithGoogle")}
+          </Button>
+        </div>
+      ) : null}
       <p className="mt-4 text-center text-sm text-mist">
         {mode === "signup" ? (
           <>

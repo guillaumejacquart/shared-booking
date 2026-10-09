@@ -46,6 +46,26 @@ Pages démo : `/o/tilleuls`, `/p/camille`, `/p/karim`, `/p/lea`, `/p/ines`.
 
 Erreurs : 400 invalide, 404 inconnu, 409 pris, 410 deadline dépassée, 429 rate-limit.
 
+## Clés d'API personnelles (intégrations praticien)
+
+Chaque praticien génère ses clés depuis **Profil → API & intégrations**
+(nom, lecture seule ou écriture, expiration optionnelle, révocation).
+Secret `cbpat_…` affiché **une seule fois** à la création, stocké hashé
+(SHA-256) — jamais relisible, jamais dans git.
+
+API v1 (`Authorization: Bearer cbpat_…`, 300 req/h/clé) :
+
+- `GET /api/v1/me` — validité de la clé + praticien porteur
+- `GET /api/v1/catalog` — séances actives (+ déclinaisons) et salles attribuables
+- `GET /api/v1/slots?sessionTypeId=&from=YYYY-MM-DD&days=&variantId=` — créneaux
+- `GET /api/v1/bookings?start=ISO&end=ISO&status=` — planning (défaut : +30 j, max 93 j)
+- `POST /api/v1/bookings` — crée un RDV confirmé (salle auto-assignée si `roomId` omis, origine `api`, email au patient)
+- `POST /api/v1/bookings/:id/cancel` — `{ reason? }` (patient notifié)
+
+Erreurs : 401 clé absente/invalide/révoquée/expirée, 403 clé lecture seule
+sur une écriture. Les tokens magiques patient (`cancelToken`…) ne sont
+jamais exposés par la v1.
+
 ## Paiement (Stripe Checkout, optionnel)
 
 Par type de séance : gratuit (défaut), payant (`requiresPayment` + un prix par

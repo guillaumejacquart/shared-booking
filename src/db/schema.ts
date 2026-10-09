@@ -134,7 +134,9 @@ export const office = sqliteTable("office", {
   // Ambiance des pages publiques (palette vue par les patients).
   themePalette: text("theme_palette").notNull().default("sauge"),
   // Mode forcé des pages publiques ('system' = suit l'appareil du patient).
-  themeMode: text("theme_mode").notNull().default("system"),
+  // Défaut 'light' : sauge clair pour tout le monde, sauf choix explicite
+  // du cabinet (sombre/système dans Paramètres).
+  themeMode: text("theme_mode").notNull().default("light"),
   ...timestamps,
 });
 
@@ -427,6 +429,36 @@ export const booking = sqliteTable(
     index("booking_practitioner_start_idx").on(t.practitionerId, t.startAt),
     index("booking_room_start_idx").on(t.roomId, t.startAt),
   ],
+);
+
+/**
+ * Clés d'API personnelles (PAT) par praticien : intégrations externes
+ * (outils de réservation tiers, écrans d'affichage…). Le secret n'est
+ * jamais stocké : seul son hash SHA-256 (`tokenHash`) persiste, le clair
+ * n'est montré qu'à la création. `scopes` = JSON `["read"]` ou
+ * `["read","write"]` (`write` implique la lecture). `revokedAt` =
+ * révocation manuelle, `expiresAt` = expiration optionnelle.
+ */
+export const apiToken = sqliteTable(
+  "api_token",
+  {
+    id: id(),
+    practitionerId: text("practitioner_id")
+      .notNull()
+      .references(() => practitioner.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    tokenPrefix: text("token_prefix").notNull(),
+    scopes: text("scopes").notNull().default('["read","write"]'),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at", { mode: "timestamp" }),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp" }),
+    ...timestamps,
+  },
+  (t) => [index("api_token_practitioner_idx").on(t.practitionerId)],
 );
 
 /**

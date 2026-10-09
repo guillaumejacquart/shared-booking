@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { googleAgendaLinkBody } from "@/lib/google-scopes";
 import { t } from "@/lib/i18n";
 import type { GoogleStatus } from "@/services/google";
 import {
@@ -80,11 +81,11 @@ export default function GoogleAgendaSettings({
       const res = await fetch("/api/auth/link-social", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "google",
-          callbackURL: "/dashboard/profil?tab=google",
-          disableRedirect: true,
-        }),
+        // Scopes Calendar demandés ici seulement : le SSO login ne demande
+        // que l'identité (voir `auth.ts` + `lib/google-scopes.ts`).
+        body: JSON.stringify(
+          googleAgendaLinkBody("/dashboard/profil?tab=google"),
+        ),
       });
       const body = (await res.json().catch(() => null)) as { url?: string } | null;
       if (!res.ok || !body?.url) {

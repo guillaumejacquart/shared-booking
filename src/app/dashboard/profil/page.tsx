@@ -15,6 +15,7 @@ import { parseOnsitePaymentMethods } from "@/lib/onsite-payments";
 import GoogleAgendaSettings, {
   type GoogleCalendar,
 } from "@/components/GoogleAgendaSettings";
+import ApiTokensSettings from "@/components/ApiTokensSettings";
 import { sortRooms } from "@/services/room-order";
 import RoomsMissingAlert from "@/components/RoomsMissingAlert";
 import StripeConnectSettings from "@/components/StripeConnectSettings";
@@ -23,7 +24,7 @@ import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
 import ExceptionsManager from "../disponibilites/ExceptionsManager";
 import AvailabilityMonthLoader from "../disponibilites/AvailabilityMonthLoader";
 
-export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "paiements" | "parametres";
+export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "api" | "paiements" | "parametres";
 
 /** Hub praticien : profil public, séances, disponibilités. */
 export default async function ProfilPage({
@@ -36,13 +37,13 @@ export default async function ProfilPage({
   const sp = await searchParams;
   const rawTab = typeof sp.tab === "string" ? sp.tab : "profil";
   const initial: ProfilTab =
-    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google" || rawTab === "paiements" || rawTab === "parametres"
+    rawTab === "seances" || rawTab === "disponibilites" || rawTab === "google" || rawTab === "api" || rawTab === "paiements" || rawTab === "parametres"
       ? rawTab
       : "profil";
   const backFromStripe = sp.stripe === "retour" || sp.stripe === "refresh";
 
   const now = new Date();
-  const [prac, office, types, variants, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus] = await Promise.all([
+  const [prac, office, types, variants, rules, roomsWithMembers, exceptions, compatibleRooms, googleStatus, connectStatus, apiTokens] = await Promise.all([
     practitionersDal.getPractitionerById(ctx.practitionerId),
     officesDal.getOfficeById(ctx.officeId),
     sessionTypesDal.listSessionTypes(ctx.practitionerId),
@@ -55,6 +56,7 @@ export default async function ProfilPage({
     sessionTypesDal.listCompatibleRoomsByPractitioner(ctx.practitionerId),
     services.google.getGoogleStatus(ctx.userId),
     services.stripeConnect.getConnectStatus(ctx.userId),
+    services.apiTokens.list({ requesterUserId: ctx.userId }),
   ]);
   // Retour d'onboarding Stripe : re-synchronise les flags (best-effort).
   const stripeStatus = backFromStripe
@@ -95,6 +97,7 @@ export default async function ProfilPage({
           { key: "seances", label: t("profile.tabSessionTypes") },
           { key: "disponibilites", label: t("profile.tabAvailability") },
           { key: "google", label: t("profile.tabGoogle") },
+          { key: "api", label: t("profile.tabApi") },
           { key: "paiements", label: t("profile.tabPayments") },
         ]}
       >
@@ -184,11 +187,18 @@ export default async function ProfilPage({
             <div className="flex flex-col gap-4">
               <section>
                 <h2 className="mb-1 text-lg font-semibold">{t("profile.tabGoogle")}</h2>
-                <p className="mb-3 text-sm text-mist">{t("google.connectHint")}</p>
                 <GoogleAgendaSettings
                   initialStatus={googleStatus}
                   initialCalendars={googleCalendars}
                 />
+              </section>
+            </div>
+          ),
+          api: (
+            <div className="flex flex-col gap-4">
+              <section>
+                <h2 className="mb-1 text-lg font-semibold">{t("profile.tabApi")}</h2>
+                <ApiTokensSettings initial={apiTokens} />
               </section>
             </div>
           ),

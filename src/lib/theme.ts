@@ -20,7 +20,7 @@ export const THEME_MODES = ["light", "dark", "system"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
 
 export const DEFAULT_PALETTE: PaletteId = "sauge";
-export const DEFAULT_MODE: ThemeMode = "system";
+export const DEFAULT_MODE: ThemeMode = "light";
 
 /** Libellés i18n (clés `theme.palette.*`). */
 export const PALETTE_LABEL_KEYS: Record<PaletteId, string> = {

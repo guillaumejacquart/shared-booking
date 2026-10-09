@@ -15,6 +15,14 @@ const Database = createRequire(import.meta.url)("better-sqlite3");
 export function runMigrations(dbPath: string, migrationsFolder = "drizzle"): void {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
+  // Drizzle exécute toutes les migrations en attente dans une seule
+  // transaction : les `PRAGMA foreign_keys=OFF/ON` générés dans les fichiers
+  // SQL y sont sans effet (no-op en transaction). Comme better-sqlite3 v12
+  // applique les clés étrangères par défaut, les migrations qui
+  // reconstruisent une table référencée (ex. changement de DEFAULT)
+  // échoueraient sur une base peuplée — on coupe avant, hors transaction.
+  // L'exécution applicative (`db/client.ts`) garde `foreign_keys = ON`.
+  sqlite.pragma("foreign_keys = OFF");
   migrate(drizzle(sqlite), { migrationsFolder });
   sqlite.close();
   console.log(`✓ Migrations SQLite appliquées (${dbPath})`);

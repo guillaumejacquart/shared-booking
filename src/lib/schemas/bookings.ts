@@ -91,6 +91,8 @@ export type ApplyPaymentInput = z.infer<typeof applyPaymentSchema>;
  * (le praticien est déduit de `requesterUserId`, pour soi uniquement) ;
  * l'email patient reste obligatoire (confirmation, rappels, annulation).
  * `overrideOff` ne force que les congés, jamais un vrai chevauchement.
+ * `origin` distingue la saisie dashboard (`manual`) des créations via clé
+ * d'API (`api`) ; défaut `manual` (le dashboard ne l'envoie jamais).
  */
 export const manualBookingSchema = z.object({
   requesterUserId: z.string().min(1),
@@ -105,6 +107,7 @@ export const manualBookingSchema = z.object({
   patientPhone: z.string().trim().max(30).optional(),
   notes: z.string().trim().max(500).optional(),
   overrideOff: z.boolean().default(false),
+  origin: z.enum(["manual", "api"]).default("manual"),
 });
 export type ManualBookingInput = z.infer<typeof manualBookingSchema>;
 
