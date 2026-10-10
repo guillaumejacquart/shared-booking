@@ -5,21 +5,22 @@ import { useRouter } from "next/navigation";
 
 import { t } from "@/lib/i18n";
 import { sendJson } from "@/lib/api-client";
-import { Button, Checkbox, Field, FormMessage, Select } from "@/components/ui";
+import { Button, Checkbox, Field, FormMessage, Select, Textarea } from "@/components/ui";
 
-/** Onglet Paramètres : pas de grille + défaut de validation manuelle. */
+/** Onglet Paramètres : pas de grille + défaut de validation manuelle + message emails. */
 export default function PractitionerSettingsForm({
   practitionerId,
   initial,
 }: {
   practitionerId: string;
-  initial: { slotStepMin: number; requiresValidationDefault: boolean };
+  initial: { slotStepMin: number; requiresValidationDefault: boolean; emailNote: string | null };
 }) {
   const router = useRouter();
   const [slotStepMin, setSlotStepMin] = useState(String(initial.slotStepMin ?? 15));
   const [requiresValidationDefault, setRequiresValidationDefault] = useState(
     initial.requiresValidationDefault ?? false,
   );
+  const [emailNote, setEmailNote] = useState(initial.emailNote ?? "");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,6 +32,7 @@ export default function PractitionerSettingsForm({
       const result = await sendJson(`/api/practitioners/${practitionerId}/settings`, "PATCH", {
         slotStepMin: Number(slotStepMin),
         requiresValidationDefault,
+        emailNote: emailNote.trim(),
       });
       if (!result.ok) throw new Error(result.error);
       setMessage({ ok: true, text: t("dashboard.saved") });
@@ -61,6 +63,9 @@ export default function PractitionerSettingsForm({
           />
           {t("sessionTypesAdmin.requiresValidation")}
         </label>
+      </Field>
+      <Field label={t("profile.emailNote")} hint={t("profile.emailNoteHint")}>
+        <Textarea value={emailNote} onChange={(event) => setEmailNote(event.target.value)} rows={3} maxLength={1000} placeholder={t("profile.emailNotePlaceholder")} />
       </Field>
       {message ? <FormMessage tone={message.ok ? "ok" : "error"}>{message.text}</FormMessage> : null}
       <Button type="submit" disabled={busy} className="w-fit">

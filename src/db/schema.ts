@@ -110,6 +110,9 @@ export const office = sqliteTable("office", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   address: text("address"),
+  accessInfo: text("access_info"),
+  // Informations d'accès au cabinet (digicode, étage, transports…),
+  // saisies par le owner et reprises dans les emails client. Null = masqué.
   timezone: text("timezone").notNull().default("Europe/Paris"),
   enablePractitionerPages: integer("enable_practitioner_pages", {
     mode: "boolean",
@@ -202,6 +205,9 @@ export const practitioner = sqliteTable(
     // plus une précision libre (ex. "virement avant la séance").
     onsitePaymentMethods: text("onsite_payment_methods").notNull().default("[]"),
     onsitePaymentNote: text("onsite_payment_note"),
+  emailNote: text("email_note"),
+  // Message libre du praticien joint aux emails envoyés aux patients
+  // (confirmation, demande reçue, rappel, report). Null/vide = masqué.
     ...timestamps,
   },
   (t) => [index("practitioner_office_idx").on(t.officeId)],

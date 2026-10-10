@@ -264,7 +264,10 @@
     "copied": "Lien copié !",
     "slotStep": "Intervalle entre les créneaux proposés",
     "slotStepHint": "Écart entre deux horaires proposés dans vos plages d'ouverture (la durée de la séance ne change pas).",
-    "slotStepOption": "Toutes les {n} min"
+    "slotStepOption": "Toutes les {n} min",
+    "emailNote": "Message joint aux emails patients",
+    "emailNoteHint": "Ajouté aux emails envoyés à vos patients (confirmation, demande reçue, rappel, report…). Laissez vide pour ne rien ajouter.",
+    "emailNotePlaceholder": "Ex. : pensez à apporter une serviette, prévoyez d'arriver 5 minutes en avance…"
   },
   "api": {
     "intro": "Branchez vos autres outils (agenda externe, autre plateforme de réservation, écran d'affichage) : chaque clé donne accès à votre planning via l'API.",
@@ -472,6 +475,9 @@
     "reminder": "Rappel email (h avant)",
     "buffer": "Battement par défaut (min)",
     "address": "Adresse",
+    "accessInfo": "Informations d'accès au cabinet",
+    "accessInfoHint": "Digicode, étage, transports… affichées dans les emails de confirmation, rappel et report.",
+    "accessInfoPlaceholder": "Ex. : digicode 12A34, 2e étage porte gauche, métro ligne 4 — arrêt Mairie…",
     "save": "Enregistrer",
     "saved": "Paramètres enregistrés.",
     "officePage": "Page publique du cabinet",

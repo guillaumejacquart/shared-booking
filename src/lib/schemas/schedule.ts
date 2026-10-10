@@ -123,6 +123,8 @@ export const updatePractitionerSettingsSchema = scopeSchema.merge(requesterSchem
   onsitePaymentMethods: z.array(z.enum(ONSITE_PAYMENT_METHODS)).max(4).optional(),
   /** Précision libre sur le règlement sur place (ex. "virement avant la séance"). */
   onsitePaymentNote: z.string().trim().max(200).optional(),
+  /** Message libre joint aux emails patients (max 1000, vide = masqué). */
+  emailNote: z.string().trim().max(1000).optional(),
 });
 export type UpdatePractitionerSettingsInput = z.infer<typeof updatePractitionerSettingsSchema>;
 
@@ -148,6 +150,8 @@ export const updateOfficeSettingsSchema = z.object({
   requesterUserId: z.string().min(1),
   name: z.string().trim().min(1).max(80).optional(),
   address: z.string().trim().max(200).nullable().optional(),
+  /** Infos d'accès au cabinet (digicode, étage…), reprises dans les emails. */
+  accessInfo: z.string().trim().max(1000).nullable().optional(),
   enablePractitionerPages: z.boolean().optional(),
   enableOfficePage: z.boolean().optional(),
   bookingLeadTimeMin: z.number().int().min(0).max(1440).optional(),

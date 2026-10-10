@@ -24,7 +24,7 @@ import AvailabilityEditor from "../disponibilites/AvailabilityEditor";
 import ExceptionsManager from "../disponibilites/ExceptionsManager";
 import AvailabilityMonthLoader from "../disponibilites/AvailabilityMonthLoader";
 
-export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "api" | "paiements" | "parametres";
+export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "paiements" | "parametres" | "api";
 
 /** Hub praticien : profil public, séances, disponibilités. */
 export default async function ProfilPage({
@@ -106,8 +106,8 @@ export default async function ProfilPage({
           { key: "seances", label: t("profile.tabSessionTypes") },
           { key: "disponibilites", label: t("profile.tabAvailability") },
           { key: "google", label: t("profile.tabGoogle") },
-          { key: "api", label: t("profile.tabApi") },
           { key: "paiements", label: t("profile.tabPayments") },
+          { key: "api", label: t("profile.tabApi") },
         ]}
       >
         {{
@@ -203,14 +203,6 @@ export default async function ProfilPage({
               </section>
             </div>
           ),
-          api: (
-            <div className="flex flex-col gap-4">
-              <section>
-                <h2 className="mb-1 text-lg font-semibold">{t("profile.tabApi")}</h2>
-                <ApiTokensSettings initial={apiTokens} />
-              </section>
-            </div>
-          ),
           paiements: prac ? (
             <div className="flex flex-col gap-8">
               <section>
@@ -235,9 +227,18 @@ export default async function ProfilPage({
               initial={{
                 slotStepMin: prac.slotStepMin ?? 15,
                 requiresValidationDefault: prac.requiresValidationDefault ?? false,
+                emailNote: prac.emailNote ?? null,
               }}
             />
           ) : null,
+          api: (
+            <div className="flex flex-col gap-4">
+              <section>
+                <h2 className="mb-1 text-lg font-semibold">{t("profile.tabApi")}</h2>
+                <ApiTokensSettings initial={apiTokens} />
+              </section>
+            </div>
+          ),
         }}
       </Tabs>
     </div>

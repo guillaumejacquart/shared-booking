@@ -346,6 +346,7 @@ export async function updatePractitionerSettings(input: UpdatePractitionerSettin
     ...(input.onsitePaymentNote !== undefined
       ? { onsitePaymentNote: input.onsitePaymentNote || null }
       : {}),
+    ...(input.emailNote !== undefined ? { emailNote: input.emailNote || null } : {}),
   });
 }
 
@@ -403,28 +404,35 @@ export async function deleteRoom(ports: Ports, input: DeleteRoomInput): Promise<
 
 // --- Paramètres cabinet (owner) ----------------------------------------------
 
+type OfficePatch = Parameters<typeof officesDal.updateOffice>[1];
+
+/** Recopie un champ fourni (absent = inchangé). */
+function setIfDefined<Key extends keyof OfficePatch>(
+  patch: OfficePatch,
+  key: Key,
+  value: OfficePatch[Key] | undefined,
+): void {
+  if (value !== undefined) patch[key] = value;
+}
+
 /**
  * Patch cabinet : seuls les champs fournis sont écrits (le schéma Zod a déjà
  * supprimé les clés inconnues et validé chaque type).
  */
-function buildOfficePatch(
-  input: UpdateOfficeSettingsInput,
-): Parameters<typeof officesDal.updateOffice>[1] {
-  const patch: Parameters<typeof officesDal.updateOffice>[1] = {};
-  if (input.name !== undefined) patch.name = input.name;
+function buildOfficePatch(input: UpdateOfficeSettingsInput): OfficePatch {
+  const patch: OfficePatch = {};
+  setIfDefined(patch, "name", input.name);
+  setIfDefined(patch, "enablePractitionerPages", input.enablePractitionerPages);
+  setIfDefined(patch, "enableOfficePage", input.enableOfficePage);
+  setIfDefined(patch, "bookingLeadTimeMin", input.bookingLeadTimeMin);
+  setIfDefined(patch, "cancelDeadlineHours", input.cancelDeadlineHours);
+  setIfDefined(patch, "reminderHoursBefore", input.reminderHoursBefore);
+  setIfDefined(patch, "defaultBufferAfterMin", input.defaultBufferAfterMin);
+  setIfDefined(patch, "themePalette", input.themePalette);
+  setIfDefined(patch, "themeMode", input.themeMode);
+  // Textes libres : chaîne vide = effacement (null).
   if (input.address !== undefined) patch.address = input.address || null;
-  if (input.enablePractitionerPages !== undefined) {
-    patch.enablePractitionerPages = input.enablePractitionerPages;
-  }
-  if (input.enableOfficePage !== undefined) patch.enableOfficePage = input.enableOfficePage;
-  if (input.bookingLeadTimeMin !== undefined) patch.bookingLeadTimeMin = input.bookingLeadTimeMin;
-  if (input.cancelDeadlineHours !== undefined) patch.cancelDeadlineHours = input.cancelDeadlineHours;
-  if (input.reminderHoursBefore !== undefined) patch.reminderHoursBefore = input.reminderHoursBefore;
-  if (input.defaultBufferAfterMin !== undefined) {
-    patch.defaultBufferAfterMin = input.defaultBufferAfterMin;
-  }
-  if (input.themePalette !== undefined) patch.themePalette = input.themePalette;
-  if (input.themeMode !== undefined) patch.themeMode = input.themeMode;
+  if (input.accessInfo !== undefined) patch.accessInfo = input.accessInfo || null;
   return patch;
 }
 

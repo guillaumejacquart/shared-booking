@@ -153,20 +153,21 @@ States: `confirmed → cancelled | completed`. (`pending` not needed — no paym
 
 ### F11 — Emails (FR only in MVP)
 * Templates (plaintext + minimal HTML): invite, booking confirmation (+ICS), reminder, patient-cancelled (to practitioner), practitioner-cancelled (to patient), rescheduled.
+* Contenu patient : praticien, séance, date/heure, lieu (+ infos d'accès du cabinet si renseignées : confirmation, rappel, report), message libre du praticien si renseigné (tous les emails patient).
 * Provider: nodemailer via SMTP env (same pattern as other projects, `serverExternalPackages: ["nodemailer"]`). No tracking pixels.
 * Dev mode: log to console (no SMTP required to boot).
 
 ## 6. Data model (Drizzle + SQLite, sketch)
 
 ```
-offices(id, name, slug UNIQUE, address, timezone DEFAULT 'Europe/Paris',
+offices(id, name, slug UNIQUE, address, accessInfo (infos d'accès emails), timezone DEFAULT 'Europe/Paris',
   enablePractitionerPages DEFAULT 1, enableOfficePage DEFAULT 0,
   bookingLeadTimeMin DEFAULT 120, cancelDeadlineHours DEFAULT 24,
   reminderHoursBefore DEFAULT 24, defaultBufferAfterMin DEFAULT 0)
 
 users (via Better Auth) + members(officeId, userId, role 'owner|practitioner', active)
 practitioners(id, officeId, userId UNIQUE, displayName, slug UNIQUE, bio,
-  publicContact?, active DEFAULT 1)
+  publicContact?, active DEFAULT 1, emailNote? (message libre joint aux emails patient))
 
 rooms(id, officeId, name, color, sortOrder)
 room_members(roomId, practitionerId)  // empty set = everyone allowed; else allowlist

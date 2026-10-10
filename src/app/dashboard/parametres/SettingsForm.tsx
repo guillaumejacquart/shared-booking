@@ -5,13 +5,14 @@ import { useState } from "react";
 import { t } from "@/lib/i18n";
 import { sendJson } from "@/lib/api-client";
 import { parseMode, parsePalette, type PaletteId, type ThemeMode } from "@/lib/theme";
-import { Button, Field, FormMessage, NumberInput, TextInput, Toggle } from "@/components/ui";
+import { Button, Field, FormMessage, NumberInput, Textarea, TextInput, Toggle } from "@/components/ui";
 import PublicLinkCard from "@/components/PublicLinkCard";
 import ThemePicker from "@/components/ThemePicker";
 
 interface Settings {
   name: string;
   address: string | null;
+  accessInfo: string | null;
   enablePractitionerPages: boolean;
   enableOfficePage: boolean;
   bookingLeadTimeMin: number;
@@ -55,7 +56,7 @@ export default function SettingsForm({
     setBusy(true);
     setMessage(null);
     try {
-      const result = await sendJson(`/api/offices/${officeId}`, "PATCH", { ...form, address: form.address || null });
+      const result = await sendJson(`/api/offices/${officeId}`, "PATCH", { ...form, address: form.address || null, accessInfo: form.accessInfo || null });
       if (!result.ok) throw new Error(result.error);
       // Thème unique : le tableau de bord suit l'ambiance (aperçu immédiat).
       applyOfficeTheme(form.themePalette, form.themeMode);
@@ -82,6 +83,9 @@ export default function SettingsForm({
       </Field>
       <Field label={t("settings.address")}>
         <TextInput value={form.address ?? ""} onChange={(event) => set("address", event.target.value)} maxLength={200} />
+      </Field>
+      <Field label={t("settings.accessInfo")} hint={t("settings.accessInfoHint")}>
+        <Textarea value={form.accessInfo ?? ""} onChange={(event) => set("accessInfo", event.target.value)} rows={3} maxLength={1000} placeholder={t("settings.accessInfoPlaceholder")} />
       </Field>
       <Toggle
         label={t("settings.officePages")}

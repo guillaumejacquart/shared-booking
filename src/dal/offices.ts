@@ -71,6 +71,7 @@ export async function updateOffice(officeId: string,
   data: Partial<{
     name: string;
     address: string | null;
+    accessInfo: string | null;
     enablePractitionerPages: boolean;
     enableOfficePage: boolean;
     bookingLeadTimeMin: number;

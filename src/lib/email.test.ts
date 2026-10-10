@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { confirmationEmail, mailFrom, reminderEmail, type BookingMailPayload } from "./email";
+import {
+  confirmationEmail,
+  mailFrom,
+  paymentReceivedEmail,
+  practitionerCancelledEmail,
+  reminderEmail,
+  rescheduledEmail,
+  validationPendingEmail,
+  type BookingMailPayload,
+} from "./email";
 import { passwordResetEmail } from "./email";
 
 const MODEL: BookingMailPayload = {
@@ -49,6 +58,76 @@ describe("onsitePayment", () => {
     });
     expect(email.html).toContain("Précision : &lt;script&gt;x&lt;/script&gt;");
     expect(email.html).not.toContain("<script>x</script>");
+  });
+});
+
+describe("accessInfo + practitionerMessage", () => {
+  const FULL: BookingMailPayload = {
+    ...MODEL,
+    officeAddress: "1 rue des Tilleuls",
+    officeAccessInfo: "Digicode 12A34\n2e étage porte gauche",
+    practitionerMessage: "Pensez à apporter une serviette.",
+  };
+
+  it("confirmation : lieu + accès + message en texte et HTML", () => {
+    const email = confirmationEmail("j@example.com", FULL);
+    expect(email.text).toContain("Lieu : Cabinet, 1 rue des Tilleuls.");
+    expect(email.text).toContain("Accès : Digicode 12A34");
+    expect(email.text).toContain("Message du praticien :\nPensez à apporter une serviette.");
+    expect(email.html).toContain("Accès : Digicode 12A34<br />2e étage porte gauche");
+    expect(email.html).toContain("Message du praticien :<br />Pensez à apporter une serviette.");
+  });
+
+  it("rappel : lieu + accès + message", () => {
+    const email = reminderEmail("j@example.com", FULL);
+    expect(email.text).toContain("Lieu : Cabinet, 1 rue des Tilleuls.");
+    expect(email.text).toContain("Accès : Digicode 12A34");
+    expect(email.text).toContain("Pensez à apporter une serviette.");
+    expect(email.html).toContain("Accès : Digicode 12A34");
+  });
+
+  it("report : accès + message", () => {
+    const email = rescheduledEmail("j@example.com", FULL);
+    expect(email.text).toContain("Accès : Digicode 12A34");
+    expect(email.text).toContain("Pensez à apporter une serviette.");
+    expect(email.html).toContain("Message du praticien :");
+  });
+
+  it("demande reçue / paiement reçu / annulation : message sans accès", () => {
+    for (const email of [
+      validationPendingEmail("j@example.com", FULL),
+      paymentReceivedEmail("j@example.com", FULL),
+      practitionerCancelledEmail("j@example.com", { ...FULL, reason: "Congés" }),
+    ]) {
+      expect(email.text).toContain("Pensez à apporter une serviette.");
+      expect(email.text).not.toContain("Accès :");
+      expect(email.html).toContain("Message du praticien :");
+      expect(email.html).not.toContain("Accès :");
+    }
+  });
+
+  it("absents : aucun bloc accès ni message", () => {
+    for (const email of [
+      confirmationEmail("j@example.com", MODEL),
+      reminderEmail("j@example.com", MODEL),
+      rescheduledEmail("j@example.com", MODEL),
+    ]) {
+      expect(email.text).not.toContain("Accès :");
+      expect(email.text).not.toContain("Message du praticien");
+      expect(email.html).not.toContain("Accès :");
+      expect(email.html).not.toContain("Message du praticien");
+    }
+  });
+
+  it("échappe le message libre en HTML", () => {
+    const email = confirmationEmail("j@example.com", {
+      ...MODEL,
+      practitionerMessage: "<b>gras</b>",
+    });
+    expect(email.html).toContain("&lt;b&gt;gras&lt;/b&gt;");
+    expect(email.html).not.toContain("<b>gras</b>");
+    // …mais le texte brut reste lisible tel quel.
+    expect(email.text).toContain("<b>gras</b>");
   });
 });
 

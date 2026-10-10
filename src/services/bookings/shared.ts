@@ -125,6 +125,8 @@ export function mailModel(
     ? `${detail.office.name}, ${detail.office.address}`
     : detail.office.name;
   const url = manageUrl(detail.office.slug, detail.practitioner.slug, booking.cancelToken);
+  const accessInfo = detail.office.accessInfo?.trim();
+  const emailNote = detail.practitioner.emailNote?.trim();
   return {
     practitionerName: detail.practitioner.displayName,
     sessionName: booking.sessionNameSnapshot,
@@ -134,6 +136,8 @@ export function mailModel(
     officeAddress: detail.office.address,
     manageUrl: url,
     onsitePayment: onsitePaymentLine(booking, detail.practitioner),
+    officeAccessInfo: accessInfo ? accessInfo : null,
+    practitionerMessage: emailNote ? emailNote : null,
     ics: buildIcs({
       uid: booking.id,
       summary: title,

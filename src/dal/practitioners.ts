@@ -140,6 +140,7 @@ export async function updatePractitioner(practitionerId: string,
     requiresValidationDefault: boolean;
     onsitePaymentMethods: string;
     onsitePaymentNote: string | null;
+    emailNote: string | null;
   }>) {
   const conn = getConnection();
   await conn.update(practitioner).set(data).where(eq(practitioner.id, practitionerId));

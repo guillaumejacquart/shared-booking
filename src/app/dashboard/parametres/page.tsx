@@ -77,6 +77,7 @@ export default async function ParametresPage({
               initial={{
                 name: office.name,
                 address: office.address,
+                accessInfo: office.accessInfo,
                 enablePractitionerPages: office.enablePractitionerPages,
                 enableOfficePage: office.enableOfficePage,
                 bookingLeadTimeMin: office.bookingLeadTimeMin,
