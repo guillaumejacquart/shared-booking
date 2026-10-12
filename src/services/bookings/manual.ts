@@ -227,6 +227,7 @@ async function insertManualBookingGuarded(
       notes: input.notes,
       cancelToken: generated.cancelToken,
       rescheduleToken: generated.rescheduleToken,
+      validateToken: generated.validateToken,
       status: "confirmed",
       paymentStatus: "none",
       validationRequired: false,

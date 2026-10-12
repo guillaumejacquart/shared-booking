@@ -1,7 +1,7 @@
 import { t } from "@/lib/i18n";
 import { Checkbox, Field } from "@/components/ui";
 
-/** Salles compatibles d'un type de séance (vide = toutes). */
+/** Salles compatibles d'un type de prestation (vide = toutes). */
 export default function RoomCheckboxes({
   rooms,
   selected,

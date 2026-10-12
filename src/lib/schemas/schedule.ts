@@ -134,6 +134,8 @@ export const saveRoomSchema = z.object({
   id: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(60),
   color: z.string().regex(COLOR_RE).default("#4e7a5b"),
+  /** Accès explicite : vrai = tous les praticiens, faux = `practitionerIds` (vide = personne). */
+  allowAll: z.boolean().default(true),
   practitionerIds: z.array(z.string().min(1)).default([]),
 });
 export type SaveRoomInput = z.infer<typeof saveRoomSchema>;

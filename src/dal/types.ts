@@ -56,6 +56,7 @@ export interface NewBooking {
   notes?: string;
   cancelToken: string;
   rescheduleToken: string;
+  validateToken?: string | null;
   status?: string;
   paymentStatus: string;
   stripeSessionId?: string | null;

@@ -7,7 +7,7 @@ import { Button, InfoTooltip, NumberInput, TextInput } from "@/components/ui";
 import type { SessionTypeVariantRow } from "./types";
 
 /**
- * Éditeur de déclinaisons durée/prix d'une séance : une mini-table compacte
+ * Éditeur de déclinaisons durée/prix d'une prestation : une mini-table compacte
  * (une ligne par déclinaison) au lieu d'une carte par variante. Les ids
  * temporaires (`new-…`) deviennent de vraies variantes à la sauvegarde.
  */
@@ -25,7 +25,7 @@ export default function VariantsEditor({
   onChange,
 }: {
   variants: SessionTypeVariantRow[];
-  /** Séance payante : chaque déclinaison porte son montant débité. */
+  /** Prestation payante : chaque déclinaison porte son montant débité. */
   showPriceCents: boolean;
   onChange: (variants: SessionTypeVariantRow[]) => void;
 }) {

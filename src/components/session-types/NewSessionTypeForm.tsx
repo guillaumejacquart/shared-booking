@@ -46,7 +46,7 @@ export default function NewSessionTypeForm({
   rooms: Room[];
   /** Compte Stripe prêt à encaisser ; sinon le paiement reste désactivé. */
   paymentsReady: boolean;
-  /** Défaut praticien : pré-remplit la case validation (modifiable par séance). */
+  /** Défaut praticien : pré-remplit la case validation (modifiable par prestation). */
   defaultRequiresValidation?: boolean;
   /** Rendu nu (sans carte externe) pour l'affichage en modale. */
   bare?: boolean;

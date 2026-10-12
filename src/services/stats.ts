@@ -209,7 +209,7 @@ async function getStats(ports: Ports, input: StatsInput): Promise<StatsResult> {
   const roomById = new Map(roomsWithMembers.map((entry) => [entry.room.id, entry.room.name]));
   const allowedRooms = roomsWithMembers
     .filter(
-      (entry) => entry.practitionerIds.length === 0 || entry.practitionerIds.includes(prac.id),
+      (entry) => entry.room.allowAll || entry.practitionerIds.includes(prac.id),
     )
     .map((entry) => entry.room);
 

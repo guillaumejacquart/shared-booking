@@ -97,6 +97,8 @@ export interface BookingMailModel {
   officeName: string;
   officeAddress?: string | null;
   manageUrl: string; // lien magique (annulation / report)
+  /** Lien magique praticien (validation en un clic, sans connexion). Null = masqué. */
+  validateUrl?: string | null;
   /** Règlement sur place (null si gratuit, à définir ou payé en ligne). */
   onsitePayment?: OnsitePaymentLine | null;
   /** Infos d'accès au cabinet (null/vide = bloc masqué). */
@@ -273,13 +275,19 @@ export function validationRequestEmail(
   model: BookingMailModel & { patientName: string },
 ): OutgoingEmail {
   const subject = `À valider : ${model.sessionName} le ${when(model)}`;
-  const text = `Bonjour ${model.practitionerName},\n\n${model.patientName} demande un rendez-vous « ${model.sessionName} » le ${when(model)}.\n\nValidez ou refusez depuis votre agenda.`;
+  const linkText = model.validateUrl
+    ? `\n\nPour valider en un clic (ou refuser avec un motif) : ${model.validateUrl}`
+    : ``;
+  const linkHtml = model.validateUrl
+    ? `<p><a href="${escapeHtml(model.validateUrl)}">Valider ou refuser la demande</a></p>`
+    : ``;
+  const text = `Bonjour ${model.practitionerName},\n\n${model.patientName} demande un rendez-vous « ${model.sessionName} » le ${when(model)}.${linkText}\n\nVous pouvez aussi valider ou refuser depuis votre agenda.`;
   return {
     to,
     subject,
     text,
     html: layout(
-      `<p>Bonjour ${escapeHtml(model.practitionerName)},</p><p><strong>${escapeHtml(model.patientName)}</strong> demande un rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> le <strong>${escapeHtml(when(model))}</strong>.</p><p>Validez ou refusez depuis votre agenda.</p>`,
+      `<p>Bonjour ${escapeHtml(model.practitionerName)},</p><p><strong>${escapeHtml(model.patientName)}</strong> demande un rendez-vous <strong>${escapeHtml(model.sessionName)}</strong> le <strong>${escapeHtml(when(model))}</strong>.</p>${linkHtml}<p>Vous pouvez aussi valider ou refuser depuis votre agenda.</p>`,
     ),
   };
 }

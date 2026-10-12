@@ -43,8 +43,8 @@ async function seed() {
     defaultBufferAfterMin: 0,
   });
   await db.insert(schema.room).values([
-    { id: "room-a", officeId: "o1", name: "Salle A", color: "#3b82f6" },
-    { id: "room-b", officeId: "o1", name: "Salle B", color: "#22c55e" },
+    { id: "room-a", officeId: "o1", name: "Salle A", color: "#3b82f6", allowAll: false },
+    { id: "room-b", officeId: "o1", name: "Salle B", color: "#22c55e", allowAll: false },
   ]);
   await db.insert(schema.practitioner).values([
     { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice", slotStepMin: 15 },

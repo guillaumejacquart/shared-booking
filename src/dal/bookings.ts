@@ -92,6 +92,17 @@ export async function findBookingByRescheduleToken(token: string): Promise<Booki
   return bookingDetail(conn, rows[0]);
 }
 
+export async function findBookingByValidateToken(token: string): Promise<BookingDetail | null> {
+  const conn = getConnection();
+  const rows = await conn
+    .select()
+    .from(booking)
+    .where(eq(booking.validateToken, token))
+    .limit(1);
+  if (!rows[0]) return null;
+  return bookingDetail(conn, rows[0]);
+}
+
 export async function getBookingById(bookingId: string): Promise<BookingDetail | null> {
   const conn = getConnection();
   const rows = await conn
@@ -217,37 +228,43 @@ export async function tryInsertBooking(data: NewBooking): Promise<{ conflict: tr
   }
   const ids = await conn
     .insert(booking)
-    .values({
-      id: data.id,
-      officeId: data.officeId,
-      practitionerId: data.practitionerId,
-      roomId: data.roomId,
-      sessionTypeId: data.sessionTypeId,
-      sessionVariantId: data.sessionVariantId ?? null,
-      sessionNameSnapshot: data.sessionNameSnapshot,
-      durationMinSnapshot: data.durationMinSnapshot,
-      bufferAfterMinSnapshot: data.bufferAfterMinSnapshot,
-      priceCentsSnapshot: data.priceCentsSnapshot,
-      priceDisplaySnapshot: data.priceDisplaySnapshot,
-      currencySnapshot: data.currencySnapshot,
-      startAt: data.startAt,
-      endAt: data.endAt,
-      patientFirstName: data.patientFirstName,
-      patientLastName: data.patientLastName,
-      patientEmail: data.patientEmail,
-      patientPhone: data.patientPhone ?? null,
-      notes: data.notes ?? null,
-      status: data.status ?? "confirmed",
-      paymentStatus: data.paymentStatus ?? "none",
-      stripeSessionId: data.stripeSessionId ?? null,
-      validationRequired: data.validationRequired ?? false,
-      pendingExpiresAt: data.pendingExpiresAt ?? null,
-      cancelToken: data.cancelToken,
-      rescheduleToken: data.rescheduleToken,
-      origin: data.origin ?? "public",
-    })
+    .values(bookingInsertValues(data))
     .returning({ id: booking.id });
   return { conflict: false as const, id: ids[0].id };
+}
+
+/** Ligne d'insertion d'une réservation (défauts alignés sur le schéma). */
+function bookingInsertValues(data: NewBooking) {
+  return {
+    id: data.id,
+    officeId: data.officeId,
+    practitionerId: data.practitionerId,
+    roomId: data.roomId,
+    sessionTypeId: data.sessionTypeId,
+    sessionVariantId: data.sessionVariantId ?? null,
+    sessionNameSnapshot: data.sessionNameSnapshot,
+    durationMinSnapshot: data.durationMinSnapshot,
+    bufferAfterMinSnapshot: data.bufferAfterMinSnapshot,
+    priceCentsSnapshot: data.priceCentsSnapshot,
+    priceDisplaySnapshot: data.priceDisplaySnapshot,
+    currencySnapshot: data.currencySnapshot,
+    startAt: data.startAt,
+    endAt: data.endAt,
+    patientFirstName: data.patientFirstName,
+    patientLastName: data.patientLastName,
+    patientEmail: data.patientEmail,
+    patientPhone: data.patientPhone ?? null,
+    notes: data.notes ?? null,
+    status: data.status ?? "confirmed",
+    paymentStatus: data.paymentStatus ?? "none",
+    stripeSessionId: data.stripeSessionId ?? null,
+    validationRequired: data.validationRequired ?? false,
+    pendingExpiresAt: data.pendingExpiresAt ?? null,
+    cancelToken: data.cancelToken,
+    rescheduleToken: data.rescheduleToken,
+    validateToken: data.validateToken ?? null,
+    origin: data.origin ?? "public",
+  };
 }
 
 /**

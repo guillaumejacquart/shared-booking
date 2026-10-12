@@ -27,8 +27,8 @@ async function seed() {
     { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "bob" },
   ]);
   await db.insert(s.room).values([
-    { id: "room-a", officeId: "o1", name: "Salle A" },
-    { id: "room-x", officeId: "o1", name: "Exclusive" },
+    { id: "room-a", officeId: "o1", name: "Salle A", allowAll: true },
+    { id: "room-x", officeId: "o1", name: "Exclusive", allowAll: false },
   ]);
   // Salle A ouverte à tous ; Exclusive réservée à Alice.
   await db.insert(s.roomMember).values([{ id: "rm1", roomId: "room-x", practitionerId: "p1" }]);

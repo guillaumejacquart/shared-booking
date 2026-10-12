@@ -55,8 +55,8 @@ async function seed() {
     defaultBufferAfterMin: 0,
   });
   await db.insert(s.room).values([
-    { id: "room-a", officeId: "o1", name: "Salle A", color: "#3b82f6" },
-    { id: "room-b", officeId: "o1", name: "Salle B", color: "#22c55e" },
+    { id: "room-a", officeId: "o1", name: "Salle A", color: "#3b82f6", allowAll: false },
+    { id: "room-b", officeId: "o1", name: "Salle B", color: "#22c55e", allowAll: false },
   ]);
   await db.insert(s.practitioner).values([
     { id: "p1", officeId: "o1", userId: "u1", displayName: "Alice", slug: "alice", slotStepMin: 15 },
@@ -532,6 +532,67 @@ describe("validateBooking", () => {
       bookingId: res.id, requesterUserId: "u1", accept: true,
     });
     expect(out.status).toBe("confirmed");
+  });
+});
+
+describe("validateBookingByToken (lien magique praticien)", () => {
+  async function pendingToken(bookingId: string): Promise<string> {
+    const { getBookingRowById } = await import("@/dal/bookings");
+    const row = await getBookingRowById(bookingId);
+    expect(row?.validateToken).toMatch(/^[0-9a-f]{64}$/);
+    return row!.validateToken!;
+  }
+
+  it("l'email de demande contient le lien de validation en un clic", async () => {
+    await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
+    });
+    const request = sent.find((email) => email.to === "alice@example.com");
+    expect(request?.subject).toContain("À valider");
+    expect(request?.text).toContain("/valider?token=");
+    expect(request?.html).toContain("/valider?token=");
+  });
+
+  it("validation en un clic : confirmé + patient notifié", async () => {
+    const { validateBookingByToken } = await import("@/services/bookings");
+    const res = await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
+    });
+    const out = await validateBookingByToken(ports(), {
+      token: await pendingToken(res.id), accept: true,
+    });
+    expect(out.status).toBe("confirmed");
+    expect(sent.at(-1)?.subject).toContain("Confirmation");
+  });
+
+  it("refus avec motif : annulé + patient notifié ; sans motif : refusé", async () => {
+    const { validateBookingByToken } = await import("@/services/bookings");
+    const res = await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
+    });
+    const token = await pendingToken(res.id);
+    await expect(
+      validateBookingByToken(ports(), { token, accept: false }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    const out = await validateBookingByToken(ports(), { token, accept: false, reason: "Complet" });
+    expect(out.status).toBe("cancelled");
+    expect(sent.at(-1)?.to).toBe("jean@example.com");
+  });
+
+  it("token inconnu ou demande déjà traitée : erreur", async () => {
+    const { validateBookingByToken } = await import("@/services/bookings");
+    const { ConflictError, NotFoundError } = await import("@/services/errors");
+    await expect(
+      validateBookingByToken(ports(), { token: "nope", accept: true }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    const res = await createBooking(ports(), {
+      practitionerSlug: "alice", sessionTypeId: "st3", startAt: SLOT_A, ...patient,
+    });
+    const token = await pendingToken(res.id);
+    await validateBookingByToken(ports(), { token, accept: true });
+    await expect(
+      validateBookingByToken(ports(), { token, accept: true }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });
 

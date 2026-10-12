@@ -26,7 +26,7 @@ import AvailabilityMonthLoader from "../disponibilites/AvailabilityMonthLoader";
 
 export type ProfilTab = "profil" | "seances" | "disponibilites" | "google" | "paiements" | "parametres" | "api";
 
-/** Hub praticien : profil public, séances, disponibilités. */
+/** Hub praticien : profil public, prestations, disponibilités. */
 export default async function ProfilPage({
   searchParams,
 }: {
@@ -78,7 +78,7 @@ export default async function ProfilPage({
     .catch(() => []);
   const rooms = sortRooms(
     roomsWithMembers.filter(
-      (entry) => entry.practitionerIds.length === 0 || entry.practitionerIds.includes(ctx.practitionerId),
+      (entry) => entry.room.allowAll || entry.practitionerIds.includes(ctx.practitionerId),
     ),
   ).map((entry) => ({ id: entry.room.id, name: entry.room.name }));
   const compatibleByType = new Map<string, string[]>();

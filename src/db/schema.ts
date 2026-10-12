@@ -223,12 +223,17 @@ export const room = sqliteTable(
     name: text("name").notNull(),
     color: text("color").notNull().default("#4e7a5b"),
     sortOrder: integer("sort_order").notNull().default(0),
+    // Accès explicite : vrai = tous les praticiens du cabinet (les lignes
+    // `room_member` sont alors ignorées), faux = seuls les praticiens listés
+    // (zéro ligne = personne). Remplace l'ancienne convention implicite
+    // « zéro ligne = ouvert à tous ».
+    allowAll: integer("allow_all", { mode: "boolean" }).notNull().default(true),
     ...timestamps,
   },
   (t) => [index("room_office_idx").on(t.officeId)],
 );
 
-/** Allowlist salle ↔ praticien. Zéro ligne pour une salle = ouverte à tous. */
+/** Allowlist salle ↔ praticien (appliquée quand `room.allow_all` est faux). */
 export const roomMember = sqliteTable(
   "room_member",
   {
@@ -419,6 +424,10 @@ export const booking = sqliteTable(
     pendingExpiresAt: integer("pending_expires_at", { mode: "timestamp" }),
     cancelToken: text("cancel_token").notNull().unique(),
     rescheduleToken: text("reschedule_token").notNull().unique(),
+    // Lien magique praticien : valider/refuser une demande en attente
+    // directement depuis l'email (sans connexion). NULL pour les lignes
+    // antérieures (backfill à la migration) ; toujours renseigné ensuite.
+    validateToken: text("validate_token").unique(),
     // Origine de la réservation : 'public' (parcours patient) ou 'manual'
     // (saisie praticien depuis le dashboard). Défaut 'public' (historique).
     origin: text("origin").notNull().default("public"),

@@ -66,7 +66,7 @@ function toMinutes(hhmm: string): number {
   return hours * 60 + minutes;
 }
 
-/** Salles utilisables par le praticien : allowlist vide = toutes. */
+/** Salles utilisables par le praticien : `allowAll`, sinon allowlist (vide = personne). */
 async function assertRoomAllowed(
   rooms: Awaited<ReturnType<typeof roomsDal.listRoomsWithMembers>>,
   practitionerId: string,
@@ -74,7 +74,7 @@ async function assertRoomAllowed(
 ): Promise<void> {
   const entry = rooms.find((entry) => entry.room.id === roomId);
   if (!entry) throw new ValidationError("Salle inconnue");
-  if (entry.practitionerIds.length > 0 && !entry.practitionerIds.includes(practitionerId)) {
+  if (!entry.room.allowAll && !entry.practitionerIds.includes(practitionerId)) {
     throw new ValidationError("Salle non autorisée pour ce praticien");
   }
 }
@@ -368,20 +368,23 @@ export async function saveRoom(ports: Ports, input: SaveRoomInput): Promise<stri
     throw new ValidationError("Praticien inconnu dans ce cabinet");
   }
 
+  // `allowAll` = tous les praticiens (les membres éventuels sont purgés) ;
+  // sinon seuls `practitionerIds` (vide = personne).
+  const practitionerIds = input.allowAll ? [] : input.practitionerIds;
   if (input.id) {
     const rooms = await roomsDal.listRooms(input.officeId);
     if (!rooms.some((room) => room.id === input.id)) throw new NotFoundError("Salle introuvable");
-    await roomsDal.updateRoom(input.id, { name: input.name, color: input.color });
-    await roomsDal.replaceRoomMembers(input.id, input.practitionerIds);
+    await roomsDal.updateRoom(input.id, { name: input.name, color: input.color, allowAll: input.allowAll });
+    await roomsDal.replaceRoomMembers(input.id, practitionerIds);
     return input.id;
   }
   const id = crypto.randomUUID();
-  await roomsDal.createRoom({ id, officeId: input.officeId, name: input.name, color: input.color });
-  await roomsDal.replaceRoomMembers(id, input.practitionerIds);
+  await roomsDal.createRoom({ id, officeId: input.officeId, name: input.name, color: input.color, allowAll: input.allowAll });
+  await roomsDal.replaceRoomMembers(id, practitionerIds);
   // Création uniquement : les renommages/recolorations n'émettent rien
   // (même règle que `session-type-created`).
   await ports.analytics.track(ANALYTICS_EVENTS.ROOM_CREATED, {
-    practitionerCount: input.practitionerIds.length,
+    practitionerCount: input.allowAll ? pracs.length : practitionerIds.length,
   });
   return id;
 }
@@ -501,12 +504,12 @@ export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
         endAt: booking.endAt.toISOString(),
         status: booking.status,
       })),
-    // Salles utilisables par le praticien uniquement (allowlist vide = toutes),
+    // Salles utilisables par le praticien uniquement (`allowAll`, sinon allowlist),
     // comme sur la page profil : le formulaire d'ouverture exceptionnelle ne
     // doit pas proposer de salle interdite (l'API la refuserait de toute façon).
     rooms: sortRooms(
       roomsWithMembers.filter(
-        (entry) => entry.practitionerIds.length === 0 || entry.practitionerIds.includes(prac.id),
+        (entry) => entry.room.allowAll || entry.practitionerIds.includes(prac.id),
       ),
     ).map((entry) => ({ id: entry.room.id, name: entry.room.name, color: entry.room.color })),
   };

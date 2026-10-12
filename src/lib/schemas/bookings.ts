@@ -73,6 +73,14 @@ export const validateBookingSchema = z.object({
 });
 export type ValidateInput = z.infer<typeof validateBookingSchema>;
 
+/** Validation via lien magique praticien (sans connexion, token = autorisation). */
+export const validateBookingByTokenSchema = z.object({
+  token: z.string().min(1),
+  accept: z.boolean(),
+  reason: z.string().trim().max(500).optional(),
+});
+export type ValidateBookingByTokenInput = z.infer<typeof validateBookingByTokenSchema>;
+
 export const mutationResultSchema = z.object({
   id: z.string(),
   status: z.string(),

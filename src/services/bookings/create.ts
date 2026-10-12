@@ -249,7 +249,7 @@ async function resolveBookingPlan(
 export async function createBooking(ports: Ports, input: CreateBookingInput): Promise<BookingResult> {
   const { page, st, variant, start, now, email, needsPayment, needsValidation, stripe } =
     await resolveBookingPlan(ports, input);
-  const { cancelToken, rescheduleToken } = tokens();
+  const { cancelToken, rescheduleToken, validateToken } = tokens();
   const bookingId = crypto.randomUUID();
   const status = needsPayment || needsValidation ? "pending" : "confirmed";
 
@@ -283,6 +283,7 @@ export async function createBooking(ports: Ports, input: CreateBookingInput): Pr
     notes: input.notes,
     cancelToken,
     rescheduleToken,
+    validateToken,
     status,
     paymentStatus: needsPayment ? "pending" : "none",
     stripeSessionId: checkout?.stripeSessionId ?? null,

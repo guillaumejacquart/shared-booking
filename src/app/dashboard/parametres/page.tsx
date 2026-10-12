@@ -155,6 +155,7 @@ export default async function ParametresPage({
                 id: room.room.id,
                 name: room.room.name,
                 color: room.room.color,
+                allowAll: room.room.allowAll,
                 practitionerIds: room.practitionerIds,
               }))}
               practitioners={pracs.map((prac) => ({ id: prac.id, displayName: prac.displayName }))}

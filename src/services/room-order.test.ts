@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { allowedRoomIdsFor, sortRooms } from "./room-order";
 
-function row(id: string, sortOrder: number, name: string, practitionerIds: string[] = []) {
-  return { room: { id, sortOrder, name }, practitionerIds };
+function row(id: string, sortOrder: number, name: string, practitionerIds: string[] = [], allowAll = true) {
+  return { room: { id, sortOrder, name, allowAll }, practitionerIds };
 }
 
 describe("sortRooms", () => {
@@ -23,7 +23,7 @@ describe("sortRooms", () => {
 });
 
 describe("allowedRoomIdsFor", () => {
-  it("allowlist vide = toutes les salles", () => {
+  it("allowAll = toutes les salles", () => {
     const rooms = [row("b", 1, "B"), row("a", 0, "A")];
     expect(allowedRoomIdsFor("p1", rooms)).toEqual(["a", "b"]);
   });
@@ -31,9 +31,14 @@ describe("allowedRoomIdsFor", () => {
   it("filtre les salles réservées à d'autres", () => {
     const rooms = [
       row("open", 0, "Ouverte"),
-      row("priv", 0, "Privée", ["p9"]),
-      row("mine", 0, "Mienne", ["p1"]),
+      row("priv", 0, "Privée", ["p9"], false),
+      row("mine", 0, "Mienne", ["p1"], false),
     ];
     expect(allowedRoomIdsFor("p1", rooms)).toEqual(["mine", "open"]);
+  });
+
+  it("allowAll faux + liste vide = personne", () => {
+    const rooms = [row("none", 0, "Personne", [], false)];
+    expect(allowedRoomIdsFor("p1", rooms)).toEqual([]);
   });
 });

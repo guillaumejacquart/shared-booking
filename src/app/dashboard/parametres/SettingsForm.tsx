@@ -111,7 +111,7 @@ export default function SettingsForm({
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t("settings.leadTime")}>
-          <NumberInput unit="min" value={form.bookingLeadTimeMin} min={0} max={1440} onChange={(event) => set("bookingLeadTimeMin", Number(event.target.value))} />
+          <NumberInput unit="h" value={form.bookingLeadTimeMin / 60} min={0} max={24} step="any" onChange={(event) => set("bookingLeadTimeMin", Math.max(0, Math.min(1440, Math.round(Number(event.target.value) * 60))))} />
         </Field>
         <Field label={t("settings.cancelDeadline")}>
           <NumberInput unit="h" value={form.cancelDeadlineHours} min={0} max={168} onChange={(event) => set("cancelDeadlineHours", Number(event.target.value))} />

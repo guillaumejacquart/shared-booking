@@ -13,6 +13,7 @@ import type {
   RescheduleInput,
   RoomAvailabilityInput,
   SlotsInput,
+  ValidateBookingByTokenInput,
   ValidateInput,
 } from "@/lib/schemas/bookings";
 import { createBooking } from "./bookings/create";
@@ -23,7 +24,7 @@ import {
   getBookingStatusByStripeSession,
   releaseExpiredPendings,
 } from "./bookings/payment";
-import { cancelBooking, rescheduleBooking, validateBooking } from "./bookings/manage";
+import { cancelBooking, rescheduleBooking, validateBooking, validateBookingByToken } from "./bookings/manage";
 import { getAvailableSlots, type PublicSlot } from "./bookings/slots";
 
 export type { MailBooking } from "./bookings/shared";
@@ -36,6 +37,7 @@ export {
   deadline,
   mailModel,
   manageUrl,
+  validateUrl,
   notifyValidationRequest,
   safeSend,
   tariffSnapshot,
@@ -64,7 +66,7 @@ export {
   getBookingStatusByStripeSession,
   releaseExpiredPendings,
 } from "./bookings/payment";
-export { cancelBooking, rescheduleBooking, validateBooking } from "./bookings/manage";
+export { cancelBooking, rescheduleBooking, validateBooking, validateBookingByToken } from "./bookings/manage";
 
 /** Surface du service réservation (utilisée par les routes via le container). */
 export interface BookingsService {
@@ -75,6 +77,7 @@ export interface BookingsService {
   cancel(input: CancelInput): Promise<{ id: string; status: string }>;
   reschedule(input: RescheduleInput): Promise<BookingResult>;
   validate(input: ValidateInput): Promise<{ id: string; status: string }>;
+  validateByToken(input: ValidateBookingByTokenInput): Promise<{ id: string; status: string }>;
   applyPayment(input: ApplyPaymentInput): Promise<{ applied: boolean; confirmed: boolean }>;
   statusByStripeSession(stripeSessionId: string): ReturnType<typeof getBookingStatusByStripeSession>;
   releaseExpired(): Promise<number>;
@@ -94,6 +97,7 @@ export function createBookingsService(ports: Ports): BookingsService {
     cancel: (input) => cancelBooking(ports, input),
     reschedule: (input) => rescheduleBooking(ports, input),
     validate: (input) => validateBooking(ports, input),
+    validateByToken: (input) => validateBookingByToken(ports, input),
     applyPayment: (input) => applyPaymentCompleted(ports, input),
     statusByStripeSession: (stripeSessionId) => getBookingStatusByStripeSession(stripeSessionId),
     releaseExpired: () => releaseExpiredPendings(ports),

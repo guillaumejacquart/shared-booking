@@ -6,7 +6,7 @@ import { Checkbox, InfoTooltip } from "@/components/ui";
 /**
  * Case « Paiement en ligne requis » : désactivée tant que le compte Stripe
  * du praticien n'est pas prêt à encaisser, avec une infobulle (icône ⓘ)
- * expliquant comment l'activer (Profil → Paiements). Une séance déjà
+ * expliquant comment l'activer (Profil → Paiements). Une prestation déjà
  * payante reste décochable (compte Stripe délié après coup).
  */
 export default function RequiresPaymentField({

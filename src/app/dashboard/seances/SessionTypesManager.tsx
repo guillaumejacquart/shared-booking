@@ -12,7 +12,7 @@ import type { PublicVariant } from "@/app/api/session-types/variants";
 import type { Room, SessionTypeRow } from "@/components/session-types/types";
 
 /**
- * Liste des séances en table compacte ; l'édition et la création se font
+ * Liste des prestations en table compacte ; l'édition et la création se font
  * en modale (qui embarque le formulaire complet : carte actuelle en `bare`).
  */
 export default function SessionTypesManager({
@@ -27,7 +27,7 @@ export default function SessionTypesManager({
   rooms: Room[];
   /** Compte Stripe du praticien prêt à encaisser (`charges_enabled`). */
   paymentsReady: boolean;
-  /** Défaut praticien : pré-remplit la case validation des nouvelles séances. */
+  /** Défaut praticien : pré-remplit la case validation des nouvelles prestations. */
   defaultRequiresValidation?: boolean;
 }) {
   const router = useRouter();
@@ -44,7 +44,7 @@ export default function SessionTypesManager({
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...data } : row)));
   }
 
-  /** Sauvegarde une séance : rejette en cas d'échec (retour affiché par la carte). */
+  /** Sauvegarde une prestation : rejette en cas d'échec (retour affiché par la carte). */
   async function save(row: SessionTypeRow): Promise<void> {
     const url = `/api/session-types/${row.id}?practitionerId=${practitionerId}`;
     const result = await sendJson<{ variants: PublicVariant[] }>(url, "PATCH", { practitionerId, ...row });

@@ -131,6 +131,29 @@ describe("accessInfo + practitionerMessage", () => {
   });
 });
 
+describe("validationRequestEmail", () => {
+  it("contient le lien de validation en un clic (texte + HTML)", async () => {
+    const { validationRequestEmail } = await import("./email");
+    const email = validationRequestEmail("alice@example.com", {
+      ...MODEL,
+      patientName: "Jean Dupont",
+      validateUrl: "https://example.com/p/alice/valider?token=abc&cabinet=cab",
+    });
+    expect(email.to).toBe("alice@example.com");
+    expect(email.subject).toContain("À valider");
+    expect(email.text).toContain("https://example.com/p/alice/valider?token=abc&cabinet=cab");
+    expect(email.html).toContain("Valider ou refuser la demande");
+    expect(email.html).toContain("https://example.com/p/alice/valider?token=abc&amp;cabinet=cab");
+  });
+
+  it("sans token : pas de lien, validation depuis l'agenda", async () => {
+    const { validationRequestEmail } = await import("./email");
+    const email = validationRequestEmail("alice@example.com", { ...MODEL, patientName: "Jean Dupont" });
+    expect(email.text).not.toContain("valider?token=");
+    expect(email.text).toContain("depuis votre agenda");
+  });
+});
+
 describe("mailFrom", () => {
   it("expéditeur avec nom convivial (Gmail n'affiche plus `contact`)", () => {
     const from = mailFrom();

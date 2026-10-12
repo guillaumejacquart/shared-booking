@@ -277,9 +277,9 @@ async function main(): Promise<void> {
 
   // -- Salles : A ouverte à tous, Atelier restreinte, Cèdre exclusive ------
   await db.insert(schema.room).values([
-    { id: "demo-a", officeId: OFFICE_ID, name: "Salle A", color: "#4e7a5b", sortOrder: 0 },
-    { id: "demo-atelier", officeId: OFFICE_ID, name: "Salle Atelier", color: "#96603a", sortOrder: 1 },
-    { id: "demo-cedre", officeId: OFFICE_ID, name: "Salle Cèdre", color: "#3a6ea5", sortOrder: 2 },
+    { id: "demo-a", officeId: OFFICE_ID, name: "Salle A", color: "#4e7a5b", sortOrder: 0, allowAll: true },
+    { id: "demo-atelier", officeId: OFFICE_ID, name: "Salle Atelier", color: "#96603a", sortOrder: 1, allowAll: false },
+    { id: "demo-cedre", officeId: OFFICE_ID, name: "Salle Cèdre", color: "#3a6ea5", sortOrder: 2, allowAll: false },
   ]);
 
   await db.insert(schema.member).values([
@@ -571,6 +571,7 @@ async function main(): Promise<void> {
       pendingExpiresAt: null,
       cancelToken: randomBytes(32).toString("hex"),
       rescheduleToken: randomBytes(32).toString("hex"),
+      validateToken: randomBytes(32).toString("hex"),
       reminderSentAt: plan.status === "completed" ? new Date(slot.start.getTime() - 24 * 3_600_000) : null,
       cancelledAt: plan.status === "cancelled" ? new Date(Math.min(now.getTime(), slot.start.getTime()) - 3 * 24 * 3_600_000) : null,
       cancelReason: plan.cancelReason ?? null,

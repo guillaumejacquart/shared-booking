@@ -11,6 +11,8 @@ export interface RoomRow {
   id: string;
   name: string;
   color: string;
+  /** Vrai = tous les praticiens (`practitionerIds` ignorés) ; faux = seuls les praticiens listés (vide = personne). */
+  allowAll: boolean;
   practitionerIds: string[];
 }
 
@@ -41,24 +43,30 @@ export default function RoomsManager({
   const [drafts, setDrafts] = useState<RoomRow[]>(initial);
   const [name, setName] = useState("");
   const [color, setColor] = useState(DEFAULT_ROOM_COLOR);
+  const [createAllowAll, setCreateAllowAll] = useState(true);
+  const [createPractitionerIds, setCreatePractitionerIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    const practitionerIds = createAllowAll ? [] : createPractitionerIds;
     const result = await sendJson<{ id: string }>(`/api/offices/${officeId}/rooms`, "POST", {
       name,
       color,
-      practitionerIds: [],
+      allowAll: createAllowAll,
+      practitionerIds,
     });
     if (!result.ok) {
       setError(result.error);
       return;
     }
     // Mise à jour optimiste : `initial` n'est lu qu'au premier rendu.
-    setDrafts((prev) => [...prev, { id: result.data.id, name, color, practitionerIds: [] }]);
+    setDrafts((prev) => [...prev, { id: result.data.id, name, color, allowAll: createAllowAll, practitionerIds }]);
     setName("");
+    setCreateAllowAll(true);
+    setCreatePractitionerIds([]);
     router.refresh();
   }
 
@@ -67,7 +75,8 @@ export default function RoomsManager({
     const result = await sendJson(`/api/offices/${officeId}/rooms/${room.id}`, "PATCH", {
       name: room.name,
       color: room.color,
-      practitionerIds: room.practitionerIds,
+      allowAll: room.allowAll,
+      practitionerIds: room.allowAll ? [] : room.practitionerIds,
     });
     if (!result.ok) {
       setError(result.error);
@@ -101,6 +110,13 @@ export default function RoomsManager({
         : [...room.practitionerIds, practitionerId],
     });
   }
+  function toggleCreatePractitioner(practitionerId: string) {
+    setCreatePractitionerIds((prev) =>
+      prev.includes(practitionerId)
+        ? prev.filter((id) => id !== practitionerId)
+        : [...prev, practitionerId],
+    );
+  }
 
   return (
     <div>
@@ -130,31 +146,79 @@ export default function RoomsManager({
                 {t("rooms.delete")}
               </Button>
             </div>
-            <div className="mt-3 flex flex-wrap gap-3 text-sm">
-              {practitioners.map((prac) => (
-                <label key={prac.id} className="flex cursor-pointer items-center gap-1.5">
-                  <Checkbox
-                    checked={room.practitionerIds.includes(prac.id)}
-                    onChange={() => toggle(room, prac.id)}
-                  />
-                  {prac.displayName}
-                </label>
-              ))}
+            <div className="mt-3">
+              <label className="flex cursor-pointer items-center gap-1.5 text-sm font-medium">
+                <Checkbox
+                  checked={room.allowAll}
+                  onChange={(event) => patch(room.id, { allowAll: event.target.checked })}
+                />
+                {t("rooms.allowAll")}
+              </label>
+              {room.allowAll ? (
+                <p className="mt-1.5 text-xs text-mist">{t("rooms.openToAll")}</p>
+              ) : (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                    {practitioners.map((prac) => (
+                      <label key={prac.id} className="flex cursor-pointer items-center gap-1.5">
+                        <Checkbox
+                          checked={room.practitionerIds.includes(prac.id)}
+                          onChange={() => toggle(room, prac.id)}
+                        />
+                        {prac.displayName}
+                      </label>
+                    ))}
+                  </div>
+                  {room.practitionerIds.length === 0 ? (
+                    <p className="mt-2 text-xs font-medium text-warn">{t("rooms.noPractitioner")}</p>
+                  ) : (
+                    <p className="mt-2 text-xs text-mist">
+                      {room.practitionerIds.length} {t("rooms.someAllowed")}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
-            {room.practitionerIds.length === 0 ? (
-              <p className="mt-2 text-xs text-mist">{t("rooms.allowed")}</p>
-            ) : null}
           </div>
         ))}
       </div>
-      <form onSubmit={create} className="mt-4 flex flex-wrap items-end gap-2">
-        <Field label={t("rooms.name")}>
-          <TextInput value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} />
-        </Field>
-        <Field label={t("rooms.color")}>
-          <ColorPicker value={color} presets={ROOM_COLORS} onChange={setColor} label={t("rooms.color")} />
-        </Field>
-        <Button type="submit">{t("rooms.create")}</Button>
+      <form onSubmit={create} className="mt-4 rounded-2xl border border-line bg-card p-4 shadow-soft">
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={t("rooms.name")}>
+            <TextInput value={name} onChange={(event) => setName(event.target.value)} required maxLength={60} />
+          </Field>
+          <Field label={t("rooms.color")}>
+            <ColorPicker value={color} presets={ROOM_COLORS} onChange={setColor} label={t("rooms.color")} />
+          </Field>
+          <Button type="submit">{t("rooms.create")}</Button>
+        </div>
+        <div className="mt-3">
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm font-medium">
+            <Checkbox checked={createAllowAll} onChange={(event) => setCreateAllowAll(event.target.checked)} />
+            {t("rooms.allowAll")}
+          </label>
+          {createAllowAll ? (
+            <p className="mt-1.5 text-xs text-mist">{t("rooms.openToAll")}</p>
+          ) : (
+            <>
+              <p className="mt-1.5 text-xs text-mist">{t("rooms.restrictedHint")}</p>
+              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                {practitioners.map((prac) => (
+                  <label key={prac.id} className="flex cursor-pointer items-center gap-1.5">
+                    <Checkbox
+                      checked={createPractitionerIds.includes(prac.id)}
+                      onChange={() => toggleCreatePractitioner(prac.id)}
+                    />
+                    {prac.displayName}
+                  </label>
+                ))}
+              </div>
+              {createPractitionerIds.length === 0 ? (
+                <p className="mt-2 text-xs font-medium text-warn">{t("rooms.noPractitioner")}</p>
+              ) : null}
+            </>
+          )}
+        </div>
       </form>
       <div className="mt-2 flex flex-col gap-1">
         <FormMessage tone="error">{error ?? ""}</FormMessage>

@@ -53,6 +53,7 @@ export function tokens() {
   return {
     cancelToken: randomBytes(32).toString("hex"),
     rescheduleToken: randomBytes(32).toString("hex"),
+    validateToken: randomBytes(32).toString("hex"),
   };
 }
 
@@ -64,6 +65,12 @@ export function manageUrl(officeSlug: string, practitionerSlug: string, token: s
   // URL absolue pour les emails (BETTER_AUTH_URL = origine publique de l'app).
   const base = env.BETTER_AUTH_URL.replace(/\/$/, "");
   return `${base}/p/${practitionerSlug}/gerer?token=${token}&cabinet=${officeSlug}`;
+}
+
+/** Page praticien de validation en un clic (lien magique, sans connexion). */
+export function validateUrl(officeSlug: string, practitionerSlug: string, token: string): string {
+  const base = env.BETTER_AUTH_URL.replace(/\/$/, "");
+  return `${base}/p/${practitionerSlug}/valider?token=${token}&cabinet=${officeSlug}`;
 }
 
 /** Champs de réservation nécessaires au contenu d'un email. */
@@ -78,7 +85,10 @@ export type MailBooking = Pick<
   | "paymentStatus"
   | "priceDisplaySnapshot"
   | "currencySnapshot"
->;
+> & {
+  /** Token magique de validation (absent = pas de lien praticien). */
+  validateToken?: string | null;
+};
 
 /**
  * Détail du règlement sur place : réservation sans paiement en ligne
@@ -125,6 +135,9 @@ export function mailModel(
     ? `${detail.office.name}, ${detail.office.address}`
     : detail.office.name;
   const url = manageUrl(detail.office.slug, detail.practitioner.slug, booking.cancelToken);
+  const validation = booking.validateToken
+    ? validateUrl(detail.office.slug, detail.practitioner.slug, booking.validateToken)
+    : null;
   const accessInfo = detail.office.accessInfo?.trim();
   const emailNote = detail.practitioner.emailNote?.trim();
   return {
@@ -135,6 +148,7 @@ export function mailModel(
     officeName: detail.office.name,
     officeAddress: detail.office.address,
     manageUrl: url,
+    validateUrl: validation,
     onsitePayment: onsitePaymentLine(booking, detail.practitioner),
     officeAccessInfo: accessInfo ? accessInfo : null,
     practitionerMessage: emailNote ? emailNote : null,

@@ -14,6 +14,7 @@ import type {
   BookingResult,
   CancelInput,
   RescheduleInput,
+  ValidateBookingByTokenInput,
   ValidateInput,
 } from "@/lib/schemas/bookings";
 import { dateStrInTz } from "@/lib/timezone";
@@ -58,16 +59,38 @@ export async function validateBooking(
   ports: Ports,
   input: ValidateInput,
 ): Promise<{ id: string; status: string }> {
+  const detail = await bookingsDal.getBookingById(input.bookingId);
+  if (!detail) throw new NotFoundError("Réservation introuvable");
+  await assertCanValidate(detail, input.requesterUserId);
+  return applyValidation(ports, detail, { accept: input.accept, reason: input.reason });
+}
+
+/**
+ * Validation via lien magique praticien (email de demande, sans connexion).
+ * Le token fait office d'autorisation : il n'est connu que du praticien.
+ */
+export async function validateBookingByToken(
+  ports: Ports,
+  input: ValidateBookingByTokenInput,
+): Promise<{ id: string; status: string }> {
+  const detail = await bookingsDal.findBookingByValidateToken(input.token);
+  if (!detail) throw new NotFoundError("Réservation introuvable");
+  return applyValidation(ports, detail, { accept: input.accept, reason: input.reason });
+}
+
+/** Cœur commun : gardes d'état, confirmation/refus, emails, analytics. */
+async function applyValidation(
+  ports: Ports,
+  detail: BookingDetail,
+  input: { accept: boolean; reason?: string },
+): Promise<{ id: string; status: string }> {
   const now = ports.clock.now();
   const send = ports.sendEmail;
 
-  const detail = await bookingsDal.getBookingById(input.bookingId);
-  if (!detail) throw new NotFoundError("Réservation introuvable");
   const { booking } = detail;
   if (booking.status !== "pending" || !booking.validationRequired || booking.validatedAt) {
     throw new ConflictError("Cette réservation n'est plus à valider");
   }
-  await assertCanValidate(detail, input.requesterUserId);
   if (booking.paymentStatus === "pending") {
     throw new ConflictError("Paiement en attente");
   }

@@ -26,14 +26,14 @@ export async function listRoomsWithMembers(officeId: string) {
   return rooms.map((room) => ({ room: room, practitionerIds: byRoom.get(room.id) ?? [] }));
 }
 
-export async function createRoom(data: { id: string; officeId: string; name: string; color: string }) {
+export async function createRoom(data: { id: string; officeId: string; name: string; color: string; allowAll?: boolean }) {
   const conn = getConnection();
   await conn.insert(room).values(data);
   return data.id;
 }
 
 export async function updateRoom(id: string,
-  data: Partial<{ name: string; color: string }>) {
+  data: Partial<{ name: string; color: string; allowAll: boolean }>) {
   const conn = getConnection();
   await conn.update(room).set(data).where(eq(room.id, id));
 }

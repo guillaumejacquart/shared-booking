@@ -41,8 +41,8 @@ async function seed() {
     { id: "p2", officeId: "o1", userId: "u2", displayName: "Bob", slug: "bob" },
   ]);
   await db.insert(s.room).values([
-    { id: "room-a", officeId: "o1", name: "Salle A" },
-    { id: "room-x", officeId: "o1", name: "Exclusive" },
+    { id: "room-a", officeId: "o1", name: "Salle A", allowAll: true },
+    { id: "room-x", officeId: "o1", name: "Exclusive", allowAll: false },
   ]);
   // Salle A ouverte à tous ; Exclusive réservée à Alice.
   await db.insert(s.roomMember).values([{ id: "rm1", roomId: "room-x", practitionerId: "p1" }]);
@@ -382,20 +382,51 @@ describe("saveRoom / deleteRoom", () => {
     const { saveRoom } = await import("@/services/schedule");
     const roomPorts = () => testPorts({ clock: fixedClock(NOW) });
     const id = await saveRoom(roomPorts(), {
-      officeId: "o1", requesterUserId: "u1", name: "Salle B", color: "#3b82f6", practitionerIds: ["p1", "p2"],
+      officeId: "o1", requesterUserId: "u1", name: "Salle B", color: "#3b82f6", allowAll: false, practitionerIds: ["p1", "p2"],
     });
     const id2 = await saveRoom(roomPorts(), {
-      officeId: "o1", requesterUserId: "u1", id, name: "Salle B", color: "#ff0000", practitionerIds: ["p1"],
+      officeId: "o1", requesterUserId: "u1", id, name: "Salle B", color: "#ff0000", allowAll: false, practitionerIds: ["p1"],
     });
     expect(id2).toBe(id);
     // Bob (non-owner) ne peut pas gérer les salles.
     await expect(
-      saveRoom(roomPorts(), { officeId: "o1", requesterUserId: "u2", name: "X", color: "#3b82f6", practitionerIds: [] }),
+      saveRoom(roomPorts(), { officeId: "o1", requesterUserId: "u2", name: "X", color: "#3b82f6", allowAll: true, practitionerIds: [] }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     // Praticien d'un autre cabinet refusé dans l'allowlist : on teste avec un id inconnu.
     await expect(
-      saveRoom(roomPorts(), { officeId: "o1", requesterUserId: "u1", name: "Y", color: "#3b82f6", practitionerIds: ["nope"] }),
+      saveRoom(roomPorts(), { officeId: "o1", requesterUserId: "u1", name: "Y", color: "#3b82f6", allowAll: false, practitionerIds: ["nope"] }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("allowAll explicite : ouverte à tous, restreinte, ou personne", async () => {
+    const { saveRoom } = await import("@/services/schedule");
+    const { allowedRoomIdsFor } = await import("@/services/room-order");
+    const roomPorts = () => testPorts({ clock: fixedClock(NOW) });
+    const s = await import("@/db/schema");
+    const { listRoomsWithMembers } = await import("@/dal/rooms");
+    // Ouverte à tous (membres ignorés).
+    const openId = await saveRoom(roomPorts(), {
+      officeId: "o1", requesterUserId: "u1", name: "Ouverte", color: "#3b82f6", allowAll: true, practitionerIds: ["p1"],
+    });
+    // Personne (allowAll faux + liste vide).
+    const noneId = await saveRoom(roomPorts(), {
+      officeId: "o1", requesterUserId: "u1", name: "Personne", color: "#3b82f6", allowAll: false, practitionerIds: [],
+    });
+    let rooms = await listRoomsWithMembers("o1");
+    const open = rooms.find((entry) => entry.room.id === openId);
+    expect(open?.room.allowAll).toBe(true);
+    expect(open?.practitionerIds).toEqual([]);
+    expect(allowedRoomIdsFor("p1", rooms)).toContain(openId);
+    expect(allowedRoomIdsFor("p2", rooms)).toContain(openId);
+    expect(allowedRoomIdsFor("p1", rooms)).not.toContain(noneId);
+    expect(allowedRoomIdsFor("p2", rooms)).not.toContain(noneId);
+    // Basculer la salle « personne » vers tous : elle devient utilisable.
+    await saveRoom(roomPorts(), {
+      officeId: "o1", requesterUserId: "u1", id: noneId, name: "Personne", color: "#3b82f6", allowAll: true, practitionerIds: [],
+    });
+    rooms = await listRoomsWithMembers("o1");
+    expect(allowedRoomIdsFor("p1", rooms)).toContain(noneId);
+    void s;
   });
 
   it("refuse de supprimer une salle avec des réservations futures", async () => {
@@ -609,14 +640,14 @@ describe("analytics (Umami)", () => {
     const { saveRoom } = await import("@/services/schedule");
     const id = await saveRoom(watchedPorts(), {
       officeId: "o1", requesterUserId: "u1", name: "Salle B",
-      color: "#3b82f6", practitionerIds: ["p1", "p2"],
+      color: "#3b82f6", allowAll: false, practitionerIds: ["p1", "p2"],
     });
     expect(tracked).toHaveLength(1);
     expect(tracked[0].event).toBe(ANALYTICS_EVENTS.ROOM_CREATED);
     expect(tracked[0].data).toMatchObject({ practitionerCount: 2 });
     await saveRoom(watchedPorts(), {
       officeId: "o1", requesterUserId: "u1", id, name: "Salle B",
-      color: "#ff0000", practitionerIds: ["p1"],
+      color: "#ff0000", allowAll: false, practitionerIds: ["p1"],
     });
     expect(tracked).toHaveLength(1);
   });

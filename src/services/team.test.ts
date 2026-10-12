@@ -235,7 +235,7 @@ describe("removeMember", () => {
       displayName: "Other",
       slug: "other",
     });
-    await db.insert(s.room).values({ id: "room-a", officeId: "o1", name: "Salle A" });
+    await db.insert(s.room).values({ id: "room-a", officeId: "o1", name: "Salle A", allowAll: false });
     await db.insert(s.roomMember).values({
       id: "rm-a",
       roomId: "room-a",
