@@ -45,6 +45,11 @@ export const user = sqliteTable("user", {
     .notNull()
     .default(false),
   image: text("image"),
+  // Cabinet courant du backoffice (sélecteur multi-cabinet). Null = premier
+  // cabinet d'appartenance. Nettoyé si le cabinet est supprimé.
+  selectedOfficeId: text("selected_office_id").references(() => office.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

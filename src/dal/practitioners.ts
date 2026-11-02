@@ -2,7 +2,7 @@ import { getConnection } from "./connection";
 
 import { and, eq } from "drizzle-orm";
 
-import { office, member, practitioner, sessionType, sessionTypeVariant } from "@/db/schema";
+import { office, member, practitioner, sessionType, sessionTypeVariant, user } from "@/db/schema";
 import type { Office, Practitioner, SessionType, SessionTypeVariant } from "./types";
 
 /** Repository praticiens (+ page publique). */
@@ -101,15 +101,35 @@ export async function getPractitionerByOfficeAndUser(
 }
 
 /**
- * Praticien du premier cabinet actif de l'utilisateur (cf.
- * `getDashboardContext`). Le backoffice MVP est mono-cabinet : en attendant
- * le sélecteur multi-cabinet, toutes les résolutions « praticien connecté »
- * passent par ici pour rester cohérentes avec le cabinet affiché. Sans
- * appartenance active, repli sur le praticien existant (comportement
- * historique, ex. contrôles d'autorisation 403).
+ * Praticien du cabinet courant de l'utilisateur : sélection explicite si elle
+ * désigne encore un cabinet d'appartenance active, sinon premier cabinet
+ * actif (cf. `getDashboardContext`). Le backoffice affiche un seul cabinet
+ * à la fois : toutes les résolutions « praticien connecté » passent par ici
+ * pour rester cohérentes avec le cabinet affiché. Sans appartenance active,
+ * repli sur le praticien existant (comportement historique, ex. contrôles
+ * d'autorisation 403).
  */
 export async function getPrimaryPractitionerByUserId(userId: string): Promise<Practitioner | null> {
   const conn = getConnection();
+  const selected = await conn
+    .select({ selectedOfficeId: user.selectedOfficeId })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  const selectedOfficeId = selected[0]?.selectedOfficeId ?? null;
+  if (selectedOfficeId) {
+    const selectedMemberships = await conn
+      .select()
+      .from(member)
+      .where(
+        and(eq(member.userId, userId), eq(member.officeId, selectedOfficeId), eq(member.active, true)),
+      )
+      .limit(1);
+    if (selectedMemberships[0]) {
+      const selectedPrac = await getPractitionerByOfficeAndUser(selectedOfficeId, userId);
+      if (selectedPrac) return selectedPrac;
+    }
+  }
   const memberships = await conn
     .select()
     .from(member)

@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `selected_office_id` text REFERENCES office(id) ON DELETE SET NULL;

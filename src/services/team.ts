@@ -14,6 +14,7 @@ import type {
   CreateOfficeInput,
   RemoveMemberInput,
   RevokeInviteInput,
+  SelectOfficeInput,
 } from "@/lib/schemas/team";
 import {
   ConflictError,
@@ -59,6 +60,8 @@ export async function createOffice(ports: Ports, input: CreateOfficeInput): Prom
     },
   });
   await ports.analytics.track(ANALYTICS_EVENTS.OFFICE_CREATED, {});
+  // Le créateur atterrit directement dans son nouveau cabinet.
+  await usersDal.setSelectedOfficeId(input.userId, officeId);
   return { officeId, officeSlug: input.slug, practitionerSlug };
 }
 
@@ -194,6 +197,8 @@ export async function acceptInvite(
       },
     });
   }
+  // L'invité atterrit directement dans le cabinet rejoint.
+  await usersDal.setSelectedOfficeId(input.userId, inv.officeId);
   await ports.analytics.track(ANALYTICS_EVENTS.INVITE_ACCEPTED, { role: inv.role });
   return { officeSlug: office.slug, practitionerSlug: slug };
 }
@@ -236,6 +241,21 @@ async function assertOwner(officeId: string, requesterUserId: string): Promise<v
   if (!membership || membership.role !== "owner" || !membership.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut retirer un membre");
   }
+}
+
+/**
+ * Sélectionne le cabinet courant du backoffice (sélecteur multi-cabinet).
+ * N'importe quel membre actif peut changer sa propre sélection ; elle doit
+ * désigner un cabinet d'appartenance active, sinon repli silencieux sur le
+ * premier cabinet (voir `getPrimaryPractitionerByUserId`).
+ */
+export async function selectOffice(input: SelectOfficeInput): Promise<{ officeId: string }> {
+  const membership = await membersDal.getMembership(input.officeId, input.requesterUserId);
+  if (!membership || !membership.active) {
+    throw new ForbiddenError("Vous n'êtes pas membre de ce cabinet");
+  }
+  await usersDal.setSelectedOfficeId(input.requesterUserId, input.officeId);
+  return { officeId: input.officeId };
 }
 
 /**
@@ -305,6 +325,7 @@ export interface TeamService {
   getInvitePublicInfo(token: string): ReturnType<typeof getInvitePublicInfo>;
   listPendingInvites: typeof listPendingInvites;
   revokeInvite: typeof revokeInvite;
+  selectOffice: typeof selectOffice;
   removeMember: typeof removeMember;
   changeMemberRole: typeof changeMemberRole;
 }
@@ -317,6 +338,7 @@ export function createTeamService(ports: Ports): TeamService {
     getInvitePublicInfo: (token) => getInvitePublicInfo(ports, token),
     listPendingInvites,
     revokeInvite,
+    selectOffice,
     removeMember,
     changeMemberRole,
   };

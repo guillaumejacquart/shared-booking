@@ -50,6 +50,11 @@ export const revokeInviteSchema = z.object({
 });
 export type RevokeInviteInput = z.infer<typeof revokeInviteSchema>;
 
+export const selectOfficeSchema = z.object({
+  officeId: z.string().min(1),
+  requesterUserId: z.string().min(1),
+});
+export type SelectOfficeInput = z.infer<typeof selectOfficeSchema>;
 export const changeMemberRoleSchema = z.object({
   officeId: z.string().min(1),
   memberId: z.string().min(1),

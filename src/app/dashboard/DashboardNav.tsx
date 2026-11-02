@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DashboardContext } from "@/lib/dashboard";
 import { t } from "@/lib/i18n";
 import { Badge } from "@/components/ui";
+import OfficeSwitcher from "./OfficeSwitcher";
 import UserMenu from "./UserMenu";
 
 /**
@@ -107,7 +108,7 @@ export default function DashboardNav({ ctx }: { ctx: DashboardContext }) {
     <header className="border-b border-line bg-card">
       <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 md:flex-nowrap">
         <div className="mr-auto min-w-0">
-          <p className="truncate text-xs text-mist">{ctx.officeName}</p>
+          <OfficeSwitcher offices={ctx.offices} currentOfficeId={ctx.officeId} />
           <p className="truncate font-display text-sm font-semibold">{ctx.userName}</p>
         </div>
         <nav className="flex min-w-0 flex-wrap items-center gap-1 text-sm">

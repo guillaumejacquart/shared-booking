@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { acceptInvite, changeMemberRole, createInvite, listPendingInvites, removeMember, revokeInvite } from "@/services/team";
+import { acceptInvite, changeMemberRole, createInvite, listPendingInvites, removeMember, revokeInvite, selectOffice } from "@/services/team";
 import {
   ConflictError,
   ForbiddenError,
@@ -263,6 +263,74 @@ describe("invitations multi-cabinet", () => {
     expect(pracs[0].active).toBe(true);
     const { invites } = await listPendingInvites({ officeId: "o1", requesterUserId: "owner1" });
     expect(invites).toHaveLength(0);
+  });
+});
+
+describe("selectOffice", () => {
+  async function seedTwoOffices() {
+    const s = await import("@/db/schema");
+    await db.insert(s.user).values([{ id: "dual", name: "Dual", email: "dual@example.com" }]);
+    await db.insert(s.office).values([
+      { id: "oA", name: "Cabinet A", slug: "cab-a" },
+      { id: "oB", name: "Cabinet B", slug: "cab-b" },
+    ]);
+    await db.insert(s.member).values([
+      { id: "mA", officeId: "oA", userId: "dual", role: "owner", createdAt: new Date("2026-01-01T00:00:00Z") },
+      { id: "mB", officeId: "oB", userId: "dual", role: "practitioner", createdAt: new Date("2026-02-01T00:00:00Z") },
+    ]);
+    await db.insert(s.practitioner).values([
+      { id: "pA", officeId: "oA", userId: "dual", displayName: "Dual", slug: "dual" },
+      { id: "pB", officeId: "oB", userId: "dual", displayName: "Dual", slug: "dual-2" },
+    ]);
+  }
+
+  it("mémorise le cabinet courant et la résolution praticien suit", async () => {
+    await seedTwoOffices();
+    const { getPrimaryPractitionerByUserId } = await import("@/dal/practitioners");
+    const { getSelectedOfficeId } = await import("@/dal/users");
+    // Défaut : premier cabinet d'appartenance.
+    expect((await getPrimaryPractitionerByUserId("dual"))?.id).toBe("pA");
+    const result = await selectOffice({ officeId: "oB", requesterUserId: "dual" });
+    expect(result).toEqual({ officeId: "oB" });
+    expect(await getSelectedOfficeId("dual")).toBe("oB");
+    expect((await getPrimaryPractitionerByUserId("dual"))?.id).toBe("pB");
+    // Retour au premier cabinet.
+    await selectOffice({ officeId: "oA", requesterUserId: "dual" });
+    expect((await getPrimaryPractitionerByUserId("dual"))?.id).toBe("pA");
+  });
+
+  it("refuse un cabinet sans appartenance active", async () => {
+    await seedTwoOffices();
+    // `other` n'est pas membre de oA ; `dual` n'est membre d'aucun cabinet `nope`.
+    await expect(
+      selectOffice({ officeId: "oA", requesterUserId: "other" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      selectOffice({ officeId: "nope", requesterUserId: "dual" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("accepter une invitation sélectionne le cabinet rejoint", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.user).values([{ id: "joiner", name: "Nadia", email: "nadia@example.com" }]);
+    const inv = await createInvite(ports(), {
+      officeId: "o1", email: "nadia@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    await acceptInvite(ports(), {
+      token: inv.token, userId: "joiner", userEmail: "nadia@example.com", userName: "Nadia",
+    });
+    const { getSelectedOfficeId } = await import("@/dal/users");
+    expect(await getSelectedOfficeId("joiner")).toBe("o1");
+  });
+
+  it("créer un cabinet le sélectionne", async () => {
+    const { createOffice } = await import("@/services/team");
+    const created = await createOffice(ports(), {
+      userId: "owner1", userName: "Owner", name: "Second", slug: "second",
+    });
+    const { getSelectedOfficeId } = await import("@/dal/users");
+    expect(await getSelectedOfficeId("owner1")).toBe(created.officeId);
   });
 });
 
