@@ -450,6 +450,8 @@
     "members": "Membres",
     "remove": "Retirer",
     "removeConfirm": "Retirer {name} du cabinet ?",
+    "revoke": "Annuler",
+    "revokeConfirm": "Annuler l'invitation adressée à {email} ?",
     "role": "Rôle",
     "roleOwner": "Responsable",
     "rolePractitioner": "Praticien"

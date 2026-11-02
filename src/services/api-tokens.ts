@@ -71,7 +71,7 @@ function toMeta(row: ApiToken, now: Date): ApiTokenMeta {
 
 async function requirePractitioner(requesterUserId: string): Promise<Practitioner> {
   const practitioner =
-    await practitionersDal.getPractitionerByUserId(requesterUserId);
+    await practitionersDal.getPrimaryPractitionerByUserId(requesterUserId);
   if (!practitioner || !practitioner.active) {
     throw new NotFoundError("Profil praticien introuvable");
   }

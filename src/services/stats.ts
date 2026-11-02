@@ -190,7 +190,7 @@ export function createStatsService(ports: Ports): StatsService {
 
 async function getStats(ports: Ports, input: StatsInput): Promise<StatsResult> {
   const now = ports.clock.now();
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   if (input.from.getTime() >= input.to.getTime()) {
     throw new ValidationError("Période invalide");

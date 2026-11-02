@@ -40,7 +40,7 @@ export const getDashboardContext = cache(async (): Promise<DashboardContext> => 
   const membership = memberships.find((membership) => membership.active);
   if (!membership) redirect("/onboarding");
   const office = await officesDal.getOfficeById(membership.officeId);
-  const prac = await practitionersDal.getPractitionerByUserId(session.user.id);
+  const prac = await practitionersDal.getPractitionerByOfficeAndUser(membership.officeId, session.user.id);
   if (!office || !prac || !prac.active) redirect("/onboarding");
   const pendingCount = await bookingsDal.countPendingValidationForPractitioner(prac.id);
   return {

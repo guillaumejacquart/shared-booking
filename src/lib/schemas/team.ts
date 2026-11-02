@@ -43,6 +43,13 @@ export const removeMemberSchema = z.object({
 });
 export type RemoveMemberInput = z.infer<typeof removeMemberSchema>;
 
+export const revokeInviteSchema = z.object({
+  officeId: z.string().min(1),
+  inviteId: z.string().min(1),
+  requesterUserId: z.string().min(1),
+});
+export type RevokeInviteInput = z.infer<typeof revokeInviteSchema>;
+
 export const changeMemberRoleSchema = z.object({
   officeId: z.string().min(1),
   memberId: z.string().min(1),

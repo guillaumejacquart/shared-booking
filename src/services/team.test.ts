@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryDb } from "@/test/memory-db";
 import { setConnection } from "@/dal/connection";
 import type { Db } from "@/dal/types";
-import { acceptInvite, changeMemberRole, createInvite, listPendingInvites, removeMember } from "@/services/team";
+import { acceptInvite, changeMemberRole, createInvite, listPendingInvites, removeMember, revokeInvite } from "@/services/team";
 import {
   ConflictError,
   ForbiddenError,
@@ -68,6 +68,18 @@ describe("createInvite", () => {
         origin: "http://localhost:3000",
       }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("réinviter un membre actif est refusé", async () => {
+    await expect(
+      createInvite(ports(), {
+        officeId: "o1",
+        email: "other@example.com",
+        role: "practitioner",
+        requesterUserId: "owner1",
+        origin: "http://localhost:3000",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
 });
@@ -176,6 +188,84 @@ describe("acceptInvite", () => {
   });
 });
 
+describe("invitations multi-cabinet", () => {
+  async function seedSecondOffice() {
+    const s = await import("@/db/schema");
+    await db.insert(s.office).values({ id: "o2", name: "Vernoux", slug: "vernoux" });
+    await db.insert(s.member).values([{ id: "m9", officeId: "o2", userId: "other", role: "owner" }]);
+    // `owner1` a déjà un profil praticien dans son propre cabinet (o1).
+    await db.insert(s.practitioner).values({
+      id: "p-own",
+      officeId: "o1",
+      userId: "owner1",
+      displayName: "Owner",
+      slug: "owner",
+    });
+  }
+
+  it("un utilisateur déjà praticien ailleurs peut accepter une invitation", async () => {
+    await seedSecondOffice();
+    const inv = await createInvite(ports(), {
+      officeId: "o2", email: "owner@example.com", role: "practitioner",
+      requesterUserId: "other", origin: "http://localhost:3000",
+    });
+    const res = await acceptInvite(ports(), {
+      token: inv.token, userId: "owner1", userEmail: "owner@example.com", userName: "Owner",
+    });
+    expect(res.officeSlug).toBe("vernoux");
+
+    const s = await import("@/db/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const members = await db
+      .select()
+      .from(s.member)
+      .where(and(eq(s.member.officeId, "o2"), eq(s.member.userId, "owner1")));
+    expect(members).toHaveLength(1);
+    const pracs = await db
+      .select()
+      .from(s.practitioner)
+      .where(and(eq(s.practitioner.officeId, "o2"), eq(s.practitioner.userId, "owner1")));
+    expect(pracs).toHaveLength(1);
+    expect(pracs[0].slug).toBe("owner-2"); // slug global déjà pris dans o1
+  });
+
+  it("réinviter un membre retiré puis accepter réactive le profil", async () => {
+    const s = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    await db.insert(s.user).values([{ id: "back1", name: "Bea", email: "bea@example.com" }]);
+    const first = await createInvite(ports(), {
+      officeId: "o1", email: "bea@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    await acceptInvite(ports(), {
+      token: first.token, userId: "back1", userEmail: "bea@example.com", userName: "Bea",
+    });
+    const memberId = (await db.select().from(s.member).where(eq(s.member.userId, "back1")))[0].id;
+    const pracId = (await db.select().from(s.practitioner).where(eq(s.practitioner.userId, "back1")))[0].id;
+    await removeMember({ officeId: "o1", memberId, requesterUserId: "owner1" });
+
+    // Réinvitation autorisée malgré l'historique inactif…
+    const second = await createInvite(ports(), {
+      officeId: "o1", email: "bea@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    // …et l'acceptation réactive les mêmes lignes (pas de doublons).
+    await acceptInvite(ports(), {
+      token: second.token, userId: "back1", userEmail: "bea@example.com", userName: "Bea",
+    });
+    const members = await db.select().from(s.member).where(eq(s.member.userId, "back1"));
+    expect(members).toHaveLength(1);
+    expect(members[0].id).toBe(memberId);
+    expect(members[0].active).toBe(true);
+    const pracs = await db.select().from(s.practitioner).where(eq(s.practitioner.userId, "back1"));
+    expect(pracs).toHaveLength(1);
+    expect(pracs[0].id).toBe(pracId);
+    expect(pracs[0].active).toBe(true);
+    const { invites } = await listPendingInvites({ officeId: "o1", requesterUserId: "owner1" });
+    expect(invites).toHaveLength(0);
+  });
+});
+
 describe("analytics (Umami)", () => {
   it("office-created, invite-sent puis invite-accepted", async () => {
     const tracked: { event: AnalyticsEventName; data?: AnalyticsData }[] = [];
@@ -222,6 +312,65 @@ describe("listPendingInvites", () => {
     await expect(
       listPendingInvites({ officeId: "o1", requesterUserId: "other" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe("revokeInvite", () => {
+  it("le owner annule une invitation en attente : le lien devient invalide", async () => {
+    const created = await createInvite(ports(), {
+      officeId: "o1", email: "revoque@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    await revokeInvite({ officeId: "o1", inviteId: created.id, requesterUserId: "owner1" });
+
+    const { invites } = await listPendingInvites({ officeId: "o1", requesterUserId: "owner1" });
+    expect(invites).toHaveLength(0);
+    await expect(
+      acceptInvite(ports(), {
+        token: created.token, userId: "other", userEmail: "revoque@example.com", userName: "Autre",
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("un non-owner ne peut pas annuler une invitation", async () => {
+    const created = await createInvite(ports(), {
+      officeId: "o1", email: "revoque@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    await expect(
+      revokeInvite({ officeId: "o1", inviteId: created.id, requesterUserId: "other" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("404 sur invitation inconnue ou d'un autre cabinet", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.office).values({ id: "o2", name: "Autre", slug: "autre" });
+    await db.insert(s.member).values([{ id: "m9", officeId: "o2", userId: "owner1", role: "owner" }]);
+    const created = await createInvite(ports(), {
+      officeId: "o1", email: "revoque@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    await expect(
+      revokeInvite({ officeId: "o1", inviteId: "nope", requesterUserId: "owner1" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      revokeInvite({ officeId: "o2", inviteId: created.id, requesterUserId: "owner1" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("refuse d'annuler une invitation déjà acceptée", async () => {
+    const s = await import("@/db/schema");
+    await db.insert(s.user).values([{ id: "new9", name: "Noa", email: "noa@example.com" }]);
+    const created = await createInvite(ports(), {
+      officeId: "o1", email: "noa@example.com", role: "practitioner",
+      requesterUserId: "owner1", origin: "http://localhost:3000",
+    });
+    await acceptInvite(ports(), {
+      token: created.token, userId: "new9", userEmail: "noa@example.com", userName: "Noa",
+    });
+    await expect(
+      revokeInvite({ officeId: "o1", inviteId: created.id, requesterUserId: "owner1" }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });
 

@@ -78,7 +78,7 @@ function statusColors(status: string): {
  * (SPEC.md §F10). Couleur des événements = statut du RDV.
  */
 export async function getSharedCalendar(input: SharedCalendarInput) {
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const membership = await membersDal.getMembership(prac.officeId, input.userId);
   if (!membership || !membership.active) throw new ForbiddenError("Action non autorisée");
@@ -182,7 +182,7 @@ export async function getReservations(input: ReservationsInput): Promise<{
   pending: ReservationItem[];
   upcoming: ReservationItem[];
 }> {
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const [pending, upcoming, rooms] = await Promise.all([
     bookingsDal.listPendingValidationForPractitioner(prac.id),

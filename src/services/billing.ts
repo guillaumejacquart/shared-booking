@@ -27,7 +27,7 @@ export interface BillingStatus {
 }
 
 async function requireOffice(requesterUserId: string) {
-  const prac = await practitionersDal.getPractitionerByUserId(requesterUserId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(requesterUserId);
   if (!prac) throw new NotFoundError("Profil praticien introuvable");
   const office = await officesDal.getOfficeById(prac.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
@@ -86,7 +86,7 @@ export async function startSubscriptionCheckout(
   const office = await requireOwner(requesterUserId);
   let customerId = office.stripeCustomerId;
   if (!customerId) {
-    const prac = await practitionersDal.getPractitionerByUserId(requesterUserId);
+    const prac = await practitionersDal.getPrimaryPractitionerByUserId(requesterUserId);
     const email = prac ? await usersDal.getUserEmail(prac.userId) : null;
     const customer = await stripe.customers.create({
       ...(email ? { email } : {}),

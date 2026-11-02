@@ -20,7 +20,7 @@ import {
  */
 
 async function requirePractitioner(requesterUserId: string) {
-  const prac = await practitionersDal.getPractitionerByUserId(requesterUserId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(requesterUserId);
   if (!prac) throw new NotFoundError("Profil praticien introuvable");
   return prac;
 }

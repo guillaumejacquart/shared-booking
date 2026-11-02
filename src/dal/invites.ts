@@ -38,6 +38,28 @@ export async function listPendingInvites(officeId: string) {
     .where(and(eq(invite.officeId, officeId), isNull(invite.acceptedAt)));
 }
 
+export async function getInviteById(inviteId: string) {
+  const conn = getConnection();
+  const rows = await conn
+    .select()
+    .from(invite)
+    .where(eq(invite.id, inviteId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Supprime une invitation en attente (le lien token devient invalide). */
+export async function deleteInvite(inviteId: string): Promise<void> {
+  const conn = getConnection();
+  await conn.delete(invite).where(eq(invite.id, inviteId));
+}
+
+/** Marque une invitation comme acceptée (chemin réactivation : membre déjà créé). */
+export async function markInviteAccepted(inviteId: string, now: Date): Promise<void> {
+  const conn = getConnection();
+  await conn.update(invite).set({ acceptedAt: now }).where(eq(invite.id, inviteId));
+}
+
 /** Acceptation : membre + praticien créés, invitation marquée (sous mutex appelant). */
 export async function acceptInvite(data: {
     inviteId: string;

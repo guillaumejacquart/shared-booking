@@ -11,6 +11,7 @@ import { Tabs } from "@/components/ui";
 import BillingSettings from "@/components/BillingSettings";
 import SettingsForm from "./SettingsForm";
 import InviteForm from "../equipe/InviteForm";
+import RevokeInviteButton from "../equipe/RevokeInviteButton";
 import MemberRoleSelect from "../equipe/MemberRoleSelect";
 import RemoveMemberButton from "../equipe/RemoveMemberButton";
 import RoomsManager from "../salles/RoomsManager";
@@ -106,13 +107,18 @@ export default async function ParametresPage({
                     {pending.map((invite) => (
                       <li
                         key={invite.id}
-                        className="flex flex-wrap gap-2 rounded-2xl border border-line bg-card p-3 text-sm shadow-soft"
+                        className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card p-3 text-sm shadow-soft"
                       >
                         <span className="font-medium">{invite.email}</span>
                         <span className="text-mist">{invite.role}</span>
-                        <span className="ml-auto text-mist">
+                        <span className="text-mist">
                           expire le {new Date(invite.expiresAt).toLocaleDateString("fr-FR")}
                         </span>
+                        <RevokeInviteButton
+                          officeId={ctx.officeId}
+                          inviteId={invite.id}
+                          inviteEmail={invite.email}
+                        />
                       </li>
                     ))}
                   </ul>

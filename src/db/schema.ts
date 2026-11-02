@@ -167,9 +167,12 @@ export const practitioner = sqliteTable(
     officeId: text("office_id")
       .notNull()
       .references(() => office.id, { onDelete: "cascade" }),
+    // Un utilisateur peut être praticien dans plusieurs cabinets (un par
+    // cabinet) : l'unicité porte sur le couple (cabinet, utilisateur), pas
+    // sur l'utilisateur seul. Le backoffice MVP n'affiche que le premier
+    // cabinet (voir `getDashboardContext`).
     userId: text("user_id")
       .notNull()
-      .unique()
       .references(() => user.id, { onDelete: "cascade" }),
     displayName: text("display_name").notNull(),
     slug: text("slug").notNull().unique(),
@@ -210,7 +213,7 @@ export const practitioner = sqliteTable(
   // (confirmation, demande reçue, rappel, report). Null/vide = masqué.
     ...timestamps,
   },
-  (t) => [index("practitioner_office_idx").on(t.officeId)],
+  (t) => [uniqueIndex("practitioner_office_user_idx").on(t.officeId, t.userId)],
 );
 
 export const room = sqliteTable(

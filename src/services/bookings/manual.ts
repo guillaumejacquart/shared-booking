@@ -100,7 +100,7 @@ async function resolveManualPlan(
   input: Pick<ManualBookingInput, "requesterUserId" | "sessionTypeId" | "sessionVariantId" | "startAt">,
 ): Promise<ManualPlan> {
   const now = ports.clock.now();
-  const prac = await practitionersDal.getPractitionerByUserId(input.requesterUserId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(input.requesterUserId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const office = await officesDal.getOfficeById(prac.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
@@ -374,7 +374,7 @@ export interface ManualFormData {
 
 /** Séances actives (avec variantes) et salles autorisées, pour le formulaire. */
 export async function getManualFormData(requesterUserId: string): Promise<ManualFormData> {
-  const prac = await practitionersDal.getPractitionerByUserId(requesterUserId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(requesterUserId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const office = await officesDal.getOfficeById(prac.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");

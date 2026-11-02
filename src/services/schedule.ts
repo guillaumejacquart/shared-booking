@@ -458,7 +458,7 @@ export interface AvailabilityMonthInput {
 
 /** Données mensuelles : règles + exceptions + réservations + salles. */
 export async function getAvailabilityMonth(input: AvailabilityMonthInput) {
-  const prac = await practitionersDal.getPractitionerByUserId(input.userId);
+  const prac = await practitionersDal.getPrimaryPractitionerByUserId(input.userId);
   if (!prac || !prac.active) throw new NotFoundError("Praticien introuvable");
   const office = await officesDal.getOfficeById(prac.officeId);
   const timezone = office?.timezone ?? "Europe/Paris";

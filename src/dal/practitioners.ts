@@ -2,7 +2,7 @@ import { getConnection } from "./connection";
 
 import { and, eq } from "drizzle-orm";
 
-import { office, practitioner, sessionType, sessionTypeVariant } from "@/db/schema";
+import { office, member, practitioner, sessionType, sessionTypeVariant } from "@/db/schema";
 import type { Office, Practitioner, SessionType, SessionTypeVariant } from "./types";
 
 /** Repository praticiens (+ page publique). */
@@ -87,14 +87,64 @@ export async function getPractitionerBySlug(slug: string): Promise<Practitioner 
   return rows[0] ?? null;
 }
 
-export async function getPractitionerByUserId(userId: string): Promise<Practitioner | null> {
+export async function getPractitionerByOfficeAndUser(
+  officeId: string,
+  userId: string,
+): Promise<Practitioner | null> {
   const conn = getConnection();
   const rows = await conn
     .select()
     .from(practitioner)
-    .where(eq(practitioner.userId, userId))
+    .where(and(eq(practitioner.officeId, officeId), eq(practitioner.userId, userId)))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Praticien du premier cabinet actif de l'utilisateur (cf.
+ * `getDashboardContext`). Le backoffice MVP est mono-cabinet : en attendant
+ * le sélecteur multi-cabinet, toutes les résolutions « praticien connecté »
+ * passent par ici pour rester cohérentes avec le cabinet affiché. Sans
+ * appartenance active, repli sur le praticien existant (comportement
+ * historique, ex. contrôles d'autorisation 403).
+ */
+export async function getPrimaryPractitionerByUserId(userId: string): Promise<Practitioner | null> {
+  const conn = getConnection();
+  const memberships = await conn
+    .select()
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.active, true)))
+    .orderBy(member.createdAt)
+    .limit(1);
+  const membership = memberships[0];
+  if (membership) {
+    const primary = await getPractitionerByOfficeAndUser(membership.officeId, userId);
+    if (primary) return primary;
+  }
+  const fallback = await conn
+    .select()
+    .from(practitioner)
+    .where(eq(practitioner.userId, userId))
+    .limit(1);
+  return fallback[0] ?? null;
+}
+
+/** Réactive un praticien retiré (l'historique — séances, dispos — est conservé). */
+export async function reactivatePractitioner(practitionerId: string): Promise<void> {
+  const conn = getConnection();
+  await conn.update(practitioner).set({ active: true }).where(eq(practitioner.id, practitionerId));
+}
+
+/** Crée le profil praticien d'un membre dans un cabinet (un par cabinet). */
+export async function insertPractitioner(data: {
+  id: string;
+  officeId: string;
+  userId: string;
+  displayName: string;
+  slug: string;
+}): Promise<void> {
+  const conn = getConnection();
+  await conn.insert(practitioner).values({ ...data, active: true });
 }
 
 export async function listPractitionersByOffice(officeId: string) {

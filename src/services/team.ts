@@ -13,6 +13,7 @@ import type {
   CreateInviteInput,
   CreateOfficeInput,
   RemoveMemberInput,
+  RevokeInviteInput,
 } from "@/lib/schemas/team";
 import {
   ConflictError,
@@ -99,11 +100,12 @@ export async function createInvite(
   const office = await officesDal.getOfficeById(input.officeId);
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
-  // Déjà membre avec cet email ? On refuse poliment.
+  // Déjà membre actif avec cet email ? On refuse poliment. Un membre retiré
+  // (inactif) peut être réinvité : l'acceptation réactivera son profil.
   const existingUser = await usersDal.getUserByEmail(email);
   if (existingUser) {
     const existing = await membersDal.getMembership(input.officeId, existingUser.id);
-    if (existing) throw new ConflictError("Cette personne est déjà membre du cabinet");
+    if (existing && existing.active) throw new ConflictError("Cette personne est déjà membre du cabinet");
   }
 
   const token = randomBytes(32).toString("hex");
@@ -146,30 +148,52 @@ export async function acceptInvite(
   if (!office) throw new NotFoundError("Cabinet introuvable");
 
   const already = await membersDal.getMembership(inv.officeId, input.userId);
-  if (already) throw new ConflictError("Vous êtes déjà membre de ce cabinet");
+  if (already && already.active) throw new ConflictError("Vous êtes déjà membre de ce cabinet");
 
   const base = slugify(input.userName);
   const slug = await uniquePractitionerSlug(base, async (candidate) =>
     Boolean(await practitionersDal.getPractitionerBySlug(candidate)),
   );
 
-  await invitesDal.acceptInvite({
-    inviteId: inv.id,
-    now,
-    member: {
-      id: crypto.randomUUID(),
-      officeId: inv.officeId,
-      userId: input.userId,
-      role: inv.role,
-    },
-    practitioner: {
-      id: crypto.randomUUID(),
-      officeId: inv.officeId,
-      userId: input.userId,
-      displayName: input.userName,
-      slug,
-    },
-  });
+  if (already) {
+    // Ré-invitation après retrait : on réactive l'appartenance et le
+    // praticien (séances, disponibilités et historique conservés).
+    await membersDal.reactivateMember(already.id);
+    const existingPrac = await practitionersDal.getPractitionerByOfficeAndUser(
+      inv.officeId,
+      input.userId,
+    );
+    if (existingPrac) {
+      if (!existingPrac.active) await practitionersDal.reactivatePractitioner(existingPrac.id);
+    } else {
+      await practitionersDal.insertPractitioner({
+        id: crypto.randomUUID(),
+        officeId: inv.officeId,
+        userId: input.userId,
+        displayName: input.userName,
+        slug,
+      });
+    }
+    await invitesDal.markInviteAccepted(inv.id, now);
+  } else {
+    await invitesDal.acceptInvite({
+      inviteId: inv.id,
+      now,
+      member: {
+        id: crypto.randomUUID(),
+        officeId: inv.officeId,
+        userId: input.userId,
+        role: inv.role,
+      },
+      practitioner: {
+        id: crypto.randomUUID(),
+        officeId: inv.officeId,
+        userId: input.userId,
+        displayName: input.userName,
+        slug,
+      },
+    });
+  }
   await ports.analytics.track(ANALYTICS_EVENTS.INVITE_ACCEPTED, { role: inv.role });
   return { officeSlug: office.slug, practitionerSlug: slug };
 }
@@ -212,6 +236,24 @@ async function assertOwner(officeId: string, requesterUserId: string): Promise<v
   if (!membership || membership.role !== "owner" || !membership.active) {
     throw new ForbiddenError("Seul le responsable du cabinet peut retirer un membre");
   }
+}
+
+/**
+ * Retire une invitation en attente (owner uniquement). La ligne est supprimée :
+ * le lien d'invitation devient invalide. Une invitation déjà acceptée ne peut
+ * plus être retirée (voir `removeMember` pour révoquer l'accès).
+ */
+export async function revokeInvite(input: RevokeInviteInput): Promise<void> {
+  await assertOwner(input.officeId, input.requesterUserId);
+
+  const target = await invitesDal.getInviteById(input.inviteId);
+  if (!target || target.officeId !== input.officeId) {
+    throw new NotFoundError("Invitation introuvable");
+  }
+  if (target.acceptedAt) {
+    throw new ConflictError("Invitation déjà acceptée");
+  }
+  await invitesDal.deleteInvite(target.id);
 }
 
 /**
@@ -262,6 +304,7 @@ export interface TeamService {
   acceptInvite(input: AcceptInviteInput): ReturnType<typeof acceptInvite>;
   getInvitePublicInfo(token: string): ReturnType<typeof getInvitePublicInfo>;
   listPendingInvites: typeof listPendingInvites;
+  revokeInvite: typeof revokeInvite;
   removeMember: typeof removeMember;
   changeMemberRole: typeof changeMemberRole;
 }
@@ -273,6 +316,7 @@ export function createTeamService(ports: Ports): TeamService {
     acceptInvite: (input) => acceptInvite(ports, input),
     getInvitePublicInfo: (token) => getInvitePublicInfo(ports, token),
     listPendingInvites,
+    revokeInvite,
     removeMember,
     changeMemberRole,
   };

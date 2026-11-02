@@ -27,9 +27,14 @@ export async function getMembershipById(memberId: string) {
   return rows[0] ?? null;
 }
 
+/** Appartenances d'un utilisateur, premier cabinet d'abord (mono-cabinet MVP). */
 export async function listMemberships(userId: string) {
   const conn = getConnection();
-  return conn.select().from(member).where(eq(member.userId, userId));
+  return conn
+    .select()
+    .from(member)
+    .where(eq(member.userId, userId))
+    .orderBy(member.createdAt);
 }
 
 /** Membres actifs d'un cabinet (les retirés ne sont plus listés). */
@@ -61,6 +66,12 @@ export async function countActiveOwners(officeId: string): Promise<number> {
     .from(member)
     .where(and(eq(member.officeId, officeId), eq(member.active, true), eq(member.role, "owner")));
   return rows.length;
+}
+
+/** Réactive une appartenance retirée (ré-invitation acceptée). */
+export async function reactivateMember(memberId: string): Promise<void> {
+  const conn = getConnection();
+  await conn.update(member).set({ active: true }).where(eq(member.id, memberId));
 }
 
 /**
