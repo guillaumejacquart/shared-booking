@@ -66,3 +66,42 @@ La plupart sont vérifiées par ESLint (`npm run lint`) : garder lint + `npm run
   `src/lib/auth.ts` et `src/lib/google-calendar.ts` (infra/adaptateurs),
   `src/lib/dashboard.ts` (agrégat de lecture des pages).
 - Écrire en base ou porter une règle métier depuis une page → déplacer dans un service.
+
+<!-- BEGIN:software-factory -->
+## Software factory (managed)
+
+This block is generated from `software-factory/policy/agent-rules.md`.
+Do not edit it by hand in a repository.
+
+### Verification is the contract
+
+- Run `npm run verify` before declaring work complete.
+- A task is complete only when the configured checks and the factory policy
+  check pass. Never weaken, skip, or bypass a check to make a task pass.
+- Production deployment remains a separate action that needs explicit approval.
+
+### Comments
+
+- Do not add comments that narrate what the code does, restate names or types,
+  describe your reasoning, or record task history.
+- Add a comment only to explain a non-obvious "why", an invariant, an external
+  constraint, or a public API contract.
+- A comment never authorizes violating an engineering rule.
+- If a comment is genuinely required, put `factory:allow-comment <short reason>`
+  on the preceding line and expect review.
+- Comments in vendored, generated, and tool-required directive code are exempt.
+
+### Suppressions
+
+- Do not add `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`,
+  `eslint-disable*`, `prettier-ignore`, `# noqa`, `//nolint`, PHPStan/Psalm
+  suppressions, or skipped/focused tests without explicit approval.
+- An approved exception needs `factory:allow-suppression <short reason>` on the
+  preceding line and review in the PR.
+
+### Evidence
+
+- Every verification writes `factory-run.json` (gitignored locally).
+  CI uploads it as an artifact.
+- Do not put secrets, prompts, personal data, or full transcripts in that file.
+<!-- END:software-factory -->

@@ -20,6 +20,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "factory/**",
   ]),
 
   // Règles de nommage et d'asynchronisme, sur tout le code applicatif.

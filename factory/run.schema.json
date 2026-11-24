@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://guillaumejacquart.com/software-factory/run.schema.json",
+  "title": "Software factory run record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "repo",
+    "startedAt",
+    "finishedAt",
+    "durationMs",
+    "outcome",
+    "checks"
+  ],
+  "properties": {
+    "schema": { "const": "software-factory/run@1" },
+    "factoryVersion": { "type": "integer" },
+    "profile": { "type": ["string", "null"] },
+    "repo": { "type": "string" },
+    "sha": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "dirty": { "type": "boolean" },
+    "ci": { "type": "boolean" },
+    "actor": { "type": ["string", "null"] },
+    "baseRef": { "type": ["string", "null"] },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "durationMs": { "type": "integer", "minimum": 0 },
+    "outcome": { "enum": ["pass", "fail"] },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command", "outcome", "exitCode", "durationMs"],
+        "properties": {
+          "name": { "type": "string" },
+          "command": { "type": "string" },
+          "outcome": { "enum": ["pass", "fail"] },
+          "exitCode": { "type": ["integer", "null"] },
+          "durationMs": { "type": "integer", "minimum": 0 },
+          "error": { "type": "string" }
+        }
+      }
+    },
+    "policy": {
+      "type": ["object", "null"],
+      "properties": {
+        "outcome": { "enum": ["pass", "fail"] },
+        "violations": { "type": "integer", "minimum": 0 },
+        "scannedFiles": { "type": "integer", "minimum": 0 },
+        "scannedLines": { "type": "integer", "minimum": 0 },
+        "range": { "type": "string" },
+        "error": { "type": "string" }
+      }
+    }
+  }
+}

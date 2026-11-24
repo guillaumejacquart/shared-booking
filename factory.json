@@ -1,0 +1,29 @@
+{
+  "$schema": "./factory/factory.schema.json",
+  "factoryVersion": 1,
+  "profile": "next-sqlite",
+  "failFast": true,
+  "checks": [
+    {
+      "name": "lint",
+      "run": "npm run lint"
+    },
+    {
+      "name": "typecheck",
+      "run": "npm run typecheck"
+    },
+    {
+      "name": "test",
+      "run": "npm test"
+    },
+    {
+      "name": "build",
+      "run": "npm run build"
+    }
+  ],
+  "policy": {
+    "comments": "block",
+    "suppressions": "block",
+    "baseline": "6bf67df27b01b0ba732aa2f6b2dd29f24721366d"
+  }
+}

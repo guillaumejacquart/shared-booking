@@ -4,7 +4,11 @@ on:
     branches: [main]
   workflow_dispatch:
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
   build:
+    needs: verify
     runs-on: ubuntu-24.04-arm # natif ARM64, pas de QEMU
     permissions:
       contents: read
