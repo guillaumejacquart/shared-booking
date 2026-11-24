@@ -187,3 +187,4 @@ Nettoyage final (plus tard) :
 1. Retirer le `Host(\`shared-booking.guillaumejacquart.com\`)` du compose.
 2. Resserrer `trustedOrigins` dans `src/lib/auth.ts` (nouveau domaine seul).
 3. `npm run deploy`.
+
