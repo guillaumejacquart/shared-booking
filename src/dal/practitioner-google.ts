@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { practitionerGoogle } from "@/db/schema";
 import type { PractitionerGoogle } from "./types";
 
-/** Préférences de push Google Agenda par praticien (outbound). */
+/** Préférences Google Agenda par praticien (push outbound + blocage inbound). */
 
 export async function getGooglePrefs(
   practitionerId: string,
@@ -23,7 +23,11 @@ export interface GooglePrefsInput {
   syncEnabled?: boolean;
   calendarId?: string;
   showPatientName?: boolean;
+  blockEnabled?: boolean;
+  blockCalendarIds?: string[];
+  blockAllDay?: boolean;
   lastSyncAt?: Date | null;
+  lastBusyAt?: Date | null;
   lastError?: string | null;
 }
 
@@ -38,7 +42,12 @@ export async function saveGooglePrefs(
   if (data.calendarId !== undefined) patch.calendarId = data.calendarId;
   if (data.showPatientName !== undefined)
     patch.showPatientName = data.showPatientName;
+  if (data.blockEnabled !== undefined) patch.blockEnabled = data.blockEnabled;
+  if (data.blockCalendarIds !== undefined)
+    patch.blockCalendarIds = data.blockCalendarIds;
+  if (data.blockAllDay !== undefined) patch.blockAllDay = data.blockAllDay;
   if (data.lastSyncAt !== undefined) patch.lastSyncAt = data.lastSyncAt;
+  if (data.lastBusyAt !== undefined) patch.lastBusyAt = data.lastBusyAt;
   if (data.lastError !== undefined) patch.lastError = data.lastError;
   const rows = await conn
     .insert(practitionerGoogle)

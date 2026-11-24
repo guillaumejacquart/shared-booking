@@ -489,9 +489,12 @@ export const apiToken = sqliteTable(
 );
 
 /**
- * Préférences de push Google Agenda par praticien (outbound uniquement).
+ * Préférences Google Agenda par praticien : push des réservations (outbound)
+ * et blocage des créneaux depuis les événements de l'agenda (inbound).
  * `showPatientName` = opt-in explicite : par défaut les événements Google
  * sont anonymisés ("Réservé"), sans nom ni contact patient.
+ * Inbound : seuls les horaires sont lus (jamais titre ni participants) ;
+ * `blockCalendarIds` = agendas sources (vide = agenda principal).
  */
 export const practitionerGoogle = sqliteTable("practitioner_google", {
   practitionerId: text("practitioner_id")
@@ -504,7 +507,22 @@ export const practitionerGoogle = sqliteTable("practitioner_google", {
   showPatientName: integer("show_patient_name", { mode: "boolean" })
     .notNull()
     .default(false),
+  /** Bloque les créneaux occupés dans Google Agenda (inbound). */
+  blockEnabled: integer("block_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  /** Agendas lus pour le blocage (`[]` = agenda principal). */
+  blockCalendarIds: text("block_calendar_ids", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default([]),
+  /** Bloque aussi les événements « journée entière » (congés, absences). */
+  blockAllDay: integer("block_all_day", { mode: "boolean" })
+    .notNull()
+    .default(false),
   lastSyncAt: integer("last_sync_at", { mode: "timestamp" }),
   lastError: text("last_error"),
+  /** Dernière lecture réussie des occupations Google (inbound). */
+  lastBusyAt: integer("last_busy_at", { mode: "timestamp" }),
   ...timestamps,
 });

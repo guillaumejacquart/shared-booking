@@ -2,6 +2,7 @@ import { OAuth2Client } from "google-auth-library";
 
 import * as googleAccountsDal from "@/dal/google-accounts";
 import { env, isGoogleConfigured } from "@/lib/env";
+import { zonedTimeToUtc } from "@/lib/timezone";
 
 /**
  * Adaptateur Google Agenda : client REST v3 et jeton OAuth.
@@ -17,6 +18,22 @@ export interface GoogleEvent {
   extendedProperties: { private: { bookingId: string; source: string } };
 }
 
+/**
+ * Occupation lue dans un agenda Google, déjà ramenée en instants absolus.
+ * Aucune donnée de l'événement n'est conservée au-delà de ses bornes :
+ * ni titre, ni participants, ni description (inbound minimal, RGPD).
+ */
+export interface GoogleCalendarEvent {
+  startAt: Date;
+  endAt: Date;
+  /** Événement « journée entière » (start/end = dates sans heure). */
+  allDay: boolean;
+  /** `transparency: "transparent"` = marqué « disponible » par l'utilisateur. */
+  transparent: boolean;
+  /** Miroir créé par l'app (`extendedProperties.private.source`). */
+  isMirror: boolean;
+}
+
 export interface CalendarClient {
   insertEvent(
     calendarId: string,
@@ -29,6 +46,14 @@ export interface CalendarClient {
   ): Promise<void>;
   deleteEvent(calendarId: string, eventId: string): Promise<void>;
   listCalendars(): Promise<{ id: string; summary: string; primary?: boolean }[]>;
+  /**
+   * Événements de `[from, to)` pour le blocage des créneaux (inbound).
+   * `timeZone` = fuseau du cabinet, utilisé pour dater les journées entières.
+   */
+  listEvents(
+    calendarId: string,
+    query: { from: Date; to: Date; timeZone: string },
+  ): Promise<GoogleCalendarEvent[]>;
 }
 
 /** Cause d'échec d'un appel Google Agenda (diagnostic + décision de retry). */
@@ -83,6 +108,53 @@ export function friendlyGoogleErrorMessage(error: unknown): string {
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 /** Délai max d'un appel Google : une panne ne doit jamais bloquer une réservation. */
 const GOOGLE_TIMEOUT_MS = 15_000;
+/** Plafond de pagination d'`events.list` (une page = 2500 événements). */
+const MAX_EVENT_PAGES = 3;
+
+/** Événement brut d'`events.list` (sous-ensemble utilisé). */
+export interface RawGoogleEvent {
+  status?: string;
+  transparency?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  extendedProperties?: { private?: Record<string, string> };
+}
+
+/**
+ * Normalise un événement brut en occupation absolue, ou `null` s'il ne peut
+ * pas bloquer un créneau (annulé, sans bornes exploitables).
+ * Une journée entière est datée dans le fuseau du cabinet (l'API ne fournit
+ * que `YYYY-MM-DD`, sans heure).
+ */
+export function toGoogleCalendarEvent(
+  raw: RawGoogleEvent,
+  timeZone: string,
+): GoogleCalendarEvent | null {
+  if (raw.status === "cancelled") return null;
+  const allDay = Boolean(raw.start?.date && raw.end?.date);
+  const startAt = allDay
+    ? zonedTimeToUtc(raw.start?.date as string, "00:00", timeZone)
+    : raw.start?.dateTime
+      ? new Date(raw.start.dateTime)
+      : null;
+  const endAt = allDay
+    ? zonedTimeToUtc(raw.end?.date as string, "00:00", timeZone)
+    : raw.end?.dateTime
+      ? new Date(raw.end.dateTime)
+      : null;
+  if (!startAt || !endAt) return null;
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return null;
+  if (endAt <= startAt) return null;
+  return {
+    startAt,
+    endAt,
+    allDay,
+    transparent: raw.transparency === "transparent",
+    isMirror:
+      raw.extendedProperties?.private?.source === "shared-booking" ||
+      Boolean(raw.extendedProperties?.private?.bookingId),
+  };
+}
 
 const RATE_LIMIT_REASONS = new Set([
   "rateLimitExceeded",
@@ -180,6 +252,37 @@ export function createCalendarClient(accessToken: string): CalendarClient {
         items?: { id: string; summary: string; primary?: boolean }[];
       };
       return body.items ?? [];
+    },
+    async listEvents(calendarId, query) {
+      const events: GoogleCalendarEvent[] = [];
+      let pageToken: string | undefined;
+      for (let page = 0; page < MAX_EVENT_PAGES; page++) {
+        const params = new URLSearchParams({
+          timeMin: query.from.toISOString(),
+          timeMax: query.to.toISOString(),
+          singleEvents: "true",
+          orderBy: "startTime",
+          maxResults: "2500",
+          timeZone: query.timeZone,
+          ...(pageToken ? { pageToken } : {}),
+        });
+        const res = await req(
+          `/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
+          { method: "GET" },
+        );
+        await throwIfError(res, "lecture des événements");
+        const body = (await res.json()) as {
+          items?: RawGoogleEvent[];
+          nextPageToken?: string;
+        };
+        for (const raw of body.items ?? []) {
+          const event = toGoogleCalendarEvent(raw, query.timeZone);
+          if (event) events.push(event);
+        }
+        pageToken = body.nextPageToken;
+        if (!pageToken) break;
+      }
+      return events;
     },
   };
 }

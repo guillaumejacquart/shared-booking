@@ -21,6 +21,7 @@ import { fixedClock } from "@/lib/ports";
 import { ANALYTICS_EVENTS, type AnalyticsData, type AnalyticsEventName } from "@/lib/analytics";
 import { testPorts } from "@/test/ports";
 import { seedSingleVariant } from "@/test/session-types";
+import { clearGoogleBusyCache } from "@/services/google-busy";
 
 // Lundi 14 sept. 2026, 08:00 Paris = 06:00 UTC (heure d'été).
 // Fenêtre lun. 09:00–13:00, séances 60min + buffer 10, pas 15min → grille
@@ -98,6 +99,7 @@ const patient = {
 beforeEach(async () => {
   db = createMemoryDb();  setConnection(db);
   sent = [];
+  clearGoogleBusyCache();
   await seed();
 });
 
@@ -146,6 +148,52 @@ describe("getAvailableSlots", () => {
     await expect(
       getAvailableSlots(ports(), { practitionerSlug: "alice", sessionTypeId: "st2", fromDate: "2026-09-14", days: 1 }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("bloque les créneaux occupés dans Google Agenda (inbound)", async () => {
+    const s = await import("@/db/schema");
+    await db
+      .insert(s.practitionerGoogle)
+      .values({ practitionerId: "p1", blockEnabled: true });
+    const withBusy = testPorts({
+      clock: fixedClock(NOW),
+      googleCalendar: {
+        forUser: async () => ({
+          insertEvent: async () => ({ id: "evt" }),
+          patchEvent: async () => {},
+          deleteEvent: async () => {},
+          listCalendars: async () => [],
+          // 10:15–11:15 Paris : occupe SLOT_A et ses voisins (buffer inclus).
+          listEvents: async () => [
+            {
+              startAt: new Date("2026-09-14T08:15:00Z"),
+              endAt: new Date("2026-09-14T09:15:00Z"),
+              allDay: false,
+              transparent: false,
+              isMirror: false,
+            },
+          ],
+        }),
+      },
+    });
+    const starts = (
+      await getAvailableSlots(withBusy, {
+        practitionerSlug: "alice",
+        sessionTypeId: "st1",
+        fromDate: "2026-09-14",
+        days: 1,
+      })
+    ).map((slot) => slot.startAt);
+    expect(starts).not.toContain(SLOT_A);
+    expect(starts).toContain("2026-09-14T09:15:00.000Z"); // 11:15 Paris, juste après
+    await expect(
+      createBooking(withBusy, {
+        practitionerSlug: "alice",
+        sessionTypeId: "st1",
+        startAt: SLOT_A,
+        ...patient,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 });
 
@@ -243,6 +291,7 @@ describe("createBooking", () => {
           patchEvent: async () => void calls.push("patch"),
           deleteEvent: async () => void calls.push("delete"),
           listCalendars: async () => [],
+          listEvents: async () => [],
         }),
       },
     };
@@ -428,6 +477,7 @@ describe("cancelBooking", () => {
           patchEvent: async () => void calls.push("patch"),
           deleteEvent: async () => void calls.push("delete"),
           listCalendars: async () => [],
+          listEvents: async () => [],
         }),
       },
     };

@@ -13,6 +13,7 @@ import {
   syncMany,
   type CalendarMigration,
 } from "./google-sync";
+import { clearGoogleBusyCache } from "./google-busy";
 
 /**
  * Service Google Agenda (préférences + état de connexion par praticien).
@@ -46,7 +47,12 @@ export interface GoogleStatus {
     syncEnabled: boolean;
     calendarId: string;
     showPatientName: boolean;
+    /** Inbound : blocage des créneaux depuis Google. */
+    blockEnabled: boolean;
+    blockCalendarIds: string[];
+    blockAllDay: boolean;
     lastSyncAt: string | null;
+    lastBusyAt: string | null;
     lastError: string | null;
   } | null;
   sync: { ok: number; pending: number; error: number };
@@ -73,7 +79,11 @@ export async function getGoogleStatus(
           syncEnabled: prefs.syncEnabled,
           calendarId: prefs.calendarId,
           showPatientName: prefs.showPatientName,
+          blockEnabled: prefs.blockEnabled,
+          blockCalendarIds: prefs.blockCalendarIds,
+          blockAllDay: prefs.blockAllDay,
           lastSyncAt: prefs.lastSyncAt?.toISOString() ?? null,
+          lastBusyAt: prefs.lastBusyAt?.toISOString() ?? null,
           lastError: prefs.lastError,
         }
       : null,
@@ -112,7 +122,7 @@ export async function saveGooglePrefs(
   input: SaveGooglePrefsInput,
 ): Promise<GooglePrefsResult> {
   const prac = await requirePractitioner(input.requesterUserId);
-  if (input.syncEnabled) {
+  if (input.syncEnabled || input.blockEnabled) {
     if (!isGoogleConfigured) {
       throw new ValidationError("Google Agenda n'est pas configuré sur ce serveur");
     }
@@ -126,7 +136,12 @@ export async function saveGooglePrefs(
     syncEnabled: input.syncEnabled,
     calendarId: input.calendarId,
     showPatientName: input.showPatientName,
+    blockEnabled: input.blockEnabled,
+    blockCalendarIds: input.blockCalendarIds,
+    blockAllDay: input.blockAllDay,
   });
+  // Toute modification de périmètre inbound invalide le cache mémoire.
+  clearGoogleBusyCache();
   // Changement d'agenda de destination : les miroirs de l'ancien agenda
   // deviennent orphelins → déplacement complet (suppression + repush).
   const agendaChanged =
@@ -170,8 +185,10 @@ export async function disconnectGoogle(
   await googleAccountsDal.deleteGoogleAccount(prac.userId);
   await practitionerGoogleDal.saveGooglePrefs(prac.id, {
     syncEnabled: false,
+    blockEnabled: false,
     lastError: null,
   });
+  clearGoogleBusyCache();
 }
 
 /** Resynchronise les push en échec du praticien. */

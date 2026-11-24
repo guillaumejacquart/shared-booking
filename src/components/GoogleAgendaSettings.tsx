@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n";
 import type { GoogleStatus } from "@/services/google";
 import {
   Button,
+  Checkbox,
   ConfirmButton,
   Field,
   FormMessage,
@@ -22,7 +23,7 @@ export interface GoogleCalendar {
 }
 
 /**
- * Push des réservations vers Google Agenda (outbound, par praticien).
+ * Synchro Google Agenda (outbound + inbound), par praticien.
  * État initial chargé côté serveur (page profil) ; connexion via
  * `POST /api/auth/link-social`, préférences via `/api/google/status`,
  * resynchro manuelle via `/api/google/connection`.
@@ -45,6 +46,15 @@ export default function GoogleAgendaSettings({
   const [showPatientName, setShowPatientName] = useState(
     initialStatus.prefs?.showPatientName ?? false,
   );
+  const [blockEnabled, setBlockEnabled] = useState(
+    initialStatus.prefs?.blockEnabled ?? false,
+  );
+  const [blockCalendarIds, setBlockCalendarIds] = useState<string[]>(
+    initialStatus.prefs?.blockCalendarIds ?? [],
+  );
+  const [blockAllDay, setBlockAllDay] = useState(
+    initialStatus.prefs?.blockAllDay ?? false,
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null,
@@ -62,6 +72,18 @@ export default function GoogleAgendaSettings({
     setSyncEnabled(next.prefs?.syncEnabled ?? false);
     setCalendarId(next.prefs?.calendarId ?? "primary");
     setShowPatientName(next.prefs?.showPatientName ?? false);
+    setBlockEnabled(next.prefs?.blockEnabled ?? false);
+    setBlockCalendarIds(next.prefs?.blockCalendarIds ?? []);
+    setBlockAllDay(next.prefs?.blockAllDay ?? false);
+  }
+
+  /** Coche/décoche un agenda source du blocage inbound. */
+  function toggleBlockCalendar(calendarId: string, checked: boolean) {
+    setBlockCalendarIds((current) =>
+      checked
+        ? [...current.filter((id) => id !== calendarId), calendarId]
+        : current.filter((id) => id !== calendarId),
+    );
   }
 
   async function refresh() {
@@ -109,7 +131,14 @@ export default function GoogleAgendaSettings({
       const res = await fetch("/api/google/status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ syncEnabled, calendarId, showPatientName }),
+        body: JSON.stringify({
+          syncEnabled,
+          calendarId,
+          showPatientName,
+          blockEnabled,
+          blockCalendarIds,
+          blockAllDay,
+        }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok)
@@ -277,6 +306,50 @@ export default function GoogleAgendaSettings({
         label={t("google.showPatientName")}
       />
       <p className="text-sm text-mist">{t("google.privacyHint")}</p>
+      <div className="flex flex-col gap-3 rounded-xl border border-line p-4">
+        <Toggle
+          checked={blockEnabled}
+          onChange={setBlockEnabled}
+          label={t("google.blockEnabled")}
+        />
+        <p className="text-sm text-mist">{t("google.blockHint")}</p>
+        {blockEnabled ? (
+          <div className="flex flex-col gap-3">
+            <Field label={t("google.blockCalendars")} hint={t("google.blockCalendarsHint")}>
+              <div className="flex flex-col gap-1 rounded-xl border border-line p-3">
+                {calendars.length === 0 ? (
+                  <span className="text-sm text-mist">{t("google.blockPrimaryOnly")}</span>
+                ) : (
+                  calendars.map((cal) => (
+                    <label key={cal.id} className="flex cursor-pointer items-center gap-2">
+                      <Checkbox
+                        checked={blockCalendarIds.includes(cal.id)}
+                        onChange={(event) =>
+                          toggleBlockCalendar(cal.id, event.target.checked)
+                        }
+                      />
+                      <span>{cal.summary}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </Field>
+            <Toggle
+              checked={blockAllDay}
+              onChange={setBlockAllDay}
+              label={t("google.blockAllDay")}
+            />
+            <p className="text-sm text-mist">{t("google.blockAllDayHint")}</p>
+            {status.prefs?.lastBusyAt ? (
+              <p className="text-sm text-mist">
+                {t("google.lastBusy", {
+                  when: new Date(status.prefs.lastBusyAt).toLocaleString("fr-FR"),
+                })}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       {status.prefs?.lastSyncAt ? (
         <p className="text-sm text-mist">
           {t("google.lastSync", {

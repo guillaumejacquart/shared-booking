@@ -34,6 +34,7 @@ function fakeClient(): CalendarClient & {
       calls.push({ kind: "delete", calendarId, eventId });
     },
     listCalendars: async () => [{ id: "primary", summary: "Agenda" }],
+    listEvents: async () => [],
   };
 }
 

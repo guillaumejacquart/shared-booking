@@ -216,7 +216,7 @@ Overlap checks must be done in a transaction (SQLite: `BEGIN IMMEDIATE`) checkin
 
 ## 10. Explicitly out of MVP
 
-Payments, SMS, patient accounts, recurring bookings (abonnements), group sessions (>1 patient/slot), waiting list, video links, CalDAV/inbound sync (Google → créneaux), multi-office, billing UI, analytics, SEO directory, photo uploads (URL only or skip).
+Payments, SMS, patient accounts, recurring bookings (abonnements), group sessions (>1 patient/slot), waiting list, video links, multi-office, billing UI, analytics, SEO directory, photo uploads (URL only or skip).
 
 ## 11. Next steps
 
@@ -246,9 +246,24 @@ Payments, SMS, patient accounts, recurring bookings (abonnements), group session
 - Côté patient (sans compte) : lien « Ajouter à Google Agenda » dans les
   emails de confirmation / report et sur la page de confirmation.
 
+### Google Agenda inbound (implémenté)
+
+- Par praticien, opt-in (`blockEnabled`) : les événements des agendas cochés
+  (`blockCalendarIds`, défaut agenda principal) retirent les créneaux de la
+  grille publique, de la création et du report. `blockAllDay` contrôle les
+  événements « journée entière » (décoché par défaut).
+- Lecture via `events.list` (`src/lib/google-calendar.ts`), filtrage pur
+  (`src/lib/google-busy.ts`) puis fusion dans `practitionerBusy` par
+  `loadSlotContext` : une seule source pour les disponibilités et le report.
+  Aucun nouveau scope (`calendar.events` suffit), aucune donnée d'événement
+  persistée (bornes seules, jamais titre/participants).
+- Best-effort : cache mémoire 60 s (`src/services/google-busy.ts`), panne
+  Google = fail-open (créneaux ouverts) + log `[google-busy]`.
+- Saisie manuelle et API v1 non filtrées : le praticien garde la main.
+
 ### Reste à faire
 
 1. ~~Validation praticien (valider/refuser les pendings)~~ — fait : page « Mes réservations » (`/dashboard/reservations`, demandes + à venir, pastille dans la nav) en plus de la modale calendrier.
 2. RDV créés par le praticien (téléphone) depuis le calendrier.
-3. Google Agenda inbound (bloquer les créneaux sur les indisponibilités Google).
+3. ~~Google Agenda inbound (bloquer les créneaux sur les indisponibilités Google)~~ — fait.
 4. Déployer sur le VPS et tester avec le cabinet pilote.

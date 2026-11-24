@@ -186,19 +186,20 @@ export async function cancelBooking(
  * puis écriture), comme dans createBooking. Retourne le créneau cible.
  */
 async function moveBookingToNewSlot(args: {
+  ports: Ports;
   booking: Booking;
   prac: Practitioner;
   office: Office;
   newStart: Date;
   now: Date;
 }): Promise<{ start: Date; end: Date }> {
-  const { booking, prac, office, newStart, now } = args;
+  const { ports, booking, prac, office, newStart, now } = args;
   return bookingMutex.run(async () => {
     const tz = office.timezone;
     const dateStr = dateStrInTz(newStart, tz);
     const engineFrom = now;
     const horizonEnd = new Date(newStart.getTime() + 86_400_000);
-    const context = await loadSlotContext(prac.id, office.id, engineFrom, horizonEnd, tz, booking.id, booking.sessionTypeId ?? undefined);
+    const context = await loadSlotContext(ports, prac.id, office.id, engineFrom, horizonEnd, tz, booking.id, booking.sessionTypeId ?? undefined);
     const allSlots = generateSlots({
       timezone: tz,
       ...context,
@@ -252,7 +253,7 @@ export async function rescheduleBooking(
 
   // La séance garde son type d'origine (snapshots) : le moteur régénère la
   // grille du jour cible avec durée/buffer d'origine et vérifie l'alignement.
-  const target = await moveBookingToNewSlot({ booking, prac, office, newStart, now });
+  const target = await moveBookingToNewSlot({ ports, booking, prac, office, newStart, now });
 
   const model = mailModel(booking, detail, { now, ...target });
   await send(rescheduledEmail(booking.patientEmail, model));

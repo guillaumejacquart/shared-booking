@@ -113,11 +113,13 @@ désactivée (bandeau masqué).
 2. Mêmes webhook que ci-dessus (`customer.subscription.*` met à jour le statut
    du cabinet : `trialing`/`active` = à jour).
 
-## Google Agenda (push outbound, optionnel)
+## Google Agenda (synchro bidirectionnelle, optionnelle)
 
 Chaque praticien peut recopier ses réservations confirmées dans son agenda
-Google (création / report / annulation). Sans configuration, tout reste
-local et l'onglet « Google Agenda » du profil l'indique.
+Google (création / report / annulation) **et** bloquer dans sa grille les
+créneaux occupés par ses événements Google (rendez-vous personnels, absences).
+Sans configuration, tout reste local et l'onglet « Google Agenda » du profil
+l'indique.
 
 1. Créer un projet sur https://console.cloud.google.com, activer **Calendar API**,
    créer des identifiants OAuth (application Web) avec le scope
@@ -127,12 +129,24 @@ local et l'onglet « Google Agenda » du profil l'indique.
 2. Renseigner `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (voir `.env.example` ;
    en prod : fichier `shared-booking.env` du VPS, jamais dans git).
 3. Côté praticien : onglet **Profil → Google Agenda** → « Connecter Google »,
-   choisir l'agenda de destination, activer la recopie.
+   choisir l'agenda de destination, activer la recopie et/ou le blocage.
 
-Confidentialité : événements anonymisés (« Réservé », ni nom ni contact) par
-défaut ; l'affichage du nom patient est un opt-in explicite. Échec de push =
-statut `error` sur la réservation + retry auto toutes les 15 min (bouton
-« Resynchroniser » en plus). Les patients ont de toute façon le lien
+**Blocage (inbound)** : activé par praticien, sur les agendas cochés (défaut :
+agenda principal). Seuls les horaires sont lus via `events.list` — jamais les
+titres ni les participants, rien n'est stocké en base ; le scope
+`calendar.events` déjà demandé suffit, aucune réautorisation Google n'est
+nécessaire. Les événements marqués « Disponible » (transparent) et les miroirs
+créés par l'app sont ignorés ; les événements « journée entière » ne bloquent
+que si l'option est cochée. Lecture best-effort avec cache mémoire 60 s : si
+Google est injoignable, les créneaux restent ouverts (log `[google-busy]`) et
+le praticien voit l'alerte de connexion dans son profil. Le blocage s'applique
+aux disponibilités publiques, à la création et au report ; la saisie manuelle
+et l'API restent prioritaires (le praticien peut réserver par-dessus).
+
+Confidentialité (outbound) : événements anonymisés (« Réservé », ni nom ni
+contact) par défaut ; l'affichage du nom patient est un opt-in explicite. Échec
+de push = statut `error` sur la réservation + retry auto toutes les 15 min
+(bouton « Resynchroniser » en plus). Les patients ont de toute façon le lien
 « Ajouter à Google Agenda » (sans compte) dans l'email et sur la page de
 confirmation.
 

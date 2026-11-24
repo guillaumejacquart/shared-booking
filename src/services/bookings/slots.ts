@@ -10,6 +10,7 @@ import type { SessionTypeVariant } from "@/dal/types";
 import type { SlotsInput } from "@/lib/schemas/bookings";
 import { dateStrInTz, zonedTimeToUtc } from "@/lib/timezone";
 import { generateSlots, type Occupancy, type Slot, type SlotRequest } from "@/services/slot-engine";
+import { getGoogleBusy } from "@/services/google-busy";
 import { NotFoundError, ValidationError } from "../errors";
 
 export { allowedRoomIdsFor };
@@ -70,6 +71,7 @@ export function toExceptions(
  * divergent. Chaque créneau généré porte déjà sa salle attribuée.
  */
 export async function loadSlotContext(
+  ports: Ports,
   practitionerId: string,
   officeId: string,
   from: Date,
@@ -80,22 +82,27 @@ export async function loadSlotContext(
 ): Promise<
   Pick<SlotRequest, "windows" | "exceptions" | "practitionerBusy" | "roomBusy" | "allowedRoomIds" | "sessionRoomIds">
 > {
-  const [rules, exceptions, bookings, roomsWithMembers, sessionRoomIds] = await Promise.all([
-    availabilityDal.listRules(practitionerId),
-    availabilityDal.listExceptions(
-      practitionerId,
-      dateStrInTz(from, timezone),
-      dateStrInTz(to, timezone),
-    ),
-    bookingsDal.listActiveBookings({
-      practitionerId,
-      from,
-      to,
-      excludeBookingId,
-    }),
-    roomsDal.listRoomsWithMembers(officeId),
-    sessionTypeId ? sessionTypesDal.listCompatibleRoomIds(sessionTypeId) : Promise.resolve([] as string[]),
-  ]);
+  const [rules, exceptions, bookings, roomsWithMembers, sessionRoomIds, googleBusy] =
+    await Promise.all([
+      availabilityDal.listRules(practitionerId),
+      availabilityDal.listExceptions(
+        practitionerId,
+        dateStrInTz(from, timezone),
+        dateStrInTz(to, timezone),
+      ),
+      bookingsDal.listActiveBookings({
+        practitionerId,
+        from,
+        to,
+        excludeBookingId,
+      }),
+      roomsDal.listRoomsWithMembers(officeId),
+      sessionTypeId
+        ? sessionTypesDal.listCompatibleRoomIds(sessionTypeId)
+        : Promise.resolve([] as string[]),
+      // Inbound Google : occupations externes (best-effort, cache 60 s).
+      getGoogleBusy(ports, { practitionerId, from, to, timezone }),
+    ]);
   const allowedRoomIds = allowedRoomIdsFor(practitionerId, roomsWithMembers);
   // Surveiller aussi les salles épinglées par les extras (hors autorisées).
   const extraRoomIds = exceptions
@@ -113,7 +120,7 @@ export async function loadSlotContext(
   return {
     windows: toWindows(rules),
     exceptions: toExceptions(exceptions),
-    practitionerBusy: bookings.map(toOccupancy),
+    practitionerBusy: [...bookings.map(toOccupancy), ...googleBusy],
     roomBusy,
     allowedRoomIds,
     sessionRoomIds,
@@ -153,6 +160,7 @@ export async function getSlotsWithRoom(ports: Ports, input: SlotsInput): Promise
   const horizonEnd = new Date(engineFrom.getTime() + input.days * 86_400_000);
 
   const context = await loadSlotContext(
+    ports,
     page.practitioner.id,
     page.office.id,
     engineFrom,

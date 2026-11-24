@@ -121,6 +121,7 @@ describe("google service", () => {
           patchEvent: async () => {},
           deleteEvent: async () => {},
           listCalendars: async () => [],
+          listEvents: async () => [],
         }),
       },
     });
@@ -188,6 +189,7 @@ describe("google service", () => {
               calls.push({ kind: "delete", calendarId });
             },
             listCalendars: async () => [],
+            listEvents: async () => [],
           }),
         },
       });
